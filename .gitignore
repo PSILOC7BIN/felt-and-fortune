@@ -1,0 +1,9 @@
+data/
+__pycache__/
+*.pyc
+.env
+test-output/
+# Generated presentation build output (rebuild with presentation/.build/build.mjs)
+presentation/.build/*
+!presentation/.build/build.mjs
+!presentation/.build/render-final.mjs

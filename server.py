@@ -1,0 +1,326 @@
+"""Dependency-free local application server with SQLite persistence."""
+import os, json, sqlite3, secrets, hashlib, hmac, time, re, math, mimetypes, smtplib, threading
+from pathlib import Path
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
+from urllib.parse import urlparse, parse_qs
+from email.message import EmailMessage
+from contextlib import contextmanager
+from datetime import date
+from engine import basic, total, hilo, deviation, INDICES, simulate
+
+ROOT=Path(__file__).parent
+DB_PATH=os.environ.get('DATABASE_PATH',str(ROOT/'data'/'ap-toolbox.sqlite3'))
+JOBS={}; JOB_LOCK=threading.Lock()
+RATE={}; RATE_LOCK=threading.Lock()
+
+@contextmanager
+def db():
+    conn=sqlite3.connect(DB_PATH,timeout=20)
+    conn.row_factory=sqlite3.Row
+    conn.execute('PRAGMA foreign_keys=ON')
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
+
+def initialize():
+    Path(DB_PATH).parent.mkdir(parents=True,exist_ok=True)
+    with db() as c:
+        c.executescript('''
+        PRAGMA journal_mode=WAL;
+        CREATE TABLE IF NOT EXISTS users(id TEXT PRIMARY KEY, username TEXT UNIQUE COLLATE NOCASE, email TEXT UNIQUE COLLATE NOCASE, password TEXT NOT NULL, created REAL);
+        CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), expires REAL);
+        CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT, owner TEXT REFERENCES users(id), parent TEXT, body TEXT, created REAL, updated REAL);
+        CREATE INDEX IF NOT EXISTS record_kind ON records(kind,parent);
+        CREATE TABLE IF NOT EXISTS members(bankroll TEXT REFERENCES records(id) ON DELETE CASCADE, user_id TEXT REFERENCES users(id), role TEXT, share REAL DEFAULT 0, PRIMARY KEY(bankroll,user_id));
+        CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY, sender TEXT REFERENCES users(id), recipient TEXT REFERENCES users(id), body TEXT, created REAL);
+        CREATE TABLE IF NOT EXISTS resets(token TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),expires REAL);
+        CREATE TABLE IF NOT EXISTS challenges(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),mode TEXT,body TEXT,answer TEXT,created REAL,answered INTEGER DEFAULT 0,correct INTEGER DEFAULT 0);
+        ''')
+
+def password_hash(password,salt=None):
+    salt=salt or secrets.token_hex(16)
+    return salt+':'+hashlib.scrypt(password.encode(),salt=salt.encode(),n=16384,r=8,p=1).hex()
+
+def public_user(row): return {'id':row['id'],'username':row['username'],'email':row['email']}
+def unpack(row): return {**dict(row),'body':json.loads(row['body'])}
+class ApiError(Exception):
+    def __init__(self,message,status=400): self.message=message;self.status=status
+def require(ok,msg,status=400):
+    if not ok: raise ApiError(msg,status)
+def textfield(data,key,maxlen=200,required=True):
+    val=str(data.get(key,'')).strip()
+    require((bool(val) or not required) and len(val)<=maxlen,f'Invalid {key}.')
+    return val
+def num(data,key,minimum=-1e9,maximum=1e9,default=0):
+    try: val=float(data.get(key,default))
+    except (ValueError,TypeError): raise ApiError(f'Invalid {key}.')
+    require(math.isfinite(val) and minimum<=val<=maximum,f'Invalid {key}.')
+    return val
+
+class Handler(BaseHTTPRequestHandler):
+    server_version='FeltAndFortune/1.0'
+    def log_message(self,fmt,*args):
+        # Do not log reset tokens, passwords, or message contents.
+        if args and isinstance(args[0],str): print(self.command,urlparse(self.path).path)
+    def send_json(self,data,status=200,cookie=None):
+        raw=json.dumps(data,allow_nan=False).encode()
+        self.send_response(status);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store')
+        if cookie: self.send_header('Set-Cookie',cookie)
+        self.security_headers();self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+    def security_headers(self):
+        self.send_header('X-Content-Type-Options','nosniff');self.send_header('Referrer-Policy','same-origin');self.send_header('X-Frame-Options','DENY')
+        self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src https://www.youtube-nocookie.com; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+    def do_GET(self): self.dispatch()
+    def do_POST(self): self.dispatch()
+    def do_PATCH(self): self.dispatch()
+    def do_DELETE(self): self.dispatch()
+    def dispatch(self):
+        try:
+            path=urlparse(self.path).path
+            if path.startswith('/api/'):
+                self.data={}
+                if self.command!='GET':
+                    origin=self.headers.get('Origin')
+                    expected=os.environ.get('PUBLIC_ORIGIN',f'http://{self.headers.get("Host")}')
+                    require(not origin or origin==expected,'Origin not allowed.',403)
+                    require(self.headers.get('Content-Type','').startswith('application/json'),'JSON required.',415)
+                    length=int(self.headers.get('Content-Length','0'));require(0<length<=2000000,'Request too large.',413)
+                    self.data=json.loads(self.rfile.read(length))
+                    require(isinstance(self.data,dict),'Invalid JSON object.')
+                with db() as c:
+                    self.c=c;self.user=None
+                    cookie=self.headers.get('Cookie','')
+                    match=re.search(r'(?:^|;\s*)ap_session=([a-f0-9]{64})(?:;|$)',cookie)
+                    if match:
+                        self.user=c.execute('SELECT users.* FROM sessions JOIN users ON users.id=sessions.user_id WHERE token=? AND expires>?',(hashlib.sha256(match[1].encode()).hexdigest(),time.time())).fetchone()
+                    return self.api(path)
+            require(self.command=='GET','Method not allowed.',405)
+            rel=path.lstrip('/')
+            file=(ROOT/'public'/rel).resolve()
+            public=(ROOT/'public').resolve()
+            require(file.is_relative_to(public),'Not found.',404)
+            if not file.is_file():
+                require('.' not in Path(path).name,'Not found.',404)
+                file=public/'index.html'
+            raw=file.read_bytes();self.send_response(200)
+            self.send_header('Content-Type',mimetypes.guess_type(str(file))[0] or 'application/octet-stream');self.security_headers()
+            self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
+        except ApiError as e: self.send_json({'error':e.message},e.status)
+        except (ValueError,KeyError,TypeError,json.JSONDecodeError): self.send_json({'error':'Invalid request data.'},400)
+        except sqlite3.IntegrityError: self.send_json({'error':'That username or email is already in use, or the record conflicts with existing data.'},409)
+        except (BrokenPipeError,ConnectionResetError): pass
+        except Exception as e:
+            print(type(e).__name__,str(e));self.send_json({'error':'The request could not be completed.'},500)
+    def auth(self): require(self.user is not None,'Please sign in to continue.',401)
+    def throttle(self,bucket,limit=15):
+        key=(self.client_address[0],bucket);now=time.time()
+        with RATE_LOCK:
+            prior=[x for x in RATE.get(key,[]) if now-x<300]
+            require(len(prior)<limit,'Too many attempts. Try again in five minutes.',429)
+            RATE[key]=prior+[now]
+    def session(self,user):
+        token=secrets.token_hex(32)
+        self.c.execute('INSERT INTO sessions VALUES(?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),user['id'],time.time()+86400*14))
+        self.c.commit()
+        secure='; Secure' if os.environ.get('COOKIE_SECURE')=='1' else ''
+        self.send_json({'user':public_user(user)},cookie=f'ap_session={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=1209600{secure}')
+    def record(self,id):
+        row=self.c.execute('SELECT * FROM records WHERE id=?',(id,)).fetchone();require(row,'Record not found.',404);return row
+    def role(self,bankroll):
+        row=self.c.execute('SELECT role FROM members WHERE bankroll=? AND user_id=?',(bankroll,self.user['id'])).fetchone()
+        return row['role'] if row else None
+    def accessible(self,row,write=False):
+        kind=row['kind'];uid=self.user['id']
+        if kind=='bankroll': return self.role(row['id'])=='owner' if write else bool(self.role(row['id']))
+        if kind in ('session','contribution'):
+            role=self.role(row['parent'])
+            return role=='owner' or (role=='editor' and row['owner']==uid) if write else bool(role)
+        if write: return row['owner']==uid
+        return kind in ('thread','reply','casino','review') or row['owner']==uid
+    def clean_record(self,kind,data,parent):
+        require(isinstance(data,dict),'Record must be an object.')
+        if kind=='bankroll':
+            currency=textfield(data,'currency',3).upper()
+            require(currency in ('USD','EUR','GBP','CAD','AUD'),'Choose a supported currency.')
+            return {'name':textfield(data,'name',80),'currency':currency,'initial':num(data,'initial',0),'type':data.get('type','solo') if data.get('type','solo') in ('solo','team','friends') else 'solo'}
+        if kind=='session':
+            require(re.fullmatch(r'\d{4}-\d{2}-\d{2}',str(data.get('date',''))),'Choose a date.')
+            try: date.fromisoformat(data['date'])
+            except ValueError: raise ApiError('Choose a valid calendar date.')
+            return {'date':data['date'],'game':textfield(data,'game',60),'location':textfield(data,'location',100,False),'hours':num(data,'hours',0,1000),'profit':num(data,'profit'),'ev':num(data,'ev'),'notes':textfield(data,'notes',4000,False),'trip':textfield(data,'trip',100,False),'fields':data.get('fields',{}) if isinstance(data.get('fields',{}),dict) else {}}
+        if kind=='contribution': return {'amount':num(data,'amount'),'note':textfield(data,'note',500,False)}
+        if kind=='thread': return {'title':textfield(data,'title',150),'category':textfield(data,'category',80),'text':textfield(data,'text',20000)}
+        if kind=='reply': return {'text':textfield(data,'text',10000)}
+        if kind=='casino': return {'name':textfield(data,'name',120),'city':textfield(data,'city',120),'rules':textfield(data,'rules',2000),'heat':textfield(data,'heat',50),'penetration':num(data,'penetration',0,100),'minBet':num(data,'minBet',0),'lat':num(data,'lat',-90,90),'lng':num(data,'lng',-180,180),'notes':textfield(data,'notes',4000,False)}
+        if kind=='review': return {'text':textfield(data,'text',4000),'rating':num(data,'rating',1,5)}
+        raise ApiError('Unknown record type.')
+    def api(self,path):
+        c=self.c;d=self.data;method=self.command
+        if path=='/api/me' and method=='GET': return self.send_json({'user':public_user(self.user) if self.user else None,'recoveryConfigured':bool(os.environ.get('SMTP_HOST'))})
+        if path=='/api/signup' and method=='POST':
+            self.throttle('signup')
+            username=textfield(d,'username',30);email=textfield(d,'email',254).lower();pw=textfield(d,'password',256)
+            require(re.fullmatch(r'[A-Za-z0-9_-]{3,30}',username),'Username must be 3–30 letters, numbers, hyphens or underscores.')
+            require(re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email),'Enter a valid email address.')
+            require(len(pw)>=10,'Use at least 10 characters for your password.')
+            uid=secrets.token_hex(12);c.execute('INSERT INTO users VALUES(?,?,?,?,?)',(uid,username,email,password_hash(pw),time.time()))
+            bid=secrets.token_hex(12);now=time.time()
+            c.execute('INSERT INTO records VALUES(?,?,?,?,?,?,?)',(bid,'bankroll',uid,None,json.dumps({'name':'My bankroll','currency':'USD','initial':0,'type':'solo'}),now,now))
+            c.execute('INSERT INTO members VALUES(?,?,?,?)',(bid,uid,'owner',100))
+            return self.session(c.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone())
+        if path=='/api/login' and method=='POST':
+            self.throttle('login',30)
+            row=c.execute('SELECT * FROM users WHERE email=?',(str(d.get('email','')).lower(),)).fetchone()
+            pw=str(d.get('password',''))[:256]
+            candidate=password_hash(pw,row['password'].split(':')[0] if row else '0'*32)
+            require(row and hmac.compare_digest(candidate,row['password']),'Email or password is incorrect.',401)
+            return self.session(row)
+        if path=='/api/logout' and method=='POST':
+            token=re.search(r'ap_session=([a-f0-9]{64})',self.headers.get('Cookie',''))
+            if token: c.execute('DELETE FROM sessions WHERE token=?',(hashlib.sha256(token[1].encode()).hexdigest(),))
+            return self.send_json({'ok':True},cookie='ap_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0')
+        if path=='/api/forgot-password' and method=='POST':
+            self.throttle('reset',5)
+            require(os.environ.get('SMTP_HOST'),'Email recovery is unavailable until the site operator configures email delivery.',503)
+            row=c.execute('SELECT * FROM users WHERE email=?',(str(d.get('email','')).lower(),)).fetchone()
+            if row:
+                token=secrets.token_urlsafe(32);c.execute('INSERT INTO resets VALUES(?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),row['id'],time.time()+1800))
+                origin=os.environ.get('PUBLIC_ORIGIN','http://127.0.0.1:8000')
+                msg=EmailMessage();msg['Subject']='Reset your Felt & Fortune password';msg['From']=os.environ['SMTP_FROM'];msg['To']=row['email'];msg.set_content(f'Reset your password within 30 minutes: {origin}/auth/reset-password?token={token}')
+                with smtplib.SMTP(os.environ['SMTP_HOST'],int(os.environ.get('SMTP_PORT','587')),timeout=15) as smtp:
+                    smtp.starttls()
+                    if os.environ.get('SMTP_USER'): smtp.login(os.environ['SMTP_USER'],os.environ.get('SMTP_PASSWORD',''))
+                    smtp.send_message(msg)
+            return self.send_json({'ok':True})
+        if path=='/api/reset-password' and method=='POST':
+            self.throttle('reset-use',10);pw=textfield(d,'password',256);require(len(pw)>=10,'Use at least 10 characters.')
+            row=c.execute('SELECT * FROM resets WHERE token=? AND expires>?',(hashlib.sha256(str(d.get('token','')).encode()).hexdigest(),time.time())).fetchone();require(row,'This reset link is invalid or expired.')
+            c.execute('UPDATE users SET password=? WHERE id=?',(password_hash(pw),row['user_id']));c.execute('DELETE FROM resets WHERE user_id=?',(row['user_id'],));c.execute('DELETE FROM sessions WHERE user_id=?',(row['user_id'],));return self.send_json({'ok':True})
+        # Strategy charts are public; account data is never public.
+        if path=='/api/charts' and method=='GET':
+            h17=parse_qs(urlparse(self.path).query).get('h17',['false'])[0]=='true'
+            rows=[]
+            for label,cards in [(str(n),[10,n-10] if n>=12 else [2,n-2]) for n in range(5,21)]+[(f'A,{n}',[1,n]) for n in range(2,10)]+[(f'{n},{n}',[n,n]) for n in range(1,11)]:
+                rows.append({'label':label,'actions':[basic(cards,up,h17) for up in [2,3,4,5,6,7,8,9,10,1]]})
+            return self.send_json({'rows':rows,'indices':INDICES})
+        self.auth();uid=self.user['id']
+        if path=='/api/change-password' and method=='POST':
+            self.throttle('change-password',10)
+            current=str(d.get('current',''))[:256]
+            require(hmac.compare_digest(password_hash(current,self.user['password'].split(':')[0]),self.user['password']),'Current password is incorrect.',400)
+            password=str(d.get('password',''))
+            require(10<=len(password)<=256,'Use 10–256 characters for your new password.')
+            c.execute('UPDATE users SET password=? WHERE id=?',(password_hash(password),uid))
+            c.execute('DELETE FROM sessions WHERE user_id=?',(uid,))
+            c.execute('DELETE FROM resets WHERE user_id=?',(uid,))
+            return self.session(c.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone())
+        if path=='/api/profile' and method=='PATCH':
+            username=textfield(d,'username',30);require(re.fullmatch(r'[A-Za-z0-9_-]{3,30}',username),'Invalid username.');c.execute('UPDATE users SET username=? WHERE id=?',(username,uid));return self.send_json({'user':public_user(c.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone())})
+        if path=='/api/records' and method=='GET':
+            q=parse_qs(urlparse(self.path).query);kind=q.get('kind',[''])[0]
+            rows=c.execute('SELECT records.*,users.username FROM records JOIN users ON users.id=records.owner WHERE kind=? ORDER BY created DESC',(kind,)).fetchall()
+            return self.send_json({'records':[unpack(r) for r in rows if self.accessible(r) and (not q.get('parent') or r['parent']==q['parent'][0])]})
+        if path=='/api/records' and method=='POST':
+            kind=d.get('kind');parent=d.get('parent');body=d.get('body',{})
+            if kind in ('session','contribution'):
+                p=self.record(parent);require(p['kind']=='bankroll' and self.role(parent) in ('owner','editor'),'You cannot edit this bankroll.',403)
+            if kind in ('reply','review'):
+                p=self.record(parent);require(p['kind']==('thread' if kind=='reply' else 'casino'),'Invalid parent.')
+            clean=self.clean_record(kind,body,parent);id=secrets.token_hex(12);now=time.time()
+            c.execute('INSERT INTO records VALUES(?,?,?,?,?,?,?)',(id,kind,uid,parent,json.dumps(clean),now,now))
+            if kind=='bankroll': c.execute('INSERT INTO members VALUES(?,?,?,?)',(id,uid,'owner',100))
+            return self.send_json({'record':unpack(self.record(id))},201)
+        if path.startswith('/api/records/') and method in ('PATCH','DELETE'):
+            id=path.split('/')[-1];row=self.record(id);require(self.accessible(row,True),'You cannot modify this record.',403)
+            if method=='DELETE':
+                c.execute('DELETE FROM records WHERE parent=?',(id,));c.execute('DELETE FROM records WHERE id=?',(id,));return self.send_json({'ok':True})
+            body=self.clean_record(row['kind'],d.get('body',{}),row['parent'])
+            c.execute('UPDATE records SET body=?,updated=? WHERE id=?',(json.dumps(body),time.time(),id));return self.send_json({'record':unpack(self.record(id))})
+        if path=='/api/members':
+            bid=d.get('bankroll') if method!='GET' else parse_qs(urlparse(self.path).query).get('bankroll',[''])[0]
+            require(self.role(bid),'Bankroll not found.',404)
+            if method=='GET': return self.send_json({'members':[dict(r) for r in c.execute('SELECT members.*,users.username FROM members JOIN users ON users.id=members.user_id WHERE bankroll=?',(bid,))]})
+            require(self.role(bid)=='owner','Only the bankroll owner can change access.',403)
+            target=c.execute('SELECT id FROM users WHERE username=?',(d.get('username',''),)).fetchone();require(target,'Ask the teammate to create an account first.',404)
+            require(target['id']!=uid,'The owner cannot be removed or demoted.')
+            if method=='DELETE':
+                c.execute('DELETE FROM members WHERE bankroll=? AND user_id=?',(bid,target['id']))
+                others=c.execute("SELECT SUM(share) FROM members WHERE bankroll=? AND role!='owner'",(bid,)).fetchone()[0] or 0
+                c.execute("UPDATE members SET share=? WHERE bankroll=? AND role='owner'",(100-others,bid))
+                return self.send_json({'ok':True})
+            require(method=='POST','Method not allowed.',405);role=d.get('role','viewer');require(role in ('viewer','editor'),'Invalid role.')
+            share=num(d,'share',0,100)
+            c.execute('INSERT INTO members VALUES(?,?,?,?) ON CONFLICT(bankroll,user_id) DO UPDATE SET role=excluded.role,share=excluded.share',(bid,target['id'],role,share))
+            others=c.execute("SELECT SUM(share) FROM members WHERE bankroll=? AND role!='owner'",(bid,)).fetchone()[0] or 0
+            require(others<=100,'Team profit shares cannot exceed 100%.')
+            c.execute("UPDATE members SET share=? WHERE bankroll=? AND role='owner'",(100-others,bid));return self.send_json({'ok':True})
+        if path=='/api/messages' and method=='GET':
+            rows=c.execute('SELECT messages.*,a.username sender_name,b.username recipient_name FROM messages JOIN users a ON a.id=sender JOIN users b ON b.id=recipient WHERE sender=? OR recipient=? ORDER BY created',(uid,uid));return self.send_json({'messages':[dict(r) for r in rows]})
+        if path=='/api/messages' and method=='POST':
+            self.throttle('message',60);target=c.execute('SELECT id FROM users WHERE username=?',(d.get('recipient',''),)).fetchone();require(target,'User not found.',404)
+            c.execute('INSERT INTO messages VALUES(?,?,?,?,?)',(secrets.token_hex(12),uid,target['id'],textfield(d,'text',10000),time.time()));return self.send_json({'ok':True})
+        if path=='/api/drill/new' and method=='POST':
+            mode=d.get('mode','basic');require(mode in ('basic','count','deviation','decks','true-count','checkout','career'),'Unknown drill.')
+            # Only one pending challenge per mode, preventing answer mining for career points.
+            c.execute('DELETE FROM challenges WHERE user_id=? AND answered=0 AND mode=?',(uid,mode))
+            import random
+            rng=random.SystemRandom();exercise=rng.choice(['basic','count','deviation','decks','true-count']) if mode in ('checkout','career') else mode
+            body={'exercise':exercise,'h17':bool(d.get('h17',False))}
+            if exercise=='count':
+                cards=[rng.randint(1,13) for _ in range(10)];body['cards']=cards;answer=str(sum(hilo(x) for x in cards))
+            elif exercise=='decks':
+                quarter=rng.randint(1,23);body['quarters']=quarter;answer=str(quarter/4)
+            elif exercise=='true-count':
+                rc=rng.randint(-20,25);remaining=rng.choice([1,1.5,2,2.5,3,4]);body.update({'running':rc,'remaining':remaining});answer=str(math.floor(rc/remaining))
+            elif exercise=='deviation':
+                hand,up,index,action=rng.choice(INDICES);cards=[10,hand-10] if hand>=12 else [4,hand-4];tc=rng.randint(-3,7)
+                body.update({'cards':cards,'dealer':up,'tc':tc,'index':index});answer=deviation(cards,up,tc)
+                body.pop('index')
+            else:
+                cards=[rng.randint(1,13),rng.randint(1,13)]
+                while total(cards)[0]==21: cards=[rng.randint(1,13),rng.randint(1,13)]
+                up=rng.randint(1,13);body.update({'cards':cards,'dealer':up});answer=basic(cards,up,body['h17'])
+            id=secrets.token_hex(12);c.execute('INSERT INTO challenges(id,user_id,mode,body,answer,created) VALUES(?,?,?,?,?,?)',(id,uid,mode,json.dumps(body),answer,time.time()))
+            return self.send_json({'id':id,**body})
+        if path=='/api/drill/answer' and method=='POST':
+            row=c.execute('SELECT * FROM challenges WHERE id=? AND user_id=?',(d.get('id'),uid)).fetchone();require(row and not row['answered'],'This exercise has already been answered or expired.')
+            require(time.time()-row['created']<3600,'This exercise expired. Start a new one.')
+            supplied=str(d.get('answer','')).strip();expected=row['answer']
+            try: correct=abs(float(supplied)-float(expected))<.001
+            except ValueError: correct=supplied==expected
+            c.execute('UPDATE challenges SET answered=1,correct=? WHERE id=?',(int(correct),row['id']))
+            return self.send_json({'correct':correct,'answer':expected,'seconds':round(time.time()-row['created'],1)})
+        if path=='/api/progress' and method=='GET':
+            rows=c.execute('SELECT mode,COUNT(*) attempts,SUM(correct) correct FROM challenges WHERE user_id=? AND answered=1 GROUP BY mode',(uid,))
+            return self.send_json({'progress':[dict(r) for r in rows]})
+        if path=='/api/leaderboard' and method=='GET':
+            rows=c.execute("SELECT users.username,COUNT(*) attempts,SUM(correct)*10 score FROM challenges JOIN users ON users.id=user_id WHERE mode='career' AND answered=1 GROUP BY user_id ORDER BY score DESC,attempts ASC LIMIT 50")
+            return self.send_json({'players':[dict(r) for r in rows]})
+        if path=='/api/simulate' and method=='POST':
+            self.throttle('simulate',10)
+            with JOB_LOCK:
+                for k in list(JOBS):
+                    if time.time()-JOBS[k]['created']>3600: del JOBS[k]
+                require(sum(j['status']=='running' for j in JOBS.values())<2,'Two simulations are already running. Try again shortly.',429)
+                require(not any(j['user']==uid and j['status']=='running' for j in JOBS.values()),'Your simulation is already running.',409)
+                id=secrets.token_hex(12);JOBS[id]={'user':uid,'status':'running','created':time.time()}
+            config=dict(d)
+            def work():
+                try:
+                    result=simulate(config)
+                    with JOB_LOCK: JOBS[id].update({'status':'done','result':result})
+                except Exception as e:
+                    with JOB_LOCK: JOBS[id].update({'status':'error','error':str(e) if isinstance(e,(ValueError,TypeError)) else 'Simulation failed.'})
+            threading.Thread(target=work,daemon=True).start();return self.send_json({'id':id},202)
+        if path.startswith('/api/simulate/') and method=='GET':
+            with JOB_LOCK:
+                job=JOBS.get(path.split('/')[-1]);require(job and job['user']==uid,'Simulation not found.',404);return self.send_json({k:v for k,v in job.items() if k not in ('user','created')})
+        raise ApiError('Endpoint not found.',404)
+
+if __name__=='__main__':
+    initialize()
+    host=os.environ.get('HOST','127.0.0.1');port=int(os.environ.get('PORT','8000'))
+    print(f'Felt & Fortune free preview: http://{host}:{port}',flush=True)
+    ThreadingHTTPServer((host,port),Handler).serve_forever()

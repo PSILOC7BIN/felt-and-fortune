@@ -1,0 +1,9 @@
+{
+  "name": "felt-and-fortune",
+  "private": true,
+  "scripts": {
+    "start": "python server.py",
+    "test": "python -m unittest discover -s tests -v",
+    "check": "node --check public/app.js && python -m compileall -q server.py engine.py"
+  }
+}
