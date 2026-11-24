@@ -132,7 +132,7 @@ export function dealHand(pool = 'any') {
   let cards;
   if (pool === 'stiff') cards = hardCards(randInt(12, 17));
   else if (pool === 'low') cards = hardCards(randInt(8, 12));
-  else if (pool === 'hard') cards = hardCards(randInt(5, 19));
+  else if (pool === 'hard') cards = hardCards(randInt(8, 17));
   else if (pool === 'soft') cards = [1, randInt(2, 9)];
   else if (pool === 'softlow') cards = [1, randInt(2, 7)];
   else if (pool === 'surrender') cards = hardCards(pick([15, 16, 16, 17]));

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from datetime import date, timedelta
 from engine import basic, total, hilo, deviation, INDICES, simulate
 import coach
-from practice_api import PracticeRoutes
+from practice_api import PracticeRoutes, grade_transcript, record_skills, BadTranscript
 
 ROOT=Path(__file__).parent
 DB_PATH=os.environ.get('DATABASE_PATH',str(ROOT/'data'/'ap-toolbox.sqlite3'))
@@ -43,6 +43,7 @@ def initialize():
         CREATE TABLE IF NOT EXISTS lesson_progress(user_id TEXT REFERENCES users(id),lesson_id TEXT,best INTEGER,completions INTEGER,updated REAL,PRIMARY KEY(user_id,lesson_id));
         CREATE TABLE IF NOT EXISTS practice_log(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),tool TEXT,questions INTEGER,correct INTEGER,best_streak INTEGER,seconds INTEGER,day TEXT,created REAL);
         CREATE TABLE IF NOT EXISTS games(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),state TEXT,score INTEGER,finished INTEGER,created REAL);
+        CREATE TABLE IF NOT EXISTS skill_stats(user_id TEXT REFERENCES users(id),skill TEXT,attempts INTEGER,misses INTEGER,recent REAL,updated REAL,PRIMARY KEY(user_id,skill));
         CREATE TABLE IF NOT EXISTS feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),rating INTEGER,area TEXT,page TEXT,comment TEXT,created REAL);
         CREATE TABLE IF NOT EXISTS xp_log(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),day TEXT,xp INTEGER,lesson_id TEXT,created REAL);
         ''')
@@ -396,6 +397,15 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
             now=time.time()
             c.execute('INSERT INTO plans VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET answers=excluded.answers,plan=excluded.plan,updated=excluded.updated',(uid,json.dumps(answers),json.dumps(plan),now,now))
             return self.send_json(self.path_state(plan))
+        if path=='/api/path/goal' and method=='POST':
+            plan=self.load_plan();require(plan,'Build your plan first.',409)
+            minutes=int(num(d,'minutes',5,20));require(minutes in (5,10,15,20),'Choose 5, 10, 15, or 20 minutes.')
+            state=self.path_state(plan)
+            remaining=sum(1 for u in state['units'] for l in u['lessons'] if l['status'] in ('current','open','locked'))
+            per={5:1,10:2,15:3,20:4}[minutes];days=max(1,-(-remaining//per))
+            plan.update(minutes=minutes,lessonsPerDay=per,dailyXp=per*15,remainingLessons=remaining,days=days,finish=(date.today()+timedelta(days=days)).isoformat())
+            c.execute('UPDATE plans SET plan=?,updated=? WHERE user_id=?',(json.dumps(plan),time.time(),uid))
+            return self.send_json(self.path_state(plan))
         m=re.fullmatch(r'/api/path/lesson/([a-z0-9-]{2,24})(/complete)?',path)
         require(m,'Endpoint not found.',404)
         plan=self.load_plan();require(plan,'Build your plan first.',409)
@@ -409,8 +419,13 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
             return self.send_json({'lesson':{'id':lesson['id'],'title':lesson['title'],'unit':{'id':unit['id'],'title':unit['title'],'color':unit['color'],'tool':unit['tool']},'steps':steps}})
         require(method=='POST','Method not allowed.',405)
         self.throttle('lesson-complete',120)
-        questions=int(num(d,'questions',1,200));correct=int(num(d,'correct',0,200));require(correct<=questions,'Invalid lesson result.')
-        accuracy=round(100*correct/questions)
+        # The server re-grades every answer; the browser's own score is not trusted.
+        choices={s['prompt']:s['answer'] for s in lesson['steps'] if s['type']=='choice'}
+        try: originals,first,_,skills=grade_transcript(d.get('results'),choices)
+        except BadTranscript as e: raise ApiError(str(e))
+        require(originals==coach.expected_questions(lesson['steps'],plan.get('style','mix')),'These lesson results are incomplete. Please finish the lesson again.')
+        record_skills(c,uid,skills)
+        accuracy=round(100*first/originals)
         first=c.execute('SELECT 1 FROM lesson_progress WHERE user_id=? AND lesson_id=?',(uid,m[1])).fetchone() is None
         xp=(10 if first else 5)+(5 if accuracy==100 else 0)
         c.execute('INSERT INTO lesson_progress VALUES(?,?,?,?,?) ON CONFLICT(user_id,lesson_id) DO UPDATE SET best=MAX(best,excluded.best),completions=completions+1,updated=excluded.updated',(uid,m[1],accuracy,1,time.time()))

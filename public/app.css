@@ -276,3 +276,9 @@ a.tool-card:active { transform: translateY(4px); box-shadow: none; }
 .sim-sentence b { color: var(--text); }
 .sim-sub { font-size: 16px; margin: 20px 0 8px; }
 .sim-chart { width: 100%; height: auto; background: #F9F9FB; border-radius: 16px; }
+
+/* ---- weak spots -------------------------------------------------------------------------- */
+.weak-card { --c: #FF3B30; --c-shadow: #C4281C; --ink: #fff; display: flex; align-items: center; gap: 16px; padding: 18px; margin: 4px 0 8px; border-radius: 22px; background: #FFF1F0; border: 2px solid #FFC9C4; box-shadow: 0 4px 0 #FFC9C4; color: var(--text); }
+a.weak-card:hover { color: var(--text); border-color: #FF9B93; }
+a.weak-card:active { transform: translateY(4px); box-shadow: none; }
+.weak-card.empty { --c: #AEAEB2; --c-shadow: #8E8E93; background: #F7F7FA; border-color: var(--border); box-shadow: none; }

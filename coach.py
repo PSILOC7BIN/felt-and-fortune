@@ -692,3 +692,12 @@ def resolve_steps(steps, rng=None, style='mix'):
             elif s['kind'] == 'deviation': out.append(_deviation_step(rng, s.get('hands')))
             elif s['kind'] == 'total': out.append(_total_step(rng, s.get('soft', False)))
     return out
+
+
+def expected_questions(steps, style='mix'):
+    """How many original (first-try) questions a lesson asks, after learning-style scaling."""
+    n = 0
+    for s in resolve_steps(steps, style=style):
+        if s['type'] == 'tool': n += s['reps'] * (5 if s['tool'] == 'scenario' else 1)
+        elif s['type'] == 'choice': n += 1
+    return n

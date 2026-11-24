@@ -4,6 +4,7 @@ from http.server import ThreadingHTTPServer
 import server, coach, practice_api
 from engine import hilo, deviation
 from test_api import Client
+from transcripts import item
 
 
 class LessonToolSteps(unittest.TestCase):
@@ -86,13 +87,30 @@ class PracticeApi(unittest.TestCase):
         self.c = Client(self.base); name = 'p' + server.secrets.token_hex(5)
         self.assertEqual(self.c.call('/api/signup', 'POST', {'username': name, 'email': name + '@example.test', 'password': 'Test-password-only-42'})[0], 200)
 
-    def test_practice_log_awards_capped_xp(self):
-        status, r = self.c.call('/api/practice/log', 'POST', {'tool': 'count', 'questions': 40, 'correct': 35, 'bestStreak': 12, 'seconds': 300, 'day': date.today().isoformat()})
-        self.assertEqual((status, r['xp']), (200, practice_api.XP_CAP))
-        self.assertEqual(r['stats']['tools']['count']['questions'], 40)
-        self.assertEqual(self.c.call('/api/practice/log', 'POST', {'tool': 'nope', 'questions': 1, 'correct': 1})[0], 400)
-        self.assertEqual(self.c.call('/api/practice/log', 'POST', {'tool': 'count', 'questions': 1, 'correct': 2})[0], 400)
+    def test_practice_log_regrades_and_caps_xp(self):
+        results = [item('count')] * 25 + [item('count', ok=False)] * 5
+        status, r = self.c.call('/api/practice/log', 'POST', {'tool': 'count', 'results': results, 'bestStreak': 12, 'seconds': 300, 'day': date.today().isoformat()})
+        self.assertEqual((status, r['xp'], r['correct'], r['questions']), (200, practice_api.XP_CAP, 25, 30))
+        status, r = self.c.call('/api/practice/log', 'POST', {'tool': 'count', 'results': [item('count', ok=False)] * 3})
+        self.assertEqual((r['xp'], r['correct']), (0, 0))
+        self.assertEqual(self.c.call('/api/practice/log', 'POST', {'tool': 'nope', 'results': [item('count')]})[0], 400)
+        self.assertEqual(self.c.call('/api/practice/log', 'POST', {'tool': 'count', 'results': [{'kind': 'count', 'data': {'cards': [99]}, 'given': 0}]})[0], 400)
+        self.assertEqual(self.c.call('/api/practice/log', 'POST', {'tool': 'count', 'questions': 5, 'correct': 5})[0], 400)
         self.assertEqual(Client(self.base).call('/api/practice/stats')[0], 401)
+
+    def test_weak_spots_come_from_missed_skills(self):
+        self.assertEqual(self.c.call('/api/practice/weak')[1]['skills'], [])
+        results = [item('truecount', ok=False)] * 4 + [item('truecount')] * 2 + [item('strategy')] * 6 + [item('decks', ok=False)] * 2 + [item('decks')] * 3
+        self.c.call('/api/practice/log', 'POST', {'tool': 'strategy', 'results': results})
+        skills = [w['skill'] for w in self.c.call('/api/practice/weak')[1]['skills']]
+        self.assertEqual(skills[0], 'truecount')
+        self.assertIn('decks', skills)
+        self.assertNotIn('strategy-hard', skills)
+
+    def test_every_kind_grades_right_and_wrong(self):
+        for k in ('strategy', 'count', 'decks', 'truecount', 'index', 'bet', 'play'):
+            self.assertTrue(practice_api.grade_item(item(k)), k)
+            self.assertFalse(practice_api.grade_item(item(k, ok=False)), k)
 
     def test_challenge_round_trip_hides_answers(self):
         status, g = self.c.call('/api/challenge/start', 'POST', {})

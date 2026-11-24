@@ -105,12 +105,14 @@ async function profilePage(){
  const st=pathState.stats;
  $('#page').innerHTML=`<header class="page-hero"><div class="profile-id"><span class="avatar big">${esc(user.username[0].toUpperCase())}</span><div><h1>${esc(user.username)}</h1><p>${esc(user.email)}</p></div></div><div class="flex"><button class="small" id="profile-feedback">${g('chat')} Send feedback</button><button class="ghost" id="logout">Sign out</button></div></header>
  ${st?`<div class="plan-grid four">${[['orange','Day streak',st.streak,'flame'],['yellow','Total XP',st.xp,'bolt'],['blue','Lessons',`${st.done}/${st.total}`,'star'],['purple','Level',esc(pathState.plan.level),'trophy']].map(([c,l,v,ic])=>`<div class="stat-tile ${c}"><small>${l}</small><strong>${g(ic)} ${v}</strong></div>`).join('')}</div>`:''}
+ ${pathState.plan?`<section class="panel mt"><h3>Daily goal</h3><p class="muted">How much time do you want to practice each day? Your finish date updates to match.</p><div class="segmented" role="radiogroup" aria-label="Daily goal">${[[5,'5 min · casual'],[10,'10 min · regular'],[15,'15 min · serious'],[20,'20 min · intense']].map(([v,t])=>`<button type="button" role="radio" data-goal="${v}" aria-checked="${pathState.plan.minutes===v}">${t}</button>`).join('')}</div><p class="field-hint" id="goal-note">Currently ${pathState.plan.dailyXp} XP a day.</p></section>`:''}
  <section class="panel mt"><h3>Practice record</h3><div class="profile-rows">${rows}</div></section>
  <form class="panel mt" id="profile-form"><h3>Account</h3><div class="grid two">${field('username','Username',user.username,'text','required minlength="3" maxlength="30"')}${field('email','Email address',user.email,'email','disabled')}</div><p class="form-error" role="alert"></p><button class="primary">Save</button></form>`;
  passwordSettings();
  $('#profile-form').onsubmit=async e=>{e.preventDefault();try{const result=await api('/api/profile','PATCH',formData(e.target));user=result.user;toast('Profile saved.');render();}catch(error){$('.form-error',e.target).textContent=error.message;}};
  $('#logout').onclick=async()=>{await api('/api/logout','POST');user=null;go('/');};
  $('#profile-feedback').onclick=()=>openFeedback();
+ $$('[data-goal]').forEach(b=>b.onclick=async()=>{try{const st=await api('/api/path/goal','POST',{minutes:Number(b.dataset.goal)});$$('[data-goal]').forEach(x=>x.setAttribute('aria-checked',String(x===b)));$('#goal-note').textContent=`Currently ${st.plan.dailyXp} XP a day. New finish date: ${new Date(st.plan.finish+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric'})}.`;toast('Daily goal updated.');}catch(e){toast(e.message);}});
 }
 const ctxBase={$,$$,esc,api,go,brand,paths,localDate,toast,getUser:()=>user,setUser:u=>{user=u;},onCleanup:fn=>{const prev=cleanup;cleanup=()=>{prev();fn();};}};
 const learn=createLearn(ctxBase);
@@ -132,7 +134,7 @@ async function render(){
   let m;
   if((m=path.match(/^\/learn\/lesson\/([a-z0-9-]+)$/))){await learn.lessonPage(m[1]);return;}
   if(path==='/practice/challenge'){await practice.challengePage();return;}
-  if((m=path.match(/^\/practice\/(strategy|count|decks|truecount|index)$/))){await practice.toolPage(m[1]);return;}
+  if((m=path.match(/^\/practice\/(strategy|count|decks|truecount|index|weak)$/))){await practice.toolPage(m[1]);return;}
   const tab=path.split('/')[1];
   if(!TABS.some(t=>t[0]===tab)){notFound();return;}
   appShell(tab);

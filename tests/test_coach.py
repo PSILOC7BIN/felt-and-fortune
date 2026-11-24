@@ -3,6 +3,7 @@ from datetime import date
 from http.server import ThreadingHTTPServer
 import server, coach
 from test_api import Client
+from transcripts import lesson_transcript, item
 
 NEW = {'experience': 'new', 'goal': 'understand', 'quiz_hard': 'unsure', 'quiz_soft': 'unsure', 'quiz_count': 'unsure', 'quiz_tc': 'unsure', 'challenge': 'unsure', 'game': 'unsure', 'time': '5', 'style': 'explain'}
 EXPERT = {'experience': 'pro', 'goal': 'pro', 'quiz_hard': 'hit', 'quiz_soft': 'hit', 'quiz_count': '1', 'quiz_tc': '3', 'challenge': 'betting', 'game': 'pitch', 'time': '20', 'style': 'quiz'}
@@ -107,21 +108,41 @@ class CoachApiTests(unittest.TestCase):
         _, status, _ = self.signup({**NEW, 'goal': 'nope'})
         self.assertEqual(status, 400)
 
+    def finish(self, client, lesson_id, ok=True, **extra):
+        steps = client.call('/api/path/lesson/' + lesson_id)[1]['lesson']['steps']
+        return client.call(f'/api/path/lesson/{lesson_id}/complete', 'POST', {'results': lesson_transcript(steps, ok), 'day': date.today().isoformat(), **extra})
+
     def test_lessons_unlock_in_order_and_award_xp(self):
         client, _, _ = self.signup(NEW)
         self.assertEqual(client.call('/api/path/lesson/u1-2')[0], 403)
         status, result = client.call('/api/path/lesson/u1-1')
         self.assertEqual(status, 200)
         self.assertTrue(any(s['type'] == 'choice' for s in result['lesson']['steps']))
-        status, result = client.call('/api/path/lesson/u1-1/complete', 'POST', {'questions': 6, 'correct': 6, 'day': date.today().isoformat()})
+        status, result = self.finish(client, 'u1-1')
         self.assertEqual((status, result['xp'], result['accuracy'], result['first']), (200, 15, 100, True))
         self.assertEqual(result['current'], 'u1-2')
         self.assertEqual(result['stats']['streak'], 1)
-        status, again = client.call('/api/path/lesson/u1-1/complete', 'POST', {'questions': 6, 'correct': 3})
-        self.assertEqual((again['xp'], again['first'], again['stats']['xp']), (5, False, 20))
+        status, again = self.finish(client, 'u1-1', ok=False)
+        self.assertEqual((again['xp'], again['first'], again['accuracy'], again['stats']['xp']), (5, False, 0, 20))
         self.assertEqual(client.call('/api/path/lesson/u1-2')[0], 200)
-        self.assertEqual(client.call('/api/path/lesson/u1-1/complete', 'POST', {'questions': 2, 'correct': 3})[0], 400)
-        self.assertEqual(client.call('/api/path/lesson/nope/complete', 'POST', {'questions': 1, 'correct': 1})[0], 404)
+        self.assertEqual(client.call('/api/path/lesson/nope/complete', 'POST', {'results': [item('count')]})[0], 404)
+
+    def test_server_regrades_lessons(self):
+        client, _, _ = self.signup(NEW)
+        steps = client.call('/api/path/lesson/u1-1')[1]['lesson']['steps']
+        results = lesson_transcript(steps)
+        # A browser claiming success can't skip questions or invent choice answers.
+        self.assertEqual(client.call('/api/path/lesson/u1-1/complete', 'POST', {'results': results[:-1]})[0], 400)
+        forged = [dict(r) for r in results]
+        forged[-1] = {'kind': 'choice', 'data': {'prompt': 'Made-up question?', 'options': ['a']}, 'given': 0}
+        self.assertEqual(client.call('/api/path/lesson/u1-1/complete', 'POST', {'results': forged})[0], 400)
+        # Wrong answers are scored as wrong, whatever the browser says.
+        half = [dict(r) for r in results]
+        for r in half[::2]:
+            if r['kind'] == 'choice': r['given'] = (r['given'] + 1) % len(r['data']['options'])
+        status, res = client.call('/api/path/lesson/u1-1/complete', 'POST', {'results': half})
+        self.assertEqual(status, 200)
+        self.assertLess(res['accuracy'], 100)
 
     def test_tested_out_lessons_are_open_and_retake_keeps_progress(self):
         client, _, _ = self.signup(EXPERT)
@@ -129,11 +150,17 @@ class CoachApiTests(unittest.TestCase):
         self.assertEqual(state['current'], 'u7-1')
         self.assertEqual(client.call('/api/path/lesson/u2-3')[0], 200)
         self.assertEqual(client.call('/api/path/lesson/u8-1')[0], 403)
-        client.call('/api/path/lesson/u7-1/complete', 'POST', {'questions': 3, 'correct': 3})
+        self.assertEqual(self.finish(client, 'u7-1')[0], 200)
         status, state = client.call('/api/path/plan', 'POST', {'answers': NEW})
         self.assertEqual(status, 200)
         self.assertEqual(state['current'], 'u1-1')
         self.assertEqual(state['stats']['xp'], 15)
+
+    def test_daily_goal_can_change(self):
+        client, _, _ = self.signup(NEW)
+        status, st = client.call('/api/path/goal', 'POST', {'minutes': 20})
+        self.assertEqual((status, st['plan']['dailyXp'], st['plan']['lessonsPerDay']), (200, 60, 4))
+        self.assertEqual(client.call('/api/path/goal', 'POST', {'minutes': 7})[0], 400)
 
     def test_account_without_plan(self):
         client, _, _ = self.signup()

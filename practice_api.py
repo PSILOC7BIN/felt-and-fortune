@@ -7,7 +7,7 @@ import time
 
 from engine import hilo, deviation, basic, total
 
-PRACTICE_TOOLS = ('strategy', 'count', 'decks', 'truecount', 'index')
+PRACTICE_TOOLS = ('strategy', 'count', 'decks', 'truecount', 'index', 'weak')
 SHOE = 6
 ROUNDS = 12
 HEARTS = 3
@@ -107,13 +107,18 @@ class PracticeRoutes:
             self.throttle('practice-log', 120)
             tool = str(d.get('tool', ''))
             require(tool in PRACTICE_TOOLS, 'Unknown practice tool.')
-            q = int(num(d, 'questions', 1, 500)); ok = int(num(d, 'correct', 0, 500)); require(ok <= q, 'Invalid practice result.')
+            try: _, _, ok, skills = grade_transcript(d.get('results'))
+            except BadTranscript as e: raise ApiError(str(e))
+            q = len(d['results'])
             streak = int(num(d, 'bestStreak', 0, 500)); secs = int(num(d, 'seconds', 0, 86400))
+            record_skills(c, uid, skills)
             day = self.client_day()
             c.execute('INSERT INTO practice_log(user_id,tool,questions,correct,best_streak,seconds,day,created) VALUES(?,?,?,?,?,?,?,?)', (uid, tool, q, ok, streak, secs, day, time.time()))
             xp = min(XP_CAP, ok)
             if xp: c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)', (uid, day, xp, 'practice:' + tool, time.time()))
-            return self.send_json({'xp': xp, 'stats': self.practice_stats()})
+            return self.send_json({'xp': xp, 'questions': q, 'correct': ok, 'stats': self.practice_stats()})
+        if path == '/api/practice/weak' and method == 'GET':
+            return self.send_json({'skills': weak_spots(c, uid)})
         if path == '/api/practice/stats' and method == 'GET':
             return self.send_json(self.practice_stats())
         if path == '/api/challenge/start' and method == 'POST':
@@ -149,3 +154,120 @@ class PracticeRoutes:
         ch = c.execute('SELECT COUNT(*) runs, COALESCE(MAX(score),0) best FROM games WHERE user_id=? AND finished=1', (uid,)).fetchone()
         tools['challenge'] = {'tool': 'challenge', 'sessions': ch['runs'], 'best': ch['best']}
         return {'tools': tools}
+
+
+# ---------------------------------------------------------------------------------------------
+# Server-side grading of lesson and practice transcripts.
+# The browser generates questions; the server re-grades every answer with the Python engine.
+# ---------------------------------------------------------------------------------------------
+SKILLS = ('strategy-hard', 'strategy-soft', 'strategy-pair', 'count', 'decks', 'truecount', 'index', 'insurance', 'bet')
+MAX_ITEMS = 500
+
+
+class BadTranscript(ValueError):
+    pass
+
+
+def _cards(v, lo=1, hi=60):
+    if not isinstance(v, list) or not lo <= len(v) <= hi or not all(isinstance(c, int) and 1 <= c <= 13 for c in v):
+        raise BadTranscript('Invalid cards.')
+    return v
+
+
+def _int(v, lo, hi):
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or v != int(v) or not lo <= v <= hi: raise BadTranscript('Invalid number.')
+    return int(v)
+
+
+def _given_int(v):
+    if v is None or isinstance(v, bool): return None
+    try:
+        x = float(v)
+    except (TypeError, ValueError):
+        return None
+    return int(x) if math.isfinite(x) and x == int(x) else None
+
+
+def hand_total_label(cards):
+    t, soft = total(cards)
+    return f'Soft {t}' if soft else str(t)
+
+
+def skill_of(item):
+    k = item.get('kind'); d = item.get('data') or {}
+    if k == 'strategy':
+        cards = d.get('cards') or []
+        if len(cards) == 2 and min(cards[0], 10) == min(cards[1], 10): return 'strategy-pair'
+        return 'strategy-soft' if total(cards)[1] else 'strategy-hard'
+    return {'count': 'count', 'decks': 'decks', 'truecount': 'truecount', 'index': 'index', 'play': 'index', 'insurance': 'insurance', 'bet': 'bet'}.get(k)
+
+
+def grade_item(item, choices=None):
+    """Return True if the answer is right. Raise BadTranscript if the item is malformed."""
+    if not isinstance(item, dict) or not isinstance(item.get('data', {}), dict): raise BadTranscript('Invalid result.')
+    k, d, given = item.get('kind'), item.get('data') or {}, item.get('given')
+    if k == 'strategy':
+        cards = _cards(d.get('cards'), 2, 2); dealer = _int(d.get('dealer'), 1, 13)
+        return given == basic(cards, dealer, h17=bool(d.get('h17')), das=True, surrender=bool(d.get('surrender')))
+    if k in ('index', 'play'):
+        cards = _cards(d.get('cards'), 2, 2); dealer = _int(d.get('dealer'), 1, 13); tc = _int(d.get('tc'), -40, 40)
+        return given == deviation(cards, dealer, tc)
+    if k == 'insurance':
+        tc = _int(d.get('tc'), -40, 40)
+        return given == ('Y' if tc >= 3 else 'N')
+    if k == 'count':
+        cards = _cards(d.get('cards'), 1, 60); start = _int(d.get('start', 0), -60, 60)
+        return _given_int(given) == start + sum(hilo(c) for c in cards)
+    if k == 'decks':
+        shoe = _int(d.get('shoe'), 1, 8); tray = d.get('tray')
+        if not isinstance(tray, (int, float)) or tray * 2 != int(tray * 2) or not .5 <= tray <= shoe - .5: raise BadTranscript('Invalid tray.')
+        want = tray if d.get('ask', 'tray') == 'tray' else shoe - tray
+        try: return float(given) == want
+        except (TypeError, ValueError): return False
+    if k == 'truecount':
+        rc = _int(d.get('rc'), -60, 60); decks = d.get('decks')
+        if not isinstance(decks, (int, float)) or decks * 2 != int(decks * 2) or not .5 <= decks <= 8: raise BadTranscript('Invalid decks.')
+        return not d.get('timedOut') and _given_int(given) == math.floor(rc / decks)
+    if k == 'bet':
+        tc = _int(d.get('tc'), -40, 40); top = _int(d.get('max', 12), 1, 50)
+        return _given_int(given) == ramp(tc, top)
+    if k == 'choice':
+        prompt = str(d.get('prompt', ''))
+        if prompt == 'What’s this hand’s total?':
+            cards = _cards(d.get('cards'), 2, 6); options = d.get('options')
+            if not isinstance(options, list) or not isinstance(given, int) or not 0 <= given < len(options): return False
+            return str(options[given]) == hand_total_label(cards)
+        if choices is None or prompt not in choices: raise BadTranscript('Unknown question.')
+        return given == choices[prompt]
+    raise BadTranscript('Unknown question type.')
+
+
+def grade_transcript(items, choices=None):
+    """Grade a list of results. Returns (originals, first_try_correct, total_correct, skills)."""
+    if not isinstance(items, list) or not 1 <= len(items) <= MAX_ITEMS: raise BadTranscript('Send between 1 and 500 results.')
+    originals = first = correct = 0; skills = {}
+    for it in items:
+        ok = grade_item(it, choices)
+        retry = bool(it.get('retry'))
+        if not retry:
+            originals += 1
+            if ok: first += 1
+        if ok: correct += 1
+        s = skill_of(it)
+        if s:
+            a, m = skills.get(s, (0, 0)); skills[s] = (a + 1, m + (0 if ok else 1))
+    return originals, first, correct, skills
+
+
+def record_skills(c, uid, skills):
+    now = time.time()
+    for s, (a, m) in skills.items():
+        c.execute('INSERT INTO skill_stats(user_id,skill,attempts,misses,recent,updated) VALUES(?,?,?,?,?,?) '
+                  'ON CONFLICT(user_id,skill) DO UPDATE SET attempts=attempts+excluded.attempts, misses=misses+excluded.misses, '
+                  'recent=recent*0.7+excluded.recent, updated=excluded.updated', (uid, s, a, m, m / a if a else 0, now))
+
+
+def weak_spots(c, uid, limit=3):
+    rows = c.execute('SELECT skill, attempts, misses, recent FROM skill_stats WHERE user_id=? AND attempts>=4 AND misses>0', (uid,)).fetchall()
+    ranked = sorted(rows, key=lambda r: (r['recent'] + r['misses'] / r['attempts']) / 2, reverse=True)
+    return [{'skill': r['skill'], 'attempts': r['attempts'], 'misses': r['misses'], 'rate': round(r['misses'] / r['attempts'], 3)} for r in ranked[:limit]]

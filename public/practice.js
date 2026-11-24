@@ -1,7 +1,10 @@
 // Practice: the tool hub, a focused page for each trainer, and the server-graded Shoe Challenge.
 import * as bj from './bj.js';
 import { esc, $, $$, Sound, ace, g, tableHTML, cardHTML, mountTray, mountStepper, mountNumber } from './ui.js';
-import { TOOLS, createRunner, strategyQ, countQ, decksQ, trueCountQ, indexQ, chartHTML } from './trainers.js';
+import { TOOLS, createRunner, strategyQ, countQ, decksQ, trueCountQ, indexQ, betQ, chartHTML } from './trainers.js';
+
+export const SKILL_NAMES = { 'strategy-hard': 'Hard totals', 'strategy-soft': 'Soft totals', 'strategy-pair': 'Pairs', count: 'Running count', decks: 'Deck estimation', truecount: 'True count', index: 'Index plays', insurance: 'Insurance', bet: 'Bet sizing' };
+const SKILL_MAKERS = { 'strategy-hard': () => strategyQ({ pool: 'hard' }), 'strategy-soft': () => strategyQ({ pool: 'soft' }), 'strategy-pair': () => strategyQ({ pool: 'pair' }), count: () => countQ({ cards: 10, speed: 800 }), decks: () => decksQ({ shoe: 6 }), truecount: () => trueCountQ({ rcMin: -16, rcMax: 22, deckOptions: [.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5] }), index: () => indexQ({ insurance: false }), insurance: () => indexQ({ insurance: true, insuranceOnly: true }), bet: () => betQ() };
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -29,8 +32,8 @@ export function createPractice(ctx) {
 
   // ---- hub ------------------------------------------------------------------------------------
   async function hub() {
-    let stats = { tools: {} };
-    try { stats = await api('/api/practice/stats'); } catch { /* show the hub without stats */ }
+    let stats = { tools: {} }, weak = [];
+    try { [stats, { skills: weak }] = await Promise.all([api('/api/practice/stats'), api('/api/practice/weak')]); } catch { /* show the hub without stats */ }
     const line = t => {
       const s = stats.tools[t.id];
       if (t.id === 'challenge') return s?.sessions ? `Best score ${s.best} · ${s.sessions} run${s.sessions === 1 ? '' : 's'}` : 'Not played yet';
@@ -39,6 +42,7 @@ export function createPractice(ctx) {
     };
     const group = (title, ids) => `<h2 class="hub-group">${title}</h2><div class="tool-cards">${TOOLS.filter(t => ids.includes(t.id)).map(t => `<a class="tool-card c-${t.color}" href="/practice/${t.id}"><span class="tool-icon">${g(t.glyph)}</span><span class="tool-copy"><strong>${t.name}</strong><span>${t.purpose}</span><small>${line(t)}</small></span>${g('next', 'tool-go')}</a>`).join('')}</div>`;
     $('#page').innerHTML = `<header class="page-hero"><div><h1>Practice</h1><p>Each tool trains one skill. Lessons use the same tools, so practice here whenever a skill feels shaky. Practice earns up to 20 XP a session.</p></div></header>`
+      + (weak.length ? `<a class="weak-card" href="/practice/weak"><span class="tool-icon">${g('target')}</span><span class="tool-copy"><strong>Practice your weak spots</strong><span>A mixed session built from the skills you’ve missed most: ${weak.map(w => `${SKILL_NAMES[w.skill]} (${Math.round(w.rate * 100)}% missed)`).join(', ')}.</span></span>${g('next', 'tool-go')}</a>` : `<div class="weak-card empty"><span class="tool-icon">${g('target')}</span><span class="tool-copy"><strong>Weak spots</strong><span>Finish a few lessons or practice sessions and Ace will build a session from the skills you miss most.</span></span></div>`)
       + group('Skill trainers', ['strategy', 'count', 'decks', 'truecount', 'index'])
       + group('Put it all together', ['challenge'])
       + group('Plan your game', ['simulator']);
@@ -46,15 +50,19 @@ export function createPractice(ctx) {
 
   // ---- a trainer -------------------------------------------------------------------------------
   async function toolPage(tool) {
-    const meta = TOOLS.find(t => t.id === tool), defs = SETTINGS[tool];
+    let weakSkills = [];
+    if (tool === 'weak') { try { weakSkills = (await api('/api/practice/weak')).skills.map(w => w.skill); } catch { weakSkills = []; } if (!weakSkills.length) { go('/practice'); return; } }
+    const meta = tool === 'weak' ? { id: 'weak', name: 'Weak spots', glyph: 'target', color: 'red', purpose: weakSkills.map(k => SKILL_NAMES[k]).join(' · ') } : TOOLS.find(t => t.id === tool), defs = SETTINGS[tool] || [];
     let saved = {}; try { saved = JSON.parse(localStorage.getItem('ff-practice-' + tool) || '{}'); } catch { saved = {}; }
     const s = Object.fromEntries(defs.map(([k, , opts]) => [k, opts.some(o => o[0] === saved[k]) ? saved[k] : opts[0][0]]));
-    const stats = { questions: 0, correct: 0, streak: 0, best: 0, started: Date.now() };
+    const stats = { questions: 0, correct: 0, streak: 0, best: 0, started: Date.now() }, results = [];
+    let turn = 0;
+    const nextQ = () => tool === 'weak' ? SKILL_MAKERS[weakSkills[turn++ % weakSkills.length]]() : makeQuestion(tool, s);
 
     $('#app').innerHTML = `<main id="main" class="coach-screen practice c-${meta.color}">
       <header class="coach-top practice-top"><button type="button" class="icon-btn" id="pr-end" aria-label="End practice">${g('close')}</button><div class="pr-title"><span class="tool-icon sm">${g(meta.glyph)}</span><div><strong>${meta.name}</strong><small>${meta.purpose}</small></div></div>
         <div class="pr-stats"><span class="chip streak" title="Current streak">${g('flame')}<b id="pr-streak">0</b></span><span class="chip" title="Correct answers"><b id="pr-score">0/0</b></span></div>
-        ${tool === 'strategy' ? `<button type="button" class="pill-btn" id="pr-chart">${g('book')} Chart</button>` : ''}<button type="button" class="icon-btn" id="pr-gear" aria-expanded="false" aria-controls="pr-settings" aria-label="Settings">${g('gear')}</button>${soundButton()}</header>
+        ${tool === 'strategy' ? `<button type="button" class="pill-btn" id="pr-chart">${g('book')} Chart</button>` : ''}${defs.length ? `<button type="button" class="icon-btn" id="pr-gear" aria-expanded="false" aria-controls="pr-settings" aria-label="Settings">${g('gear')}</button>` : ''}${soundButton()}</header>
       <div class="settings-bar" id="pr-settings" hidden>${defs.map(([k, label, opts]) => `<div class="seg-group"><span>${label}</span><div class="segmented" role="radiogroup" aria-label="${label}">${opts.map(([v, t]) => `<button type="button" role="radio" data-k="${k}" data-v="${v}" aria-checked="${s[k] === v}">${t}</button>`).join('')}</div></div>`).join('')}</div>
       <section class="coach-body" id="coach-body"></section><footer class="coach-foot" id="coach-foot"></footer>
       <div class="sheet-shade" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"></div></div></main>`;
@@ -62,15 +70,15 @@ export function createPractice(ctx) {
     const body = $('#coach-body'), foot = $('#coach-foot'), shade = $('.sheet-shade'), sheet = $('.sheet');
     const paintStats = () => { $('#pr-streak').textContent = stats.streak; $('#pr-score').textContent = `${stats.correct}/${stats.questions}`; $('.chip.streak').classList.toggle('lit', stats.streak > 0); };
     const runner = createRunner({
-      body, foot, next: () => makeQuestion(tool, s),
-      onResult: (q, r) => { stats.questions++; if (r.ok) { stats.correct++; stats.streak++; stats.best = Math.max(stats.best, stats.streak); } else stats.streak = 0; paintStats(); },
+      body, foot, next: nextQ,
+      onResult: (q, r) => { results.push(r.record); stats.questions++; if (r.ok) { stats.correct++; stats.streak++; stats.best = Math.max(stats.best, stats.streak); } else stats.streak = 0; paintStats(); },
       onKeyExtra: e => { if (e.key === 'Escape' && !shade.hidden) { shade.hidden = true; return true; } return false; },
     });
     onCleanup(() => runner.destroy());
     runner.start();
 
     const gear = $('#pr-gear');
-    gear.onclick = () => { const bar = $('#pr-settings'); bar.hidden = !bar.hidden; gear.setAttribute('aria-expanded', String(!bar.hidden)); };
+    if (gear) gear.onclick = () => { const bar = $('#pr-settings'); bar.hidden = !bar.hidden; gear.setAttribute('aria-expanded', String(!bar.hidden)); };
     $$('[data-k]').forEach(b => b.onclick = () => {
       s[b.dataset.k] = b.dataset.v; localStorage.setItem('ff-practice-' + tool, JSON.stringify(s));
       $$(`[data-k="${b.dataset.k}"]`).forEach(x => x.setAttribute('aria-checked', String(x === b)));
@@ -88,7 +96,7 @@ export function createPractice(ctx) {
       if (!stats.questions) { go('/practice'); return; }
       runner.destroy();
       let xp = 0;
-      try { xp = (await api('/api/practice/log', 'POST', { tool, questions: stats.questions, correct: stats.correct, bestStreak: stats.best, seconds: Math.round((Date.now() - stats.started) / 1000), day: localDate() })).xp; } catch { /* still show the summary */ }
+      try { xp = (await api('/api/practice/log', 'POST', { tool, results, bestStreak: stats.best, seconds: Math.round((Date.now() - stats.started) / 1000), day: localDate() })).xp; } catch { /* still show the summary */ }
       Sound.play('complete');
       sheet.className = 'sheet';
       sheet.innerHTML = `${ace('wow', 'ace-md pop')}<h2 id="sheet-title">Nice session!</h2><div class="plan-grid three"><div class="stat-tile green"><small>Accuracy</small><strong>${Math.round(stats.correct / stats.questions * 100)}%</strong></div><div class="stat-tile orange"><small>Best streak</small><strong>${g('flame')} ${stats.best}</strong></div><div class="stat-tile yellow"><small>XP earned</small><strong>${g('bolt')} +${xp}</strong></div></div><button type="button" class="primary chunky" id="sum-done">Done</button><button type="button" class="ghost" id="sum-more">Keep practicing</button>`;

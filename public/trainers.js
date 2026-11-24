@@ -38,27 +38,27 @@ export function strategyQ({ pool = 'any', h17 = false, surrender = false, das = 
   const answer = bj.basic(cards, dealer, rules);
   const acts = ['H', 'S', 'D', ...(bj.isPair(cards) ? ['P'] : []), ...(surrender ? ['R'] : [])];
   const q = {
-    kind: 'strategy', cards, dealer, rules, instant: true,
+    kind: 'strategy', cards, dealer, rules, instant: true, data: { cards, dealer, h17, surrender },
     render(el, ctx) {
       el.innerHTML = `<div class="q"><p class="q-eyebrow">${h17 ? 'Dealer hits soft 17' : 'Dealer stands on soft 17'}${surrender ? ' · Surrender allowed' : ''}</p><h1 class="q-title">${esc(prompt || `You have ${bj.handLabel(cards)} against ${bj.upName(dealer) === 'ace' ? 'an ace' : 'a ' + bj.upName(dealer)}.`)}</h1>${tableHTML({ dealer, cards })}${actionButtons(acts)}</div>`;
       wireActions(el, q, ctx);
     },
-    check(el) { markActions(el, q.chosen, answer); return { ok: q.chosen === answer, answer: bj.ACTIONS[answer], explain: bj.strategyReason(cards, dealer, answer, rules) }; },
+    check(el) { q.given = q.chosen; markActions(el, q.chosen, answer); return { ok: q.chosen === answer, answer: bj.ACTIONS[answer], explain: bj.strategyReason(cards, dealer, answer, rules) }; },
   };
   return q;
 }
 
-export function indexQ({ hands = null, insurance = true } = {}) {
-  if (insurance && Math.random() < .18) {
+export function indexQ({ hands = null, insurance = true, insuranceOnly = false } = {}) {
+  if (insuranceOnly || (insurance && Math.random() < .18)) {
     const tc = bj.randInt(-1, 6), take = tc >= bj.INSURANCE_INDEX;
     const q = {
-      kind: 'index', instant: true,
+      kind: 'index', recKind: 'insurance', data: { tc }, instant: true,
       render(el, ctx) {
         el.innerHTML = `<div class="q"><p class="q-eyebrow"><span class="tc-badge">True count ${bj.signed(tc)}</span></p><h1 class="q-title">The dealer shows an ace. Take insurance?</h1>${tableHTML({ dealer: 1, cards: bj.dealHand('hard') })}<div class="action-row"><button type="button" class="act act-S" data-act="Y"><span>Take it</span><kbd>Y</kbd></button><button type="button" class="act act-H" data-act="N"><span>Decline</span><kbd>N</kbd></button></div></div>`;
         $$('[data-act]', el).forEach(b => b.onclick = () => { if (q.chosen) return; q.chosen = b.dataset.act; Sound.play('select'); ctx.submit(); });
         q.key = e => { const k = e.key.toUpperCase(); if ((k === 'Y' || k === 'N') && !q.chosen) { $(`[data-act="${k}"]`, el).click(); return true; } return false; };
       },
-      check(el) { const right = take ? 'Y' : 'N'; markActions(el, q.chosen, right); return { ok: q.chosen === right, answer: take ? 'Take insurance' : 'Decline', explain: `Insurance pays when the true count is +3 or higher. At ${bj.signed(tc)}, ${take ? 'take it' : 'decline'}.` }; },
+      check(el) { q.given = q.chosen; const right = take ? 'Y' : 'N'; markActions(el, q.chosen, right); return { ok: q.chosen === right, answer: take ? 'Take insurance' : 'Decline', explain: `Insurance pays when the true count is +3 or higher. At ${bj.signed(tc)}, ${take ? 'take it' : 'decline'}.` }; },
     };
     return q;
   }
@@ -71,12 +71,13 @@ export function indexQ({ hands = null, insurance = true } = {}) {
   const answer = bj.deviation(cards, dealer, tc), base = bj.basic(cards, dealer);
   const acts = ['H', 'S', 'D', ...(hand === 20 ? ['P'] : [])];
   const q = {
-    kind: 'index', instant: true,
+    kind: 'index', data: { cards, dealer, tc }, instant: true,
     render(el, ctx) {
       el.innerHTML = `<div class="q"><p class="q-eyebrow"><span class="tc-badge">True count ${bj.signed(tc)}</span></p><h1 class="q-title">You have ${bj.handLabel(cards)} against ${up === 1 ? 'an ace' : 'a ' + up}.</h1>${tableHTML({ dealer, cards })}${actionButtons(acts)}</div>`;
       wireActions(el, q, ctx);
     },
     check(el) {
+      q.given = q.chosen;
       markActions(el, q.chosen, answer);
       const name = `${hand} vs ${up === 1 ? 'A' : up}`;
       const explain = tc >= index ? `The index for ${name} is ${bj.signed(index)}. At ${bj.signed(tc)} you’re at or above it: ${bj.ACTIONS[answer].toLowerCase()}${answer !== base ? ` instead of the basic-strategy ${bj.ACTIONS[base].toLowerCase()}` : ''}.` : `The index for ${name} is ${bj.signed(index)}. At ${bj.signed(tc)} you’re below it: ${bj.ACTIONS[answer].toLowerCase()}.`;
@@ -112,11 +113,11 @@ export function countQ({ cards: n = 8, speed = 900, perFlash = 1, start = 0, pro
       })();
     },
     check() {
-      const v = num?.value;
+      const v = num?.value; q.given = dealt ? v : null;
       const tags = cards.map(c => `${bj.rank(c)} ${bj.signed(bj.hilo(c))}`).join(', ');
       return { ok: dealt && v === answer, answer: bj.signed(answer), explain: `${start ? `Started at ${bj.signed(start)}. ` : ''}${tags.length > 160 ? `High cards ${cards.filter(c => bj.hilo(c) < 0).length}, low cards ${cards.filter(c => bj.hilo(c) > 0).length}` : tags} → ${bj.signed(answer)}.` };
     },
-    cards, answer,
+    cards, answer, data: { cards, start },
   };
   return q;
 }
@@ -126,14 +127,14 @@ export function decksQ({ shoe = 6, markers = false, reference = true, ask = 'tra
   const left = shoe - tray, answer = ask === 'tray' ? tray : left;
   let step;
   const q = {
-    kind: 'decks', tray, shoe, hint: 'Use + and −, then press Enter',
+    kind: 'decks', tray, shoe, data: { tray, shoe, ask }, hint: 'Use + and −, then press Enter',
     render(el, ctx) {
       el.innerHTML = `<div class="q"><p class="q-eyebrow">${shoe}-deck shoe · answer to the nearest half deck</p><h1 class="q-title">${ask === 'tray' ? 'How many decks are in the discard tray?' : 'How many decks are left to play?'}</h1><div class="tray-row"><div class="tray-slot"></div><div class="answer-slot"></div></div></div>`;
       mountTray($('.tray-slot', el), { decks: tray, shoe, markers, reference });
       step = mountStepper($('.answer-slot', el), { min: ask === 'tray' ? .5 : .5, max: shoe - .5, label: ask === 'tray' ? 'decks in the tray' : 'decks left', onChange: () => ctx.ready(true) });
       q.key = e => step.key(e);
     },
-    check() { return { ok: step.value === answer, answer: `${bj.halves(answer)} deck${answer === 1 ? '' : 's'}`, explain: `The tray holds ${bj.halves(tray)} deck${tray === 1 ? '' : 's'}, so ${bj.halves(left)} of ${shoe} are left to play.${ask === 'tray' ? '' : ' Decks left = shoe size − decks in the tray.'}` }; },
+    check() { q.given = step.value; return { ok: step.value === answer, answer: `${bj.halves(answer)} deck${answer === 1 ? '' : 's'}`, explain: `The tray holds ${bj.halves(tray)} deck${tray === 1 ? '' : 's'}, so ${bj.halves(left)} of ${shoe} are left to play.${ask === 'tray' ? '' : ' Decks left = shoe size − decks in the tray.'}` }; },
   };
   return q;
 }
@@ -155,6 +156,7 @@ export function trueCountQ({ rcMin = -10, rcMax = 16, deckOptions = [1, 1.5, 2, 
     check() {
       clearTimeout(timerId);
       const exact = R / D, v = q.timedOut ? null : num.value;
+      q.data = { rc: R, decks: D, timedOut: !!q.timedOut }; q.given = v;
       const how = exact === answer ? `${bj.signed(R)} ÷ ${bj.halves(D)} = ${bj.signed(answer)}.` : `${bj.signed(R)} ÷ ${bj.halves(D)} = ${bj.signed(Math.round(exact * 100) / 100)}, rounded down to ${bj.signed(answer)}.`;
       return { ok: v === answer, answer: bj.signed(answer), explain: (q.timedOut ? 'Out of time. ' : '') + how };
     },
@@ -172,7 +174,7 @@ export function betQ({ max = 12, unit = 25, tc = null } = {}) {
       el.innerHTML = `<div class="q"><p class="q-eyebrow">Ramp: 1 unit at +1 or lower, then true count − 1 units, up to ${max}</p><h1 class="q-title">How many units do you bet?</h1><div class="tile-row"><div class="big-tile purple"><small>True count</small><strong>${bj.signed(T)}</strong></div><div class="big-tile gold"><small>1 unit</small><strong>$${unit}</strong></div></div><div class="answer-slot"></div></div>`;
       num = mountNumber($('.answer-slot', el), { label: 'Units to bet', onChange: v => ctx.ready(v !== null) });
     },
-    check() { return { ok: num.value === answer, answer: `${answer} unit${answer === 1 ? '' : 's'} ($${answer * unit})`, explain: T <= 1 ? `At ${bj.signed(T)} the house has the edge, so bet the minimum: 1 unit.` : answer === max && T - 1 > max ? `TC − 1 is ${T - 1}, but your ramp caps at ${max} units.` : `TC − 1 = ${T} − 1 = ${answer} unit${answer === 1 ? '' : 's'}.` }; },
+    check() { q.data = { tc: T, max }; q.given = num.value; return { ok: num.value === answer, answer: `${answer} unit${answer === 1 ? '' : 's'} ($${answer * unit})`, explain: T <= 1 ? `At ${bj.signed(T)} the house has the edge, so bet the minimum: 1 unit.` : answer === max && T - 1 > max ? `TC − 1 is ${T - 1}, but your ramp caps at ${max} units.` : `TC − 1 = ${T} − 1 = ${answer} unit${answer === 1 ? '' : 's'}.` }; },
   };
   return q;
 }
@@ -188,6 +190,7 @@ export function choiceQ(step) {
       q.key = e => { if (/^[1-9]$/.test(e.key) && Number(e.key) <= step.options.length) { choose(Number(e.key) - 1); return true; } return false; };
     },
     check(el) {
+      q.data = { prompt: step.prompt, options: step.options, cards: step.cards || null }; q.given = selected;
       $$('.choice-tile', el).forEach((b, j) => { b.disabled = true; b.classList.remove('selected'); if (j === step.answer) b.classList.add('right'); else if (j === selected) b.classList.add('wrong'); });
       return { ok: selected === step.answer, answer: step.options[step.answer], explain: step.explain || '' };
     },
@@ -223,9 +226,9 @@ export function scenarioQs({ shoe = 6 } = {}) {
   const answer = bj.deviation(hand, dealer, tc);
   const acts = ['H', 'S', 'D', ...(bj.isPair(hand) ? ['P'] : [])];
   const final = {
-    kind: 'scenario-play', instant: true,
+    kind: 'scenario-play', recKind: 'play', data: { cards: hand, dealer, tc }, instant: true,
     render(el, ctx) { el.innerHTML = `<div class="q"><p class="q-eyebrow"><span class="tc-badge">True count ${bj.signed(tc)}</span></p><h1 class="q-title">Your bet is out. You have ${bj.handLabel(hand)} against ${dealer === 1 ? 'an ace' : 'a ' + bj.upName(dealer)}.</h1>${tableHTML({ dealer, cards: hand })}${actionButtons(acts)}</div>`; wireActions(el, final, ctx); },
-    check(el) { markActions(el, final.chosen, answer); const idx = bj.findIndex(hand, dealer); return { ok: final.chosen === answer, answer: bj.ACTIONS[answer], explain: idx ? `With an index of ${bj.signed(idx[2])} for ${idx[0]} vs ${idx[1] === 1 ? 'A' : idx[1]}, at ${bj.signed(tc)}: ${bj.ACTIONS[answer].toLowerCase()}.` : bj.strategyReason(hand, dealer, answer) }; },
+    check(el) { final.given = final.chosen; markActions(el, final.chosen, answer); const idx = bj.findIndex(hand, dealer); return { ok: final.chosen === answer, answer: bj.ACTIONS[answer], explain: idx ? `With an index of ${bj.signed(idx[2])} for ${idx[0]} vs ${idx[1] === 1 ? 'A' : idx[1]}, at ${bj.signed(tc)}: ${bj.ACTIONS[answer].toLowerCase()}.` : bj.strategyReason(hand, dealer, answer) }; },
   };
   return [
     round,
@@ -261,6 +264,7 @@ export function createRunner({ body, foot, next, onResult, onEmpty, onKeyExtra }
     if (checked || q.teach) return;
     checked = true;
     const r = q.check(body);
+    r.record = { kind: q.recKind || q.kind, data: q.data, given: q.given ?? null };
     Sound.play(r.ok ? 'correct' : 'wrong');
     setFoot(`<div class="verdict">${ace(r.ok ? 'wow' : 'oops', 'ace-xs')}<div><strong>${r.ok ? PRAISE[Math.floor(Math.random() * PRAISE.length)] : 'Correct answer: ' + esc(r.answer)}</strong><p>${esc(r.explain || '')}</p></div></div><button type="button" class="primary chunky" id="run-primary">Continue</button>`, r.ok ? 'ok' : 'bad');
     primary().onclick = advance; primary().focus({ preventScroll: true });

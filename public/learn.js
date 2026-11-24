@@ -196,6 +196,7 @@ export function createLearn(ctx) {
     const queue = lesson.steps.flatMap(s => questionsForStep(s).map(q => Object.assign(q, { step: s, tries: 0 })));
     const questions = queue.filter(q => !q.teach).length;
     let pos = -1, firstTry = 0, combo = 0, finished = false;
+    const results = [];
 
     $('#app').innerHTML = `<main id="main" class="coach-screen lesson c-${lesson.unit.color}"><header class="coach-top"><button type="button" class="icon-btn" id="lesson-quit" aria-label="Quit lesson">${g('close')}</button><div class="progress" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100"><span></span></div><span class="combo" aria-live="polite"></span>${soundButton()}</header><section class="coach-body" id="coach-body"></section><footer class="coach-foot" id="coach-foot"></footer><div class="sheet-shade" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="quit-title">${ace('oops', 'ace-sm')}<h2 id="quit-title">Quit this lesson?</h2><p>You’ll lose your progress in this lesson.</p><button type="button" class="primary chunky" id="keep-going">Keep learning</button><button type="button" class="ghost danger-text" id="quit-now">Quit</button></div></div></main>`;
     wireSound();
@@ -213,6 +214,7 @@ export function createLearn(ctx) {
       body: $('#coach-body'), foot: $('#coach-foot'),
       next: () => { pos++; progress(); return queue[pos] || null; },
       onResult: (q, r) => {
+        results.push({ ...r.record, retry: q.tries > 0 });
         if (r.ok) { combo++; if (!q.tries) firstTry++; }
         else {
           combo = 0;
@@ -239,7 +241,7 @@ export function createLearn(ctx) {
       foot.className = 'coach-foot'; foot.innerHTML = '';
       body.innerHTML = `<div class="loading"><span class="spinner"></span>Saving…</div>`;
       try {
-        const r = await api(`/api/path/lesson/${encodeURIComponent(lesson.id)}/complete`, 'POST', { questions: Math.max(1, questions), correct: questions ? firstTry : 1, day: localDate() });
+        const r = await api(`/api/path/lesson/${encodeURIComponent(lesson.id)}/complete`, 'POST', { results, day: localDate() });
         const goalHit = r.stats.todayXp >= r.stats.dailyXp && r.stats.todayXp - r.xp < r.stats.dailyXp;
         Sound.play('complete');
         body.innerHTML = `<div class="lesson-done">${ace('wow', 'ace-xl pop')}<h1>${r.accuracy === 100 ? 'Perfect lesson!' : 'Lesson complete!'}</h1>${goalHit ? `<p class="goal-hit">${g('flame')} Daily goal reached!</p>` : ''}<div class="plan-grid three"><div class="stat-tile yellow"><small>XP earned</small><strong>${g('bolt')} +${r.xp}</strong></div><div class="stat-tile green"><small>Accuracy</small><strong>${r.accuracy}%</strong></div><div class="stat-tile orange"><small>Streak</small><strong>${g('flame')} ${r.stats.streak}</strong></div></div><p class="muted">${firstTry} of ${questions} right on the first try.</p><div class="rate-lesson" id="rate-lesson"><span>How was this lesson?</span><div class="rate-stars">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="rate-star" data-n="${n}" aria-label="${n} out of 5">${g('star')}</button>`).join('')}</div></div></div>`;
