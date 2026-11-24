@@ -87,7 +87,30 @@ export function indexQ({ hands = null, insurance = true, insuranceOnly = false }
   return q;
 }
 
-export function countQ({ cards: n = 8, speed = 900, perFlash = 1, start = 0, prompt } = {}) {
+/** Deal a realistic round to a full table: players hit by basic strategy, then the dealer flips and draws. */
+function dealRound(seats) {
+  const draw = bj.randomCard, steps = [];
+  const hands = Array.from({ length: seats }, () => []), dealer = [];
+  for (let s = 0; s < seats; s++) { const c = draw(); hands[s].push(c); steps.push({ to: s, c }); }
+  const up = draw(); dealer.push(up); steps.push({ to: 'd', c: up });
+  for (let s = 0; s < seats; s++) { const c = draw(); hands[s].push(c); steps.push({ to: s, c }); }
+  const hole = draw(); dealer.push(hole); steps.push({ to: 'd', hole: true });
+  for (let s = 0; s < seats; s++) {
+    for (let k = 0; k < 6 && bj.total(hands[s]).total < 21; k++) {
+      const act = bj.basic(hands[s], up, { split: false });
+      if (act !== 'H' && act !== 'D') break;
+      const c = draw(); hands[s].push(c); steps.push({ to: s, c });
+      if (act === 'D') break;
+    }
+  }
+  steps.push({ to: 'd', flip: true, c: hole });
+  while (bj.total(dealer).total < 17) { const c = draw(); dealer.push(c); steps.push({ to: 'd', c }); }
+  const counted = steps.filter(s => !s.hole).map(s => s.c);
+  return { steps, counted };
+}
+
+export function countQ({ cards: n = 8, speed = 900, perFlash = 1, start = 0, prompt, table = false, seats = 3 } = {}) {
+  if (table) return tableCountQ({ seats, speed, start, prompt });
   const cards = Array.from({ length: n }, bj.randomCard);
   const answer = start + cards.reduce((a, c) => a + bj.hilo(c), 0);
   let num, dealt = false;
@@ -118,6 +141,43 @@ export function countQ({ cards: n = 8, speed = 900, perFlash = 1, start = 0, pro
       return { ok: dealt && v === answer, answer: bj.signed(answer), explain: `${start ? `Started at ${bj.signed(start)}. ` : ''}${tags.length > 160 ? `High cards ${cards.filter(c => bj.hilo(c) < 0).length}, low cards ${cards.filter(c => bj.hilo(c) > 0).length}` : tags} → ${bj.signed(answer)}.` };
     },
     cards, answer, data: { cards, start },
+  };
+  return q;
+}
+
+function tableCountQ({ seats = 3, speed = 900, start = 0, prompt }) {
+  const { steps, counted } = dealRound(seats);
+  const answer = start + counted.reduce((a, c) => a + bj.hilo(c), 0);
+  let num, dealt = false;
+  const q = {
+    kind: 'count', hint: 'Type the count (± for negatives), then press Enter', data: { cards: counted, start }, answer, cards: counted,
+    render(el, ctx) {
+      el.innerHTML = `<div class="q"><p class="q-eyebrow">Full table · ${seats} players · ${(speed / 1000).toFixed(2).replace(/0$/, '')} s per card</p><h1 class="q-title">${esc(prompt || 'Count every card as the round is dealt and played.')}</h1><div class="deal-table" aria-live="off"><div class="seat dealer"><span class="hand-label">Dealer</span><div class="cards"></div></div><div class="seats">${Array.from({ length: seats }, (_, i) => `<div class="seat" data-seat="${i}"><div class="cards"></div><span class="hand-label">Player ${i + 1}</span></div>`).join('')}</div><p class="deal-status">${ace('think', 'ace-xs')}<b>Get ready…</b></p></div><div class="answer-slot" hidden></div></div>`;
+      const status = $('.deal-status b', el);
+      (async () => {
+        await sleep(900);
+        status.textContent = 'Dealing…';
+        let i = 0;
+        for (const s of steps) {
+          if (!el.isConnected) return;
+          const box = s.to === 'd' ? $('.seat.dealer .cards', el) : $(`[data-seat="${s.to}"] .cards`, el);
+          if (s.flip) { const back = $('.pc.back', box); if (back) back.outerHTML = cardHTML(s.c, 7, { cls: 'flash-in' }); status.textContent = 'Dealer reveals and draws…'; }
+          else box.insertAdjacentHTML('beforeend', s.hole ? cardHTML(0, 0, { back: true, cls: 'flash-in' }) : cardHTML(s.c, i++, { cls: 'flash-in' }));
+          Sound.play('deal');
+          await sleep(s.hole ? speed / 2 : speed);
+        }
+        if (!el.isConnected) return;
+        status.textContent = 'What’s the running count?';
+        const slot = $('.answer-slot', el); slot.hidden = false;
+        num = mountNumber(slot, { label: 'Running count', onChange: v => ctx.ready(v !== null) });
+        dealt = true;
+      })();
+    },
+    check() {
+      const v = num?.value; q.given = dealt ? v : null;
+      const hi = counted.filter(c => bj.hilo(c) < 0).length, lo = counted.filter(c => bj.hilo(c) > 0).length;
+      return { ok: dealt && v === answer, answer: bj.signed(answer), explain: `${counted.length} cards were seen: ${lo} low (+1) and ${hi} high (−1)${start ? `, starting from ${bj.signed(start)}` : ''}. The hole card counts once it’s turned over.` };
+    },
   };
   return q;
 }

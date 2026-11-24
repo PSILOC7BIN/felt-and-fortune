@@ -11,7 +11,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // Each trainer's settings: [key, label, [[value, text], ...]]. The first option is the default.
 const SETTINGS = {
   strategy: [['pool', 'Hands', [['any', 'All'], ['hard', 'Hard'], ['soft', 'Soft'], ['pair', 'Pairs'], ['stiff', 'Stiffs']]], ['h17', 'Dealer', [['s17', 'Stands soft 17'], ['h17', 'Hits soft 17']]], ['surrender', 'Surrender', [['off', 'Off'], ['on', 'On']]]],
-  count: [['cards', 'Cards', [['8', '8'], ['16', '16'], ['26', 'Half deck'], ['52', 'Full deck']]], ['speed', 'Speed', [['1200', 'Slow'], ['800', 'Medium'], ['500', 'Fast'], ['300', 'Pro']]], ['per', 'Deal', [['1', 'One at a time'], ['2', 'Two at a time']]]],
+  count: [['cards', 'Cards', [['8', '8'], ['16', '16'], ['26', 'Half deck'], ['52', 'Full deck']]], ['speed', 'Speed', [['1200', 'Slow'], ['800', 'Medium'], ['500', 'Fast'], ['300', 'Pro']]], ['per', 'Deal', [['1', 'One at a time'], ['2', 'Two at a time'], ['table3', 'Full table · 3 players'], ['table5', 'Full table · 5 players']]]],
   decks: [['shoe', 'Shoe', [['6', '6 decks'], ['8', '8 decks']]], ['ask', 'Question', [['tray', 'Decks in tray'], ['remaining', 'Decks left']]], ['guides', 'Help', [['ref', '1-deck reference'], ['lines', 'Deck lines'], ['none', 'None']]]],
   truecount: [['timer', 'Timer', [['0', 'Off'], ['8', '8 seconds'], ['4', '4 seconds']]], ['range', 'Range', [['easy', 'Easy'], ['hard', 'Hard']]]],
   index: [['set', 'Hands', [['all', 'All'], ['stiff', 'Stiffs'], ['double', 'Doubles'], ['tens', 'Splitting tens']]], ['ins', 'Insurance', [['on', 'Included'], ['off', 'Off']]]],
@@ -19,7 +19,7 @@ const SETTINGS = {
 
 function makeQuestion(tool, s) {
   if (tool === 'strategy') return strategyQ({ pool: s.pool, h17: s.h17 === 'h17', surrender: s.surrender === 'on' });
-  if (tool === 'count') return countQ({ cards: Number(s.cards), speed: Number(s.speed), perFlash: Number(s.per) });
+  if (tool === 'count') return s.per.startsWith('table') ? countQ({ table: true, seats: Number(s.per.slice(5)), speed: Number(s.speed) }) : countQ({ cards: Number(s.cards), speed: Number(s.speed), perFlash: Number(s.per) });
   if (tool === 'decks') return decksQ({ shoe: Number(s.shoe), ask: s.ask, markers: s.guides === 'lines', reference: s.guides !== 'none' });
   if (tool === 'truecount') return s.range === 'easy' ? trueCountQ({ rcMin: -10, rcMax: 12, deckOptions: [1, 2, 3, 4, 5, 6], timer: Number(s.timer) }) : trueCountQ({ rcMin: -16, rcMax: 22, deckOptions: [.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5, 5.5], timer: Number(s.timer) });
   if (tool === 'index') return indexQ({ hands: { all: null, stiff: [12, 13, 15, 16], double: [9, 10, 11], tens: [20] }[s.set], insurance: s.ins === 'on' });

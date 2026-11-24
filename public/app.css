@@ -282,3 +282,14 @@ a.tool-card:active { transform: translateY(4px); box-shadow: none; }
 a.weak-card:hover { color: var(--text); border-color: #FF9B93; }
 a.weak-card:active { transform: translateY(4px); box-shadow: none; }
 .weak-card.empty { --c: #AEAEB2; --c-shadow: #8E8E93; background: #F7F7FA; border-color: var(--border); box-shadow: none; }
+
+/* ---- full-table count -------------------------------------------------------------------- */
+.deal-table { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 18px 14px 16px; border-radius: 28px; background: radial-gradient(ellipse at 50% 10%, #2E9D5B, #17713D); box-shadow: inset 0 0 0 5px #ffffff14; }
+.deal-table .seat { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 120px; }
+.deal-table .seats { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px 22px; }
+.deal-table .cards { display: flex; min-height: 76px; }
+.deal-table .pc { width: 50px; height: 70px; font-size: 26px; margin-left: -18px; }
+.deal-table .cards .pc:first-child { margin-left: 0; }
+.deal-table .pc b { font-size: 12px; top: 4px; left: 5px; }
+.deal-status { display: flex; align-items: center; gap: 8px; margin: 0; color: #fff; font: 800 16px var(--round); }
+@media (max-width: 700px) { .deal-table .pc { width: 42px; height: 60px; font-size: 22px; margin-left: -16px; } .deal-table .seat { min-width: 90px; } }
