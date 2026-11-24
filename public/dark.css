@@ -40,7 +40,7 @@
 [data-theme="dark"] .segmented a, [data-theme="dark"] .segmented button { color: #C7C7CC; }
 [data-theme="dark"] .choice-tile:hover { background: #2C2C2E; }
 [data-theme="dark"] .choice-tile.selected, [data-theme="dark"] .preset[aria-checked="true"], [data-theme="dark"] .rating-pick input:checked + span { background: #0A2A4D; border-color: #1D5FA8; color: #64B0FF; box-shadow: 0 4px 0 #1D5FA8; }
-[data-theme="dark"] .choice-tile.right { background: #0F2E19; border-color: #248A3D; color: #6EE38D; box-shadow: 0 4px 0 #248A3D; }
+[data-theme="dark"] .choice-tile.right { background: #0F2E19; border-color: #1E7B34; color: #6EE38D; box-shadow: 0 4px 0 #1E7B34; }
 [data-theme="dark"] .choice-tile.wrong { background: #3A1411; border-color: #A51B12; color: #FF8A80; box-shadow: 0 4px 0 #A51B12; }
 [data-theme="dark"] .choice-tile kbd { border-color: #48484A; color: #98989D; }
 [data-theme="dark"] .num-input { background: #1C1C1E; }
@@ -79,12 +79,12 @@
 [data-theme="dark"] .hero-path .node { color: #fff; }
 [data-theme="dark"] .act { border: 0; color: #fff; }
 [data-theme="dark"] .act-H { background: #D70015; box-shadow: 0 4px 0 #A50010; }
-[data-theme="dark"] .act-S { background: #248A3D; box-shadow: 0 4px 0 #1B6B2F; }
+[data-theme="dark"] .act-S { background: #1E7B34; box-shadow: 0 4px 0 #1B6B2F; }
 [data-theme="dark"] .act-D { background: #0062CC; box-shadow: 0 4px 0 #004A9B; }
 [data-theme="dark"] .act-P { background: #8944AB; box-shadow: 0 4px 0 #6E3689; }
 [data-theme="dark"] .act-R { background: #636366; box-shadow: 0 4px 0 #48484A; }
-[data-theme="dark"] .primary { background: #0A84FF !important; color: #fff !important; border-color: #0A84FF; box-shadow: 0 4px 0 #0062CC; }
-[data-theme="dark"] .coach-foot.ok .primary { background: #248A3D !important; border-color: #248A3D; box-shadow: 0 4px 0 #1B6B2F; }
+[data-theme="dark"] .primary { background: #0071E3 !important; color: #fff !important; border-color: #0071E3; box-shadow: 0 4px 0 #0057B0; }
+[data-theme="dark"] .coach-foot.ok .primary { background: #1E7B34 !important; border-color: #1E7B34; box-shadow: 0 4px 0 #1B6B2F; }
 [data-theme="dark"] .coach-foot.bad .primary { background: #E0261B !important; border-color: #E0261B; box-shadow: 0 4px 0 #A81E15; }
 [data-theme="dark"] .node-pop .primary { background: #fff !important; color: var(--c-deep) !important; box-shadow: 0 4px 0 #00000055; }
 [data-theme="dark"] .unit-tool { background: transparent; color: var(--ink); border-color: #ffffff66; box-shadow: 0 3px 0 #00000033; }

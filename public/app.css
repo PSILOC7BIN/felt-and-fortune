@@ -116,7 +116,7 @@ a.tool-card:active { transform: translateY(4px); box-shadow: none; }
 .act { flex-direction: column; gap: 2px; min-height: 64px; border-radius: 16px; font: 800 18px var(--round); border: 0; color: #fff; }
 .act kbd { font: 700 11px var(--round); opacity: .75; }
 .act-H { background: #D70015; box-shadow: 0 4px 0 #A50010; }
-.act-S { background: #248A3D; box-shadow: 0 4px 0 #1B6B2F; }
+.act-S { background: #1E7B34; box-shadow: 0 4px 0 #1B6B2F; }
 .act-D { background: #0062CC; box-shadow: 0 4px 0 #004A9B; }
 .act-P { background: #8944AB; box-shadow: 0 4px 0 #6E3689; }
 .act-R { background: #636366; box-shadow: 0 4px 0 #48484A; }
@@ -254,7 +254,7 @@ a.tool-card:active { transform: translateY(4px); box-shadow: none; }
 .sim-step { display: flex; align-items: center; gap: 10px; font-size: 19px; margin: 0 0 14px; }
 .sim-step > span { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 10px; background: #007AFF; color: #fff; font: 800 15px var(--round); box-shadow: 0 3px 0 #0059BA; }
 .sim-step > span .glyph { width: 18px; height: 18px; }
-.result .sim-step > span { background: #248A3D; box-shadow: 0 3px 0 #1B6B2F; }
+.result .sim-step > span { background: #1E7B34; box-shadow: 0 3px 0 #1B6B2F; }
 .preset-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; }
 .preset { flex-direction: column; align-items: flex-start; text-align: left; gap: 4px; padding: 14px 16px; min-height: 86px; border-radius: 18px; }
 .preset strong { font: 800 16px var(--round); }

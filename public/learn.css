@@ -1,9 +1,9 @@
 /* Felt & Fortune Coach: survey, path, and lesson player. */
-.c-green{--c:#34C759;--c-deep:#248A3D;--c-shadow:#248A3D;--c-tint:#E3F6E8;--ink:#fff}
+.c-green{--c:#34C759;--c-deep:#1E7B34;--c-shadow:#1E7B34;--c-tint:#E3F6E8;--ink:#fff}
 .c-blue{--c:#007AFF;--c-deep:#0062CC;--c-shadow:#0059BA;--c-tint:#E8F1FF;--ink:#fff}
 .c-teal{--c:#30B0C7;--c-deep:#0E7C8C;--c-shadow:#1F8A9C;--c-tint:#E0F5F8;--ink:#fff}
 .c-indigo{--c:#5856D6;--c-deep:#4846B8;--c-shadow:#3E3CA6;--c-tint:#ECECFB;--ink:#fff}
-.c-orange{--c:#FF9500;--c-deep:#C25E00;--c-shadow:#C77400;--c-tint:#FFF1E0;--ink:#fff}
+.c-orange{--c:#FF9500;--c-deep:#B35400;--c-shadow:#C77400;--c-tint:#FFF1E0;--ink:#fff}
 .c-purple{--c:#AF52DE;--c-deep:#8944AB;--c-shadow:#8944AB;--c-tint:#F5EAFB;--ink:#fff}
 .c-yellow{--c:#FFCC00;--c-deep:#FFCC00;--c-shadow:#D6A800;--c-tint:#FFF8D6;--ink:#1C1C1E}
 .c-pink{--c:#FF2D55;--c-deep:#D30F45;--c-shadow:#C70F3F;--c-tint:#FFE6EC;--ink:#fff}
@@ -37,7 +37,7 @@
 .coach-foot .chunky{min-width:180px}
 .coach-foot.ok{background:#E3F6E8;border-color:#E3F6E8}
 .coach-foot.bad{background:#FFE8E6;border-color:#FFE8E6}
-.coach-foot.ok .primary{background:#248A3D!important;border-color:#248A3D;box-shadow:0 4px 0 #1B6B2F}
+.coach-foot.ok .primary{background:#1E7B34!important;border-color:#1E7B34;box-shadow:0 4px 0 #1B6B2F}
 .coach-foot.bad .primary{background:#E0261B!important;border-color:#E0261B;box-shadow:0 4px 0 #A81E15}
 .verdict{display:flex;gap:14px;align-items:center;min-width:0}
 .verdict strong{font:800 21px var(--round);display:block}
@@ -88,7 +88,7 @@
 .stat-tile strong .glyph{width:22px;height:22px}
 .stat-tile span{font-size:12px;color:var(--muted);padding:0 8px 10px}
 .stat-tile strong:last-child{padding-bottom:14px}
-.stat-tile.blue{--tc:#007AFF}.stat-tile.green{--tc:#248A3D}.stat-tile.orange{--tc:#C25E00}.stat-tile.purple{--tc:#8944AB}.stat-tile.yellow{--tc:#E6A700;--tc-text:#8A6100}
+.stat-tile.blue{--tc:#007AFF}.stat-tile.green{--tc:#1E7B34}.stat-tile.orange{--tc:#B35400}.stat-tile.purple{--tc:#8944AB}.stat-tile.yellow{--tc:#E6A700;--tc-text:#8A6100}
 .glass-card{width:100%;text-align:left;background:#F9F9FB;border-radius:22px;padding:22px 22px 18px}
 .glass-card h2{font-size:20px;margin:0 0 12px}
 .reasons{list-style:none;padding:0;margin:0;display:grid;gap:10px}
@@ -190,7 +190,7 @@
 .lesson-prompt{margin:0!important}
 .lesson-done{gap:14px}
 .lesson-done h1{font-size:clamp(30px,4vw,38px);color:#E6A700}
-.goal-hit{display:flex;align-items:center;gap:6px;font:800 17px var(--round);color:#C25E00;margin:0}
+.goal-hit{display:flex;align-items:center;gap:6px;font:800 17px var(--round);color:#B35400;margin:0}
 .goal-hit .glyph{color:#FF9500}
 
 /* Quit sheet. */

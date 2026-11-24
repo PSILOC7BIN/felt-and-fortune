@@ -117,7 +117,7 @@ export function countQ({ cards: n = 8, speed = 900, perFlash = 1, start = 0, pro
   const q = {
     kind: 'count', hint: 'Type the count (± for negatives), then press Enter',
     render(el, ctx) {
-      el.innerHTML = `<div class="q"><p class="q-eyebrow">${n} cards · ${perFlash > 1 ? 'two at a time · ' : ''}${(speed / 1000).toFixed(speed < 1000 ? 2 : 1).replace(/0$/, '')} s each</p><h1 class="q-title">${esc(prompt || (start ? `The count is ${bj.signed(start)} coming in. Keep counting.` : 'Keep the running count.'))}</h1><div class="flash-stage" aria-live="off"><div class="flash-cards"><span class="flash-ready">${ace('think', 'ace-sm')}<b>Get ready…</b></span></div><div class="flash-progress"><span></span></div></div><div class="answer-slot" hidden></div></div>`;
+      el.innerHTML = `<div class="q"><p class="q-eyebrow">${n} cards · ${perFlash > 1 ? 'two at a time · ' : ''}${(speed / 1000).toFixed(speed < 1000 ? 2 : 1).replace(/0$/, '')} s each</p><h1 class="q-title">${esc(prompt || (start ? `The count is ${bj.signed(start)} coming in. Keep counting.` : 'Keep the running count.'))}</h1><p class="sr">This drill shows cards visually, one at a time. They are not read aloud, because announcing them would give away the count.</p><div class="flash-stage" aria-live="off"><div class="flash-cards"><span class="flash-ready">${ace('think', 'ace-sm')}<b>Get ready…</b></span></div><div class="flash-progress"><span></span></div></div><div class="answer-slot" hidden></div></div>`;
       const stage = $('.flash-cards', el), bar = $('.flash-progress span', el);
       (async () => {
         await sleep(900);
@@ -152,7 +152,7 @@ function tableCountQ({ seats = 3, speed = 900, start = 0, prompt }) {
   const q = {
     kind: 'count', hint: 'Type the count (± for negatives), then press Enter', data: { cards: counted, start }, answer, cards: counted,
     render(el, ctx) {
-      el.innerHTML = `<div class="q"><p class="q-eyebrow">Full table · ${seats} players · ${(speed / 1000).toFixed(2).replace(/0$/, '')} s per card</p><h1 class="q-title">${esc(prompt || 'Count every card as the round is dealt and played.')}</h1><div class="deal-table" aria-live="off"><div class="seat dealer"><span class="hand-label">Dealer</span><div class="cards"></div></div><div class="seats">${Array.from({ length: seats }, (_, i) => `<div class="seat" data-seat="${i}"><div class="cards"></div><span class="hand-label">Player ${i + 1}</span></div>`).join('')}</div><p class="deal-status">${ace('think', 'ace-xs')}<b>Get ready…</b></p></div><div class="answer-slot" hidden></div></div>`;
+      el.innerHTML = `<div class="q"><p class="q-eyebrow">Full table · ${seats} players · ${(speed / 1000).toFixed(2).replace(/0$/, '')} s per card</p><h1 class="q-title">${esc(prompt || 'Count every card as the round is dealt and played.')}</h1><p class="sr">This drill shows cards visually, one at a time. They are not read aloud, because announcing them would give away the count.</p><div class="deal-table" aria-live="off"><div class="seat dealer"><span class="hand-label">Dealer</span><div class="cards"></div></div><div class="seats">${Array.from({ length: seats }, (_, i) => `<div class="seat" data-seat="${i}"><div class="cards"></div><span class="hand-label">Player ${i + 1}</span></div>`).join('')}</div><p class="deal-status">${ace('think', 'ace-xs')}<b>Get ready…</b></p></div><div class="answer-slot" hidden></div></div>`;
       const status = $('.deal-status b', el);
       (async () => {
         await sleep(900);

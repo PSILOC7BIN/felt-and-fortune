@@ -18,16 +18,14 @@ META = {
     'subtitle': 'Final Project Report',
     'authors': [('Henry Chambers', '[Course number and name], [Institution], [email]')],
     'abstract': (
-        'Learning to play blackjack well means mastering basic strategy, card counting, true-count conversion, bet '
-        'sizing, and bankroll risk. Free tools for each skill exist, but they are scattered and rarely tell a beginner '
-        'where to start. Felt & Fortune is a free, educational web application that pairs a toolbox of drills, a Monte '
-        'Carlo simulator, and a results tracker with a personalized learning path. New users answer a ten-question '
+        'Free blackjack training tools exist, but they are scattered and rarely tell a beginner where to start. '
+        'Felt & Fortune is a free, educational web application built around a personalized learning path. New users answer a ten-question '
         'survey that includes four real skill checks, and a transparent rule-based planner turns the answers into a '
         'plan (starting point, focus areas, daily goal, and finish date) with a plain-language reason for each '
         'decision. Learners then follow a gamified path of 33 interactive lessons that embed seven single-purpose '
         'training tools, including a rotatable 3D discard tray, all driven by one verified strategy engine. This report '
         'describes the design, the development process, including two pivots (toolbox to coach, then coach-first app), '
-        'and an evaluation based on 52 automated tests and cross-device walkthroughs.'
+        'and an evaluation based on 56 automated tests and cross-device walkthroughs.'
     ),
     'ccs': ['Applied computing → Interactive learning environments', 'Human-centered computing → Web-based interaction',
             'Computing methodologies → Knowledge representation and reasoning'],
@@ -43,18 +41,14 @@ BODY = [
           'who also tracks the cards can shift the edge in their favor [@thorp]. The skills build on each other: card '
           'values and dealer rules, then basic strategy, then a running count, a true count, betting with the count, '
           'and finally count-based changes to strategy, known as index plays [@wong,@schlesinger].'),
-    ('p', 'Free resources already cover each skill [@aptoolbox,@bjtools], but learners must assemble them into a '
-          'study plan. The proposal for this project aimed to connect learning, practice, simulation, and results '
-          'tracking in one free interface. Building that toolbox exposed a second problem: a set of tools does not tell '
-          'a beginner where to start or an experienced player what to skip. The final version of Felt & Fortune '
-          'therefore adds a coach on top of the toolbox (Figure 1). It contributes:'),
+    ('p', 'Free resources already cover each skill [@aptoolbox,@bjtools], but a set of tools does not tell a beginner '
+          'where to start or an experienced player what to skip. Felt & Fortune therefore puts a coach in front of the '
+          'tools (Figure 1). It contributes:'),
     ('list', [
         'A ten-question onboarding survey that combines experience, goals, and schedule with four real placement checks.',
         'A transparent rule-based planner that places each learner in an 11-unit curriculum and explains every decision.',
         'Seven single-purpose training tools, embedded in a gamified lesson path and available on their own, all '
         'driven by one strategy engine so answers cannot drift from the charts.',
-        'A whole-site redesign that combines Apple’s system colors and type with the playful controls of mobile '
-        'learning apps.',
     ]),
     ('figure', ['figures/survey-placement.jpg', 'figures/plan-reveal.jpg', 'figures/lesson-feedback.jpg'], 1.3,
      'Figure 1: The onboarding flow on a phone. Left: a placement check. Center: the generated plan with its '
@@ -72,17 +66,13 @@ BODY = [
           'deviations [@schlesinger]. Felt & Fortune’s engine implements basic strategy for four to eight decks and 17 '
           'common Hi‑Lo indices for six-deck, dealer-stands-on-soft-17 games.'),
     ('h2', 'Existing tools'),
-    ('p', 'AP Toolbox combines training, simulation, results tracking, and community features behind a subscription '
-          '[@aptoolbox]. Blackjack.tools offers free calculators, strategy practice, a results tracker, and forums '
-          '[@bjtools]. Free access is therefore not this project’s contribution; an original, connected interface and a '
-          'personalized path through it are.'),
+    ('p', 'AP Toolbox bundles training, simulation, and tracking behind a subscription [@aptoolbox]; Blackjack.tools '
+          'offers similar tools free [@bjtools]. This project’s contribution is therefore the personalized path, not free access.'),
     ('h2', 'Gamified and adaptive learning'),
     ('p', 'Deterding et al. define gamification as the use of game design elements in non-game contexts [@deterding], '
-          'and Hamari et al. found mostly positive but context-dependent effects [@hamari]. Mobile language apps '
-          'popularized short lessons, streaks, and experience points, and use practice data to personalize review '
-          '[@settles]. Tutoring systems estimate what a learner already knows [@corbett]. Felt & Fortune borrows the '
-          'lesson-path format and a simple placement step, and its planner follows the rule-based expert-system '
-          'tradition [@buchanan], in which each decision comes from an explicit, readable rule.'),
+          'and Hamari et al. found mostly positive but context-dependent effects [@hamari]. Language apps use practice '
+          'data to personalize review [@settles], and tutoring systems estimate what a learner already knows [@corbett]. '
+          'Felt & Fortune’s planner follows the rule-based expert-system tradition [@buchanan].'),
 
     ('h1', 'System Design'),
     ('h2', 'Architecture'),
@@ -142,8 +132,9 @@ BODY = [
           'lesson nodes that unlock in order. A sidebar shows the streak, experience points (XP), the daily goal, a '
           'seven-day chart, and the plan. A wrong answer shows the correct answer and a reason, and the question '
           'returns at the end of the lesson (up to twice). Lessons earn 10 XP the first time, 5 XP on replay, and 5 '
-          'more if perfect. Practice sessions also earn XP toward the daily goal. Sound cues are synthesized with the '
-          'Web Audio API, and each unit links to its practice tool.'),
+          'more if perfect. Each lesson and practice session sends a transcript of every question and answer; the '
+          'server re-grades it with the Python engine and awards XP from its own score. The same data drives a '
+          '“Weak spots” session built from the skills a learner misses most.'),
     ('figure', ['figures/learning-path.jpg'], 3.9,
      'Figure 2: My Path on a desktop browser, with the app’s tab rail, unit banners, lesson nodes, and the daily goal '
      'and plan sidebar.',
@@ -154,8 +145,8 @@ BODY = [
     ('p', 'The whole site was redesigned as a fusion of Apple’s design language (system colors, system fonts, '
           'frosted-glass navigation, segmented controls) [@applehig] and a mobile learning app (chunky pressable '
           'buttons, large answer tiles, a zigzag path, celebration screens). Several of Apple’s brightest colors fail '
-          'the WCAG contrast ratio for white text [@wcag], so banners and buttons use deeper shades. The mascot, '
-          'sounds, and logo are original.'),
+          'the WCAG 4.5:1 contrast ratio for white text [@wcag], so every button and banner color was checked and '
+          'deepened where needed. A dark appearance follows the device setting. The mascot, sounds, and logo are original.'),
 
     ('h1', 'Development Process'),
     ('p', 'The project began on September 14, 2026 as research into existing tools, first aiming to closely match '
@@ -173,11 +164,12 @@ BODY = [
 
     ('h1', 'Evaluation'),
     ('h2', 'Automated tests and walkthroughs'),
-    ('p', 'All 52 tests pass. Beyond authentication, permissions, and the simulator, they check placement (an '
+    ('p', 'All 56 tests pass. Beyond authentication, permissions, and the simulator, they check placement (an '
           'unproven self-reported level is not skipped ahead), lesson unlocking and XP, and that every lesson’s tool '
           'steps are valid. A parity test compares the JavaScript and Python engines on every two-card hand, upcard, '
           'rule set, and true count from −6 to +8. Shoe Challenge tests confirm that perfect play keeps every heart, that '
-          'later parts are graded from the player’s own count, and that answers stay hidden. The full flow was walked '
+          'later parts are graded from the player’s own count, and that answers stay hidden. Grading tests confirm '
+          'that skipped questions, invented questions, and wrong answers are rejected or scored as wrong. The full flow was walked '
           'through at desktop, tablet, and phone widths, including an automated run through a whole lesson.'),
     ('h2', 'User feedback'),
     ('p', '[Pending: the proposal planned usability sessions with five to eight peers, targeting at least 90% task '
@@ -193,10 +185,11 @@ BODY = [
           'corrected. That matters when the subject involves money and risk, and the lessons teach that results are '
           'noisy, bankroll risk is real, and casinos may refuse play.'),
     ('h2', 'Limitations and future work'),
-    ('p', 'Lesson scores are reported by the browser, not verified by the server. The planner’s thresholds come from '
-          'the author’s judgment rather than learner data, and index plays assume six decks, S17, and no surrender. '
-          'Next steps are server-checked answers, spaced review of missed skills [@settles], a placement model tuned on '
-          'learner data, language-model explanations checked against the engine before display, and public deployment.'),
+    ('p', 'The server re-grades every answer, but practice questions are still dealt in the browser, so a determined '
+          'user could submit made-up hands. The planner’s thresholds come from the author’s judgment rather than learner '
+          'data, and index plays assume six decks, S17, and no surrender. Next steps are server-dealt questions, spaced '
+          'review over days [@settles], a placement model tuned on learner data, and language-model explanations '
+          'checked against the engine before display.'),
 
     ('h1', 'Conclusion'),
     ('p', 'Felt & Fortune began as a toolbox and became a coach. A short survey with real skill checks, a transparent '
