@@ -5,8 +5,10 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from email.message import EmailMessage
 from contextlib import contextmanager
-from datetime import date
+from datetime import date, timedelta
 from engine import basic, total, hilo, deviation, INDICES, simulate
+import coach
+from practice_api import PracticeRoutes
 
 ROOT=Path(__file__).parent
 DB_PATH=os.environ.get('DATABASE_PATH',str(ROOT/'data'/'ap-toolbox.sqlite3'))
@@ -37,6 +39,11 @@ def initialize():
         CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY, sender TEXT REFERENCES users(id), recipient TEXT REFERENCES users(id), body TEXT, created REAL);
         CREATE TABLE IF NOT EXISTS resets(token TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),expires REAL);
         CREATE TABLE IF NOT EXISTS challenges(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),mode TEXT,body TEXT,answer TEXT,created REAL,answered INTEGER DEFAULT 0,correct INTEGER DEFAULT 0);
+        CREATE TABLE IF NOT EXISTS plans(user_id TEXT PRIMARY KEY REFERENCES users(id),answers TEXT,plan TEXT,created REAL,updated REAL);
+        CREATE TABLE IF NOT EXISTS lesson_progress(user_id TEXT REFERENCES users(id),lesson_id TEXT,best INTEGER,completions INTEGER,updated REAL,PRIMARY KEY(user_id,lesson_id));
+        CREATE TABLE IF NOT EXISTS practice_log(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),tool TEXT,questions INTEGER,correct INTEGER,best_streak INTEGER,seconds INTEGER,day TEXT,created REAL);
+        CREATE TABLE IF NOT EXISTS games(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),state TEXT,score INTEGER,finished INTEGER,created REAL);
+        CREATE TABLE IF NOT EXISTS xp_log(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),day TEXT,xp INTEGER,lesson_id TEXT,created REAL);
         ''')
 
 def password_hash(password,salt=None):
@@ -59,7 +66,7 @@ def num(data,key,minimum=-1e9,maximum=1e9,default=0):
     require(math.isfinite(val) and minimum<=val<=maximum,f'Invalid {key}.')
     return val
 
-class Handler(BaseHTTPRequestHandler):
+class Handler(BaseHTTPRequestHandler, PracticeRoutes):
     server_version='FeltAndFortune/1.0'
     def log_message(self,fmt,*args):
         # Do not log reset tokens, passwords, or message contents.
@@ -105,7 +112,7 @@ class Handler(BaseHTTPRequestHandler):
                 require('.' not in Path(path).name,'Not found.',404)
                 file=public/'index.html'
             raw=file.read_bytes();self.send_response(200)
-            self.send_header('Content-Type',mimetypes.guess_type(str(file))[0] or 'application/octet-stream');self.security_headers()
+            self.send_header('Content-Type',mimetypes.guess_type(str(file))[0] or 'application/octet-stream');self.send_header('Cache-Control','no-cache');self.security_headers()
             self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
         except ApiError as e: self.send_json({'error':e.message},e.status)
         except (ValueError,KeyError,TypeError,json.JSONDecodeError): self.send_json({'error':'Invalid request data.'},400)
@@ -165,10 +172,15 @@ class Handler(BaseHTTPRequestHandler):
             require(re.fullmatch(r'[A-Za-z0-9_-]{3,30}',username),'Username must be 3–30 letters, numbers, hyphens or underscores.')
             require(re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email),'Enter a valid email address.')
             require(len(pw)>=10,'Use at least 10 characters for your password.')
+            plan=None
+            if d.get('survey') is not None:
+                try: answers=coach.validate_answers(d['survey']);plan=coach.build_plan(answers)
+                except ValueError as e: raise ApiError(str(e))
             uid=secrets.token_hex(12);c.execute('INSERT INTO users VALUES(?,?,?,?,?)',(uid,username,email,password_hash(pw),time.time()))
             bid=secrets.token_hex(12);now=time.time()
             c.execute('INSERT INTO records VALUES(?,?,?,?,?,?,?)',(bid,'bankroll',uid,None,json.dumps({'name':'My bankroll','currency':'USD','initial':0,'type':'solo'}),now,now))
             c.execute('INSERT INTO members VALUES(?,?,?,?)',(bid,uid,'owner',100))
+            if plan: c.execute('INSERT INTO plans VALUES(?,?,?,?,?)',(uid,json.dumps(answers),json.dumps(plan),now,now))
             return self.session(c.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone())
         if path=='/api/login' and method=='POST':
             self.throttle('login',30)
@@ -198,6 +210,11 @@ class Handler(BaseHTTPRequestHandler):
             self.throttle('reset-use',10);pw=textfield(d,'password',256);require(len(pw)>=10,'Use at least 10 characters.')
             row=c.execute('SELECT * FROM resets WHERE token=? AND expires>?',(hashlib.sha256(str(d.get('token','')).encode()).hexdigest(),time.time())).fetchone();require(row,'This reset link is invalid or expired.')
             c.execute('UPDATE users SET password=? WHERE id=?',(password_hash(pw),row['user_id']));c.execute('DELETE FROM resets WHERE user_id=?',(row['user_id'],));c.execute('DELETE FROM sessions WHERE user_id=?',(row['user_id'],));return self.send_json({'ok':True})
+        if path=='/api/survey' and method=='GET': return self.send_json({'questions':coach.public_survey()})
+        if path=='/api/plan/preview' and method=='POST':
+            self.throttle('plan-preview',40)
+            try: return self.send_json({'plan':coach.build_plan(d.get('answers'))})
+            except ValueError as e: raise ApiError(str(e))
         # Strategy charts are public; account data is never public.
         if path=='/api/charts' and method=='GET':
             h17=parse_qs(urlparse(self.path).query).get('h17',['false'])[0]=='true'
@@ -271,7 +288,7 @@ class Handler(BaseHTTPRequestHandler):
             if exercise=='count':
                 cards=[rng.randint(1,13) for _ in range(10)];body['cards']=cards;answer=str(sum(hilo(x) for x in cards))
             elif exercise=='decks':
-                quarter=rng.randint(1,23);body['quarters']=quarter;answer=str(quarter/4)
+                half=rng.randint(1,11);body['halves']=half;answer=str(half/2)
             elif exercise=='true-count':
                 rc=rng.randint(-20,25);remaining=rng.choice([1,1.5,2,2.5,3,4]);body.update({'running':rc,'remaining':remaining});answer=str(math.floor(rc/remaining))
             elif exercise=='deviation':
@@ -298,6 +315,8 @@ class Handler(BaseHTTPRequestHandler):
         if path=='/api/leaderboard' and method=='GET':
             rows=c.execute("SELECT users.username,COUNT(*) attempts,SUM(correct)*10 score FROM challenges JOIN users ON users.id=user_id WHERE mode='career' AND answered=1 GROUP BY user_id ORDER BY score DESC,attempts ASC LIMIT 50")
             return self.send_json({'players':[dict(r) for r in rows]})
+        if path.startswith('/api/path'): return self.path_api(path,method)
+        if path.startswith('/api/practice/') or path.startswith('/api/challenge/'): return self.practice_api(path,method,require,num,ApiError)
         if path=='/api/simulate' and method=='POST':
             self.throttle('simulate',10)
             with JOB_LOCK:
@@ -318,6 +337,76 @@ class Handler(BaseHTTPRequestHandler):
             with JOB_LOCK:
                 job=JOBS.get(path.split('/')[-1]);require(job and job['user']==uid,'Simulation not found.',404);return self.send_json({k:v for k,v in job.items() if k not in ('user','created')})
         raise ApiError('Endpoint not found.',404)
+
+    # ---- Learning path ---------------------------------------------------
+    def load_plan(self):
+        row=self.c.execute('SELECT plan FROM plans WHERE user_id=?',(self.user['id'],)).fetchone()
+        return json.loads(row['plan']) if row else None
+    def client_day(self):
+        raw=parse_qs(urlparse(self.path).query).get('day',[''])[0] or str(self.data.get('day',''))
+        server_day=date.today()
+        try:
+            day=date.fromisoformat(raw)
+            if abs((day-server_day).days)<=1: return day.isoformat()
+        except ValueError: pass
+        return server_day.isoformat()
+    def path_state(self,plan):
+        c=self.c;uid=self.user['id']
+        done={r['lesson_id']:r['best'] for r in c.execute('SELECT lesson_id,best FROM lesson_progress WHERE user_id=?',(uid,))}
+        order=coach.lesson_order(plan)
+        tested={l['id'] for u in coach.UNITS if u['id'] in plan['testedOut'] for l in u['lessons']}
+        current=next((l for l in order if l not in done and l not in tested),None)
+        cur_i=order.index(current) if current else len(order)
+        units=coach.path_units(plan)
+        for u in units:
+            for l in u['lessons']:
+                if l['id'] in done: l['status']='done';l['best']=done[l['id']]
+                elif l['id'] in tested: l['status']='tested'
+                elif l['id']==current: l['status']='current'
+                else: l['status']='locked' if order.index(l['id'])>cur_i else 'open'
+        today=self.client_day();days=[r[0] for r in c.execute('SELECT DISTINCT day FROM xp_log WHERE user_id=? ORDER BY day DESC',(uid,))]
+        streak=0;cursor=date.fromisoformat(today)
+        if days and days[0]!=today: cursor-=timedelta(days=1)
+        for day in days:
+            if day==cursor.isoformat(): streak+=1;cursor-=timedelta(days=1)
+            elif day<cursor.isoformat(): break
+        by_day=dict(c.execute('SELECT day,SUM(xp) FROM xp_log WHERE user_id=? GROUP BY day',(uid,)).fetchall())
+        week=[{'day':(date.fromisoformat(today)-timedelta(days=i)).isoformat()} for i in range(6,-1,-1)]
+        for w in week: w['xp']=by_day.get(w['day'],0)
+        finished=sum(1 for l in order if l in done or l in tested)
+        return {'plan':plan,'units':units,'current':current,'stats':{'xp':sum(by_day.values()),'todayXp':by_day.get(today,0),'dailyXp':plan['dailyXp'],'streak':streak,'week':week,'done':finished,'total':len(order)}}
+    def path_api(self,path,method):
+        c=self.c;uid=self.user['id'];d=self.data
+        if path=='/api/path' and method=='GET':
+            plan=self.load_plan()
+            return self.send_json(self.path_state(plan) if plan else {'plan':None})
+        if path=='/api/path/plan' and method=='POST':
+            self.throttle('plan',30)
+            try: answers=coach.validate_answers(d.get('answers'));plan=coach.build_plan(answers)
+            except ValueError as e: raise ApiError(str(e))
+            now=time.time()
+            c.execute('INSERT INTO plans VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET answers=excluded.answers,plan=excluded.plan,updated=excluded.updated',(uid,json.dumps(answers),json.dumps(plan),now,now))
+            return self.send_json(self.path_state(plan))
+        m=re.fullmatch(r'/api/path/lesson/([a-z0-9-]{2,24})(/complete)?',path)
+        require(m,'Endpoint not found.',404)
+        plan=self.load_plan();require(plan,'Build your plan first.',409)
+        unit,lesson=coach.find_lesson(m[1]);require(lesson and m[1] in coach.lesson_order(plan),'Lesson not found.',404)
+        state=self.path_state(plan)
+        status=next(l['status'] for u in state['units'] for l in u['lessons'] if l['id']==m[1])
+        require(status!='locked','Finish the earlier lessons to unlock this one.',403)
+        if not m[2]:
+            require(method=='GET','Method not allowed.',405)
+            steps=coach.resolve_steps(lesson['steps'],style=plan.get('style','mix'))
+            return self.send_json({'lesson':{'id':lesson['id'],'title':lesson['title'],'unit':{'id':unit['id'],'title':unit['title'],'color':unit['color'],'tool':unit['tool']},'steps':steps}})
+        require(method=='POST','Method not allowed.',405)
+        self.throttle('lesson-complete',120)
+        questions=int(num(d,'questions',1,200));correct=int(num(d,'correct',0,200));require(correct<=questions,'Invalid lesson result.')
+        accuracy=round(100*correct/questions)
+        first=c.execute('SELECT 1 FROM lesson_progress WHERE user_id=? AND lesson_id=?',(uid,m[1])).fetchone() is None
+        xp=(10 if first else 5)+(5 if accuracy==100 else 0)
+        c.execute('INSERT INTO lesson_progress VALUES(?,?,?,?,?) ON CONFLICT(user_id,lesson_id) DO UPDATE SET best=MAX(best,excluded.best),completions=completions+1,updated=excluded.updated',(uid,m[1],accuracy,1,time.time()))
+        c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)',(uid,self.client_day(),xp,m[1],time.time()))
+        return self.send_json({'xp':xp,'accuracy':accuracy,'first':first,**self.path_state(plan)})
 
 if __name__=='__main__':
     initialize()

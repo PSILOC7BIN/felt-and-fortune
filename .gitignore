@@ -7,3 +7,5 @@ test-output/
 presentation/.build/*
 !presentation/.build/build.mjs
 !presentation/.build/render-final.mjs
+# Word lock files
+~$*
