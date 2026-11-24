@@ -43,6 +43,7 @@ def initialize():
         CREATE TABLE IF NOT EXISTS lesson_progress(user_id TEXT REFERENCES users(id),lesson_id TEXT,best INTEGER,completions INTEGER,updated REAL,PRIMARY KEY(user_id,lesson_id));
         CREATE TABLE IF NOT EXISTS practice_log(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),tool TEXT,questions INTEGER,correct INTEGER,best_streak INTEGER,seconds INTEGER,day TEXT,created REAL);
         CREATE TABLE IF NOT EXISTS games(id TEXT PRIMARY KEY,user_id TEXT REFERENCES users(id),state TEXT,score INTEGER,finished INTEGER,created REAL);
+        CREATE TABLE IF NOT EXISTS feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),rating INTEGER,area TEXT,page TEXT,comment TEXT,created REAL);
         CREATE TABLE IF NOT EXISTS xp_log(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),day TEXT,xp INTEGER,lesson_id TEXT,created REAL);
         ''')
 
@@ -90,8 +91,11 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
                 self.data={}
                 if self.command!='GET':
                     origin=self.headers.get('Origin')
-                    expected=os.environ.get('PUBLIC_ORIGIN',f'http://{self.headers.get("Host")}')
-                    require(not origin or origin==expected,'Origin not allowed.',403)
+                    # Same-host requests only. Behind an HTTPS proxy or tunnel the page origin is https://<Host>.
+                    host=self.headers.get('Host','')
+                    allowed={f'http://{host}',f'https://{host}'}
+                    if os.environ.get('PUBLIC_ORIGIN'): allowed={os.environ['PUBLIC_ORIGIN'].rstrip('/')}
+                    require(not origin or origin in allowed,'Origin not allowed.',403)
                     require(self.headers.get('Content-Type','').startswith('application/json'),'JSON required.',415)
                     length=int(self.headers.get('Content-Length','0'));require(0<length<=2000000,'Request too large.',413)
                     self.data=json.loads(self.rfile.read(length))
@@ -316,6 +320,11 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
             rows=c.execute("SELECT users.username,COUNT(*) attempts,SUM(correct)*10 score FROM challenges JOIN users ON users.id=user_id WHERE mode='career' AND answered=1 GROUP BY user_id ORDER BY score DESC,attempts ASC LIMIT 50")
             return self.send_json({'players':[dict(r) for r in rows]})
         if path.startswith('/api/path'): return self.path_api(path,method)
+        if path=='/api/feedback' and method=='POST':
+            self.throttle('feedback',30)
+            rating=int(num(d,'rating',1,5));area=str(d.get('area','other'));require(area in ('signup','lesson','practice','track','community','other'),'Choose what you were doing.')
+            c.execute('INSERT INTO feedback(user_id,rating,area,page,comment,created) VALUES(?,?,?,?,?,?)',(uid,rating,area,textfield(d,'page',100,False),textfield(d,'comment',2000,False),time.time()))
+            return self.send_json({'ok':True},201)
         if path.startswith('/api/practice/') or path.startswith('/api/challenge/'): return self.practice_api(path,method,require,num,ApiError)
         if path=='/api/simulate' and method=='POST':
             self.throttle('simulate',10)

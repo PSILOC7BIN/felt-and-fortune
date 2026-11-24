@@ -102,6 +102,8 @@ class ApiTests(unittest.TestCase):
         progress=self.a.call('/api/progress')[1]['progress'];self.assertEqual(progress[0]['attempts'],1)
     def test_json_origin_and_validation(self):
         self.assertEqual(self.a.call('/api/profile','PATCH',{'username':'ValidName'},origin='https://evil.example')[0],403)
+        host=self.base.split('//')[1]
+        self.assertEqual(self.a.call('/api/feedback','POST',{'rating':4,'area':'other'},origin='https://'+host)[0],201)
         self.assertEqual(self.record(self.a,'session',{'date':'bad','game':'B','hours':-2,'profit':0,'ev':0},self.bank)[0],400)
         self.assertEqual(self.record(self.a,'bankroll',{'name':'Bad','initial':float('nan'),'currency':'USD'})[0],400)
     def test_reset_token_single_use_and_session_revocation(self):

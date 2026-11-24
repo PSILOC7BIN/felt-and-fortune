@@ -1,5 +1,6 @@
 import {createLearn} from './learn.js';
 import {createPractice} from './practice.js';
+import {createSimulator} from './simulator.js';
 import {ace,g,Sound} from './ui.js';
 import {TOOLS} from './trainers.js';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -25,7 +26,7 @@ function field(name,label,value='',type='text',extra=''){return `<div class="fie
 function select(name,label,options,value){return `<div class="field"><label for="${name}">${label}</label><select name="${name}" id="${name}">${options.map(o=>{const [v,l]=Array.isArray(o)?o:[o,o];return `<option value="${esc(v)}" ${String(v)===String(value)?'selected':''}>${esc(l)}</option>`;}).join('')}</select></div>`;}
 const textarea=(name,label,value='',extra='')=>`<div class="field"><label for="${name}">${label}</label><textarea id="${name}" name="${name}" ${extra}>${esc(value)}</textarea></div>`;
 const formData=form=>Object.fromEntries(new FormData(form));
-function modal(title,body,onSubmit){const el=$('#modal');el.innerHTML=`<div class="modal-head"><h2>${title}</h2><button type="button" class="ghost" data-close aria-label="Close dialog">${icon('close')}</button></div><form id="modal-form">${body}<p class="form-error" role="alert"></p><div class="modal-actions"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Save</button></div></form>`;$$('[data-close]',el).forEach(b=>b.onclick=()=>el.close());$('#modal-form').onsubmit=async e=>{e.preventDefault();const b=$('button[type=submit]',e.target);b.disabled=true;try{await onSubmit(formData(e.target));el.close();}catch(error){$('.form-error',el).textContent=error.message;}finally{b.disabled=false;}};el.showModal();}
+function modal(title,body,onSubmit,submitLabel='Save'){const el=$('#modal');el.innerHTML=`<div class="modal-head"><h2>${title}</h2><button type="button" class="ghost" data-close aria-label="Close dialog">${icon('close')}</button></div><form id="modal-form">${body}<p class="form-error" role="alert"></p><div class="modal-actions"><button type="button" data-close>Cancel</button><button class="primary" type="submit">${submitLabel}</button></div></form>`;$$('[data-close]',el).forEach(b=>b.onclick=()=>el.close());$('#modal-form').onsubmit=async e=>{e.preventDefault();const b=$('button[type=submit]',e.target);b.disabled=true;try{await onSubmit(formData(e.target));el.close();}catch(error){$('.form-error',el).textContent=error.message;}finally{b.disabled=false;}};el.showModal();}
 function download(filename,text,type='text/csv'){const a=document.createElement('a');const url=URL.createObjectURL(new Blob([text],{type}));a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function csv(rows){return rows.map(row=>row.map(x=>{let s=String(x??'');if(/^[=+@]/.test(s)||/^-\D/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';}).join(',')).join('\r\n');}
 function parseCSV(text){const rows=[];let row=[],cell='',quoted=false;for(let i=0;i<text.length;i++){let ch=text[i];if(ch==='"'){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;}else if(ch===','&&!quoted){row.push(cell);cell='';}else if((ch==='\n'||ch==='\r')&&!quoted){if(ch==='\r'&&text[i+1]==='\n')i++;row.push(cell);if(row.some(Boolean))rows.push(row);row=[];cell='';}else cell+=ch;}if(quoted)throw new Error('Unclosed quote in CSV.');row.push(cell);if(row.some(Boolean))rows.push(row);return rows;}
@@ -89,9 +90,11 @@ $('#app').innerHTML=navbar()+`<main id="main" class="landing"><section class="he
 const TABS=[['learn','path','Learn','/learn'],['practice','dumbbell','Practice','/practice'],['track','chart','Track','/track'],['community','users','Community','/community'],['profile','person','Profile','/profile']];
 function appShell(tab){
  if($('#app .app-shell')){$$('.rail-link').forEach(a=>{const on=a.dataset.tab===tab;a.classList.toggle('active',on);on?a.setAttribute('aria-current','page'):a.removeAttribute('aria-current');});$('#page').innerHTML='<div class="loading"><span class="spinner"></span>Loading…</div>';return;}
- $('#app').innerHTML=`<div class="app-shell"><aside class="learn-rail" aria-label="Main navigation">${brand()}<nav>${TABS.map(([k,gl,label,href])=>`<a href="${href}" data-tab="${k}" class="rail-link ${tab===k?'active':''}" ${tab===k?'aria-current="page"':''}>${g(gl)}<span>${label}</span></a>`).join('')}</nav><div class="rail-foot"><button type="button" class="icon-btn sound-toggle" aria-pressed="${Sound.on}" aria-label="${Sound.on?'Turn sound off':'Turn sound on'}">${g(Sound.on?'speaker':'mute')}</button></div></aside><main id="main" class="app-content"><div id="page"><div class="loading"><span class="spinner"></span>Loading…</div></div></main></div>`;
+ $('#app').innerHTML=`<div class="app-shell"><aside class="learn-rail" aria-label="Main navigation">${brand()}<nav>${TABS.map(([k,gl,label,href])=>`<a href="${href}" data-tab="${k}" class="rail-link ${tab===k?'active':''}" ${tab===k?'aria-current="page"':''}>${g(gl)}<span>${label}</span></a>`).join('')}</nav><div class="rail-foot"><button type="button" class="icon-btn" id="feedback-btn" aria-label="Send feedback" title="Send feedback">${g('chat')}</button><button type="button" class="icon-btn sound-toggle" aria-pressed="${Sound.on}" aria-label="${Sound.on?'Turn sound off':'Turn sound on'}">${g(Sound.on?'speaker':'mute')}</button></div></aside><main id="main" class="app-content"><div id="page"><div class="loading"><span class="spinner"></span>Loading…</div></div></main></div>`;
  $$('.sound-toggle').forEach(b=>b.onclick=()=>{const on=Sound.toggle();b.setAttribute('aria-pressed',on);b.innerHTML=g(on?'speaker':'mute');});
+ $('#feedback-btn').onclick=()=>openFeedback();
 }
+function openFeedback(area){const tab=location.pathname.split('/')[1];const guess=area||({learn:'lesson',practice:'practice',track:'track',community:'community'}[tab]||'other');modal('Send feedback',`<p class="muted">This goes straight to the developer. Thank you for helping test Felt &amp; Fortune!</p><div class="field"><span class="label-like">How easy was it to use?</span><div class="rating-row" role="radiogroup" aria-label="Rating from 1 to 5">${[1,2,3,4,5].map(n=>`<label class="rating-pick"><input type="radio" name="rating" value="${n}" required><span>${n}</span></label>`).join('')}</div><p class="field-hint">1 = very hard · 5 = very easy</p></div>${select('area','What were you doing?',[['signup','Signing up / the survey'],['lesson','A lesson'],['practice','A practice tool'],['track','Tracking results'],['community','Community'],['other','Something else']],guess)}${textarea('comment','What worked, and what got in your way?','','maxlength="2000" rows="4" placeholder="Anything confusing, slow, or broken?"')}`,async data=>{await api('/api/feedback','POST',{rating:Number(data.rating),area:data.area,comment:data.comment,page:location.pathname});toast('Thanks! Feedback sent.');},'Send');}
 function subTabs(items,active){return `<nav class="segmented page-tabs" aria-label="Sections">${items.map(([href,label])=>`<a href="${href}" role="tab" aria-selected="${href===active}" ${href===active?'aria-current="page"':''}>${label}</a>`).join('')}</nav>`;}
 function withTabs(items,active){const tabs=subTabs(items,active);const p=$('#page');const obs=new MutationObserver(()=>{if(!p.querySelector('.page-tabs'))p.insertAdjacentHTML('afterbegin',tabs);});obs.observe(p,{childList:true});cleanup=(prev=>()=>{prev();obs.disconnect();})(cleanup);}
 
@@ -100,17 +103,19 @@ async function profilePage(){
  const [stats,pathState]=await Promise.all([api('/api/practice/stats'),api('/api/path?day='+localDate())]);
  const rows=TOOLS.filter(t=>!['simulator'].includes(t.id)).map(t=>{const s=stats.tools[t.id];const v=t.id==='challenge'?(s?.sessions?`Best ${s.best} · ${s.sessions} runs`:'—'):(s?.questions?`${Math.round(s.correct/s.questions*100)}% · ${s.questions} answered · best streak ${s.best_streak}`:'—');return `<a class="profile-row c-${t.color}" href="/practice/${t.id}"><span class="tool-icon sm">${g(t.glyph)}</span><span>${t.name}</span><b>${v}</b></a>`;}).join('');
  const st=pathState.stats;
- $('#page').innerHTML=`<header class="page-hero"><div class="profile-id"><span class="avatar big">${esc(user.username[0].toUpperCase())}</span><div><h1>${esc(user.username)}</h1><p>${esc(user.email)}</p></div></div><button class="ghost" id="logout">Sign out</button></header>
+ $('#page').innerHTML=`<header class="page-hero"><div class="profile-id"><span class="avatar big">${esc(user.username[0].toUpperCase())}</span><div><h1>${esc(user.username)}</h1><p>${esc(user.email)}</p></div></div><div class="flex"><button class="small" id="profile-feedback">${g('chat')} Send feedback</button><button class="ghost" id="logout">Sign out</button></div></header>
  ${st?`<div class="plan-grid four">${[['orange','Day streak',st.streak,'flame'],['yellow','Total XP',st.xp,'bolt'],['blue','Lessons',`${st.done}/${st.total}`,'star'],['purple','Level',esc(pathState.plan.level),'trophy']].map(([c,l,v,ic])=>`<div class="stat-tile ${c}"><small>${l}</small><strong>${g(ic)} ${v}</strong></div>`).join('')}</div>`:''}
  <section class="panel mt"><h3>Practice record</h3><div class="profile-rows">${rows}</div></section>
  <form class="panel mt" id="profile-form"><h3>Account</h3><div class="grid two">${field('username','Username',user.username,'text','required minlength="3" maxlength="30"')}${field('email','Email address',user.email,'email','disabled')}</div><p class="form-error" role="alert"></p><button class="primary">Save</button></form>`;
  passwordSettings();
  $('#profile-form').onsubmit=async e=>{e.preventDefault();try{const result=await api('/api/profile','PATCH',formData(e.target));user=result.user;toast('Profile saved.');render();}catch(error){$('.form-error',e.target).textContent=error.message;}};
  $('#logout').onclick=async()=>{await api('/api/logout','POST');user=null;go('/');};
+ $('#profile-feedback').onclick=()=>openFeedback();
 }
 const ctxBase={$,$$,esc,api,go,brand,paths,localDate,toast,getUser:()=>user,setUser:u=>{user=u;},onCleanup:fn=>{const prev=cleanup;cleanup=()=>{prev();fn();};}};
 const learn=createLearn(ctxBase);
 const practice=createPractice(ctxBase);
+const simulator=createSimulator(ctxBase);
 function needLogin(path){if(user)return false;sessionStorage.setItem('after-login',path);history.replaceState({},'','/auth/login');authPage('login');return true;}
 function notFound(){$('#app').innerHTML=navbar()+`<main class="legal-page" id="main">${empty('Page not found','That page moved or doesn’t exist.',`<a class="button primary" href="${user?paths.learn:'/'}">${user?'Go to Learn':'Go home'}</a>`)}</main>`;}
 async function render(){
@@ -133,7 +138,7 @@ async function render(){
   appShell(tab);
   if(path==='/learn')await learn.learnPage();
   else if(path==='/practice')await practice.hub();
-  else if(path==='/practice/simulator'){await simulationPage('simulate');$('#page').insertAdjacentHTML('afterbegin',`<a class="back-link" href="/practice">${g('back')} Practice</a>`);}
+  else if(path==='/practice/simulator')await simulator();
   else if(path==='/track'||path==='/track/bankrolls'){withTabs([['/track','Sessions'],['/track/bankrolls','Bankrolls']],path);if(path==='/track')await resultsPage('results');else await bankrollPage();}
   else if(['/community','/community/directory','/community/messages'].includes(path)){withTabs([['/community','Forum'],['/community/directory','Game Directory'],['/community/messages','Messages']],path);if(path==='/community')await forumPage();else if(path==='/community/directory')await directoryPage();else await messagesPage();}
   else if(path==='/profile')await profilePage();

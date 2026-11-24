@@ -1,0 +1,10 @@
+data/
+report/
+presentation/
+tests/
+scripts/
+docs/
+.git/
+.claude/
+__pycache__/
+*.pyc
