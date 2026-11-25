@@ -4,6 +4,7 @@ import {createSimulator} from './simulator.js';
 import {createDirectory} from './directory.js';
 import {storePage,questsPage,loadEconomy} from './economy.js';
 import {react,setCelebrateLevel} from './reactions.js';
+import {reviewPage,skillsPanel} from './review.js';
 import {ace,g,Sound} from './ui.js';
 import {TOOLS} from './trainers.js';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -117,17 +118,19 @@ function responsiblePage(){
    <section class="side-card"><h2>Take a break</h2><p class="muted">Pause reminders and hide the app's streak nudges for a while. Your progress and streak freezes stay safe.</p>
     ${onBreak?`<p><strong>You're on a break until ${new Date(pause).toLocaleDateString('en-US',{month:'long',day:'numeric'})}.</strong></p><button type="button" class="small" id="end-break">End break early</button>`:`<div class="flex">${[1,7,30].map(d=>`<button type="button" class="small" data-break="${d}">${d} day${d>1?'s':''}</button>`).join('')}</div>`}</section>
   </div></div>`;
- $$('[data-break]').forEach(b=>b.onclick=()=>{localStorage.setItem('ff-break-until',String(Date.now()+Number(b.dataset.break)*86400000));toast('Break started. Take care of yourself.');responsiblePage();});
- $('#end-break')?.addEventListener('click',()=>{localStorage.removeItem('ff-break-until');responsiblePage();});
+ $$('[data-break]').forEach(b=>b.onclick=()=>{api('/api/prefs','POST',{breakDays:Number(b.dataset.break)}).catch(()=>{});localStorage.setItem('ff-break-until',String(Date.now()+Number(b.dataset.break)*86400000));toast('Break started. Take care of yourself.');responsiblePage();});
+ $('#end-break')?.addEventListener('click',()=>{api('/api/prefs','POST',{breakDays:0}).catch(()=>{});localStorage.removeItem('ff-break-until');responsiblePage();});
 }
 
 async function profilePage(){
- const [stats,pathState]=await Promise.all([api('/api/practice/stats'),api('/api/path?day='+localDate())]);
+ const [stats,pathState,skillSum]=await Promise.all([api('/api/practice/stats'),api('/api/path?day='+localDate()),api('/api/skills?day='+localDate()).catch(()=>null)]);
  const rows=TOOLS.filter(t=>!['simulator'].includes(t.id)).map(t=>{const s=stats.tools[t.id];const v=t.id==='challenge'?(s?.sessions?`Best ${s.best} · ${s.sessions} runs`:'—'):(s?.questions?`${Math.round(s.correct/s.questions*100)}% · ${s.questions} answered · best streak ${s.best_streak}`:'—');return `<a class="profile-row c-${t.color}" href="/practice/${t.id}"><span class="tool-icon sm">${g(t.glyph)}</span><span>${t.name}</span><b>${v}</b></a>`;}).join('');
  const st=pathState.stats;
  $('#page').innerHTML=`<header class="page-hero"><div class="profile-id"><span class="avatar big">${esc(user.username[0].toUpperCase())}</span><div><h1>${esc(user.username)}</h1><p>${esc(user.email)}${pathState.plan?` · ${esc(pathState.plan.trackName||'')} track`:''}</p></div></div><div class="flex"><a class="button small" href="/store#pro">${g('crown')} Plan &amp; billing</a><a class="button small" href="/track">${g('chart')} Session journal</a><a class="button small" href="/responsible">${g('shield')} Play responsibly</a><button class="small" id="profile-feedback">${g('chat')} Send feedback</button><button class="ghost" id="logout">Sign out</button></div></header>
  ${st?`<div class="plan-grid four">${[['orange','Day streak',st.streak,'flame'],['yellow','Total XP',st.xp,'bolt'],['blue','Lessons',`${st.done}/${st.total}`,'star'],['purple','Placed as',esc(pathState.plan.level),'trophy']].map(([c,l,v,ic])=>`<div class="stat-tile ${c}"><small>${l}</small><strong>${g(ic)} ${v}</strong></div>`).join('')}</div>`:''}
+ ${skillsPanel(skillSum)}
  <section class="panel mt"><h3>Appearance</h3><div class="segmented" role="radiogroup" aria-label="Appearance">${[["auto","Automatic"],["light","Light"],["dark","Dark"]].map(([v,t])=>`<button type="button" role="radio" data-theme-pick="${v}" aria-checked="${(window.ffTheme?window.ffTheme():"auto")===v}">${t}</button>`).join("")}</div><p class="field-hint">Automatic matches your device’s light or dark setting.</p></section>
+ <section class="panel mt" id="notifications"><h3>Email</h3><label class="check-label"><input type="checkbox" id="pref-streak"> <span>Streak reminders: one email on evenings you haven’t practiced yet</span></label><label class="check-label"><input type="checkbox" id="pref-news"> <span>Product news and new courses (rarely)</span></label><p class="field-hint">Receipts, trial reminders, and password resets are always sent.</p></section>
  <section class="panel mt"><h3>Your data</h3><p class="muted">Download everything Felt &amp; Fortune stores about you, or delete your account for good.</p><div class="flex"><button type="button" class="small" id="export-data">${g('book')} Download my data</button><button type="button" class="small danger-text" id="delete-account">Delete account</button></div></section>
  <section class="panel mt"><h3>Celebrations</h3><div class="segmented" role="radiogroup" aria-label="Celebrations">${[["full","Full"],["subtle","Just Ace"],["off","Off"]].map(([v,t])=>`<button type="button" role="radio" data-celebrate="${v}" aria-checked="${(localStorage.getItem("ff-celebrate")||"full")===v}">${t}</button>`).join("")}</div><p class="field-hint">How Ace reacts to your answers: animations and effects, just Ace, or nothing.</p></section>
  ${pathState.plan?`<section class="panel mt"><h3>Daily goal</h3><p class="muted">How much time do you want to practice each day? Your finish date updates to match.</p><div class="segmented" role="radiogroup" aria-label="Daily goal">${[[5,'5 min · casual'],[10,'10 min · regular'],[15,'15 min · serious'],[20,'20 min · intense']].map(([v,t])=>`<button type="button" role="radio" data-goal="${v}" aria-checked="${pathState.plan.minutes===v}">${t}</button>`).join('')}</div><p class="field-hint" id="goal-note">Currently ${pathState.plan.dailyXp} XP a day.</p></section>`:''}
@@ -137,6 +140,9 @@ async function profilePage(){
  $('#profile-form').onsubmit=async e=>{e.preventDefault();try{const result=await api('/api/profile','PATCH',formData(e.target));user=result.user;toast('Profile saved.');render();}catch(error){$('.form-error',e.target).textContent=error.message;}};
  $('#logout').onclick=async()=>{await api('/api/logout','POST');user=null;go('/');};
  $('#profile-feedback').onclick=()=>openFeedback();
+ api('/api/prefs').then(p=>{$('#pref-streak').checked=!!p.streak_email;$('#pref-news').checked=!!p.news_email;}).catch(()=>{});
+ $('#pref-streak').onchange=e=>api('/api/prefs','POST',{streak_email:e.target.checked}).then(()=>toast('Saved.'));
+ $('#pref-news').onchange=e=>api('/api/prefs','POST',{news_email:e.target.checked}).then(()=>toast('Saved.'));
  $('#export-data').onclick=async()=>{try{const data=await api('/api/account/export');const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='felt-and-fortune-data.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);toast('Your data is downloading.');}catch(e){toast(e.message);}};
  $('#delete-account').onclick=()=>modal('Delete your account?','<p class="muted">This permanently deletes your account, plan, progress, Stars, cosmetics, posts, and messages. It can’t be undone. If you subscribe through the App Store or Google Play, cancel there too.</p>'+field('password','Enter your password to confirm','','password','required autocomplete="current-password"'),async data=>{await api('/api/account/delete','POST',{password:data.password});user=null;localStorage.removeItem('ff-token');toast('Your account was deleted.');go('/');});
  $$('[data-celebrate]').forEach(b=>b.onclick=()=>{setCelebrateLevel(b.dataset.celebrate);$$('[data-celebrate]').forEach(x=>x.setAttribute('aria-checked',String(x===b)));if(b.dataset.celebrate!=='off')react(true,{streak:0});});
@@ -173,6 +179,7 @@ async function render(){
   if(path==='/learn')await learn.learnPage();
   else if(path==='/practice')await practice.hub();
   else if(path==='/practice/simulator')await simulator();
+  else if(path==='/practice/review')await reviewPage(ctxBase);
   else if(path==='/track'||path==='/track/bankrolls'){withTabs([['/track','Sessions'],['/track/bankrolls','Bankrolls']],path);if(path==='/track')await resultsPage('results');else await bankrollPage();}
   else if(['/community','/community/directory','/community/reports','/community/messages'].includes(path)){withTabs([['/community','Forum'],['/community/directory','Casino Map'],['/community/messages','Messages']],path);if(path==='/community')await forumPage();else if(path==='/community/directory')await casinoDirectory();else if(path==='/community/reports')await directoryPage();else await messagesPage();}
   else if(path==='/store')await storePage(ctxBase);

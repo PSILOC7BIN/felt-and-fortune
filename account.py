@@ -10,6 +10,7 @@ from email.message import EmailMessage
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS outbox(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, to_addr TEXT, subject TEXT, body TEXT, kind TEXT, status TEXT, created REAL);
 CREATE TABLE IF NOT EXISTS reminders(user_id TEXT, kind TEXT, ref TEXT, sent REAL, PRIMARY KEY(user_id, kind, ref));
+CREATE TABLE IF NOT EXISTS prefs(user_id TEXT PRIMARY KEY, streak_email INTEGER DEFAULT 1, news_email INTEGER DEFAULT 0, break_until REAL DEFAULT 0);
 CREATE TABLE IF NOT EXISTS events(id INTEGER PRIMARY KEY AUTOINCREMENT, anon TEXT, user_id TEXT, name TEXT, props TEXT, day TEXT, created REAL);
 '''
 
@@ -70,6 +71,40 @@ def cancellation(c, user, ent):
                 f"Your Stars, streak, and progress are kept. You can rejoin any time at {origin()}/store#pro", 'cancel')
 
 
+STREAK_HOUR = 18   # local server hour after which a not-yet-extended streak gets one nudge
+
+
+def prefs(c, uid):
+    row = c.execute('SELECT * FROM prefs WHERE user_id=?', (uid,)).fetchone()
+    return dict(row) if row else {'user_id': uid, 'streak_email': 1, 'news_email': 0, 'break_until': 0}
+
+
+def set_prefs(c, uid, **kw):
+    p = prefs(c, uid); p.update({k: v for k, v in kw.items() if k in ('streak_email', 'news_email', 'break_until')})
+    c.execute('INSERT INTO prefs VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET streak_email=excluded.streak_email, news_email=excluded.news_email, break_until=excluded.break_until',
+              (uid, int(bool(p['streak_email'])), int(bool(p['news_email'])), float(p['break_until'] or 0)))
+    return prefs(c, uid)
+
+
+def streak_nudges(c, now=None):
+    """One friendly email on days a streak of 2+ hasn't been extended yet, after STREAK_HOUR. Never guilt-tripping."""
+    import economy
+    now = now or time.time()
+    if time.localtime(now).tm_hour < STREAK_HOUR: return 0
+    today = time.strftime('%Y-%m-%d', time.localtime(now)); sent = 0
+    for u in c.execute('SELECT DISTINCT users.* FROM users JOIN xp_log ON xp_log.user_id = users.id WHERE xp_log.day >= ?',
+                       (time.strftime('%Y-%m-%d', time.localtime(now - 3 * 86400)),)).fetchall():
+        p = prefs(c, u['id'])
+        if not p['streak_email'] or (p['break_until'] or 0) > now: continue
+        length, _, extended = economy.streak_info(c, u['id'], today)
+        if extended or length < 2: continue
+        if c.execute('INSERT OR IGNORE INTO reminders VALUES(?,?,?,?)', (u['id'], 'streak', today, now)).rowcount:
+            send(c, u, f'Your {length}-day streak is waiting',
+                 f"One lesson or practice round keeps your {length}-day streak going. It takes about five minutes.\n"
+                 f"Pick up where you left off: {origin()}/learn\n\nDon’t want these? Turn streak emails off: {origin()}/profile#notifications", 'streak'); sent += 1
+    return sent
+
+
 def run_reminders(c, now=None):
     """Send trial-ending and renewal notices once each. Called periodically by the server."""
     now = now or time.time(); sent = 0
@@ -89,7 +124,7 @@ def run_reminders(c, now=None):
                 send(c, r, 'Your Felt & Fortune Pro renews soon',
                      f"Your yearly Pro plan renews on {fmt_date(r['renews'])} for $49.99.\nNo action needed to keep it. To cancel: {origin()}/store#pro",
                      'renewal-reminder'); sent += 1
-    return sent
+    return sent + streak_nudges(c, now)
 
 
 # ---------------------------------------------------------------------------------------------------

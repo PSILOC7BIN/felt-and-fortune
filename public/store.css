@@ -175,3 +175,30 @@
 .tour-dots { display: flex; gap: 6px; margin: 4px 0; } .tour-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); } .tour-dots i.on { background: #0A84FF; width: 22px; border-radius: 999px; }
 .report-row { display: grid; gap: 2px; padding: 10px 12px; border-radius: 14px; background: var(--panel2); color: var(--text); text-decoration: none; margin-bottom: 8px; font-size: 14px; }
 .report-row small { color: var(--muted); }
+
+/* Skill ratings and Hand Review */
+.rating-badge { display: inline-flex; align-items: baseline; gap: 6px; padding: 4px 12px; border-radius: 999px; background: color-mix(in srgb, var(--tc) 14%, transparent); color: var(--tc); font: 900 13px var(--round); }
+.rating-badge b { font-size: 18px; } .rating-badge small { font-size: 11px; } .rating-badge small.up { color: #1E7B34; } .rating-badge small.down { color: #D70015; }
+.skills-card { text-decoration: none; color: var(--text); display: block; }
+.skills-card h3 { display: flex; align-items: center; gap: 6px; } .skills-card h3 .glyph { width: 20px; height: 20px; color: #AF52DE; }
+.skill-line { display: flex; justify-content: space-between; font-size: 14px; padding: 4px 0; border-top: 1px solid var(--border); }
+.skill-bars { display: grid; gap: 8px; margin: 10px 0; }
+.skill-bar { display: grid; grid-template-columns: 130px 1fr 52px; gap: 10px; align-items: center; font-size: 14px; }
+.skill-bar .bar { height: 12px; border-radius: 999px; background: var(--panel2); overflow: hidden; }
+.skill-bar .bar i { display: block; height: 100%; border-radius: inherit; background: var(--tc); transition: width .6s; }
+.skill-bar b { text-align: right; font-family: var(--round); }
+.rating-spark { width: 100%; height: 50px; color: #AF52DE; }
+.review-page { max-width: 980px; margin: 0 auto; display: grid; gap: 14px; }
+.chip-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.review-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.review-card { display: grid; gap: 10px; padding: 16px; border-radius: 22px; background: var(--panel); border: 2px solid var(--border); transition: opacity .4s, transform .4s; }
+.review-card.cleared { opacity: 0; transform: scale(.95); }
+.review-card header { display: flex; justify-content: space-between; align-items: center; }
+.review-card .felt-table { margin: 11px; padding: 14px; } .review-card .felt-table .pc { width: 44px; height: 62px; font-size: 22px; }
+.review-card .scenario { font: 800 16px var(--round); margin: 0; }
+.mini-run { display: flex; flex-wrap: wrap; gap: 4px; } .mini-run .pc { width: 34px; height: 48px; font-size: 18px; }
+.tc-note { margin: 0; font: 800 14px var(--round); color: #AF52DE; }
+.retry-actions { display: flex; flex-wrap: wrap; gap: 8px; } .retry-actions button { flex: 1 1 auto; min-height: 42px; }
+.retry-num { display: flex; gap: 8px; } .retry-num input { flex: 1; min-height: 42px; }
+.retry-result { margin: 0; font-weight: 800; } .retry-result.ok { color: #1E7B34; } .retry-result.bad { color: #D70015; }
+.empty-review { display: grid; justify-items: center; text-align: center; gap: 6px; padding: 30px; }

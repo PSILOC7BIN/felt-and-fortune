@@ -325,7 +325,7 @@ export function createRunner({ body, foot, next, onResult, onEmpty, onKeyExtra }
     if (checked || q.teach) return;
     checked = true;
     const r = q.check(body);
-    r.record = { kind: q.recKind || q.kind, data: q.data, given: q.given ?? null };
+    r.record = { kind: q.recKind || q.kind, data: q.data, given: q.given ?? null, explain: r.explain || '' };
     Sound.play(r.ok ? 'correct' : 'wrong');
     streak = r.ok ? streak + 1 : 0;
     react(r.ok, { streak, anchor: body.querySelector('.felt-table, .deal-table, .tray-row, .choice-grid, .answers') || body });

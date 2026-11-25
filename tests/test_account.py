@@ -57,6 +57,23 @@ class AccountTests(unittest.TestCase):
             n = c.execute("SELECT COUNT(*) FROM outbox WHERE user_id=? AND kind='trial-reminder'", (uid,)).fetchone()[0]
         self.assertEqual(n, 1)
 
+    def test_streak_nudge_once_and_respects_prefs(self):
+        from datetime import date, timedelta
+        evening = time.mktime(date.today().timetuple()) + 19 * 3600
+        days = [(date.today() - timedelta(days=n)).isoformat() for n in (2, 1)]
+        made = []
+        for _ in range(3):
+            client, _, _ = self.signup(NEW); uid = self.uid(client); made.append((client, uid))
+            with server.db() as c:
+                for d in days: c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)', (uid, d, 10, 'x', time.time()))
+        made[1][0].call('/api/prefs', 'POST', {'streak_email': False})
+        made[2][0].call('/api/prefs', 'POST', {'breakDays': 7})
+        with server.db() as c:
+            account.streak_nudges(c, evening); account.streak_nudges(c, evening + 60)
+            counts = [c.execute("SELECT COUNT(*) FROM outbox WHERE user_id=? AND kind='streak'", (u,)).fetchone()[0] for _, u in made]
+            self.assertEqual(account.streak_nudges(c, evening - 6 * 3600), 0)          # too early in the day
+        self.assertEqual(counts, [1, 0, 0])
+
     def test_events_whitelist(self):
         client, _, _ = self.signup(NEW); uid = self.uid(client)
         client.call('/api/events', 'POST', {'name': 'paywall_view', 'props': {'from': 'test'}})

@@ -116,6 +116,8 @@ class PracticeRoutes:
             require(economy.use_round(c, uid, d.get('round'), tool), 'Start a practice round first.', 402)
             record_skills(c, uid, skills)
             day = self.client_day()
+            import learning  # imported here: learning imports this module
+            learning.record(c, uid, d['results'], None, 'practice:' + tool, day)
             quests.record(c, uid, day, 'practice', tool, q, round(100 * ok / q) if q else 0, min(streak, ok))
             c.execute('INSERT INTO practice_log(user_id,tool,questions,correct,best_streak,seconds,day,created) VALUES(?,?,?,?,?,?,?,?)', (uid, tool, q, ok, streak, secs, day, time.time()))
             xp = min(XP_CAP, ok)

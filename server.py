@@ -10,7 +10,7 @@ from engine import basic, total, hilo, deviation, INDICES, simulate
 import coach
 mimetypes.add_type('application/manifest+json', '.webmanifest')
 from practice_api import PracticeRoutes, grade_transcript, record_skills, BadTranscript
-import economy, quests, account
+import economy, quests, account, learning
 from economy import EconomyRoutes
 
 # Pacing is teaching, not a paywall: it applies to every learner (tests can relax it).
@@ -57,6 +57,7 @@ def initialize():
         c.executescript(economy.SCHEMA)
         c.executescript(quests.SCHEMA)
         c.executescript(account.SCHEMA)
+        c.executescript(learning.SCHEMA)
 
 def password_hash(password,salt=None):
     salt=salt or secrets.token_hex(16)
@@ -269,6 +270,20 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
                 rows.append({'label':label,'actions':[basic(cards,up,h17) for up in [2,3,4,5,6,7,8,9,10,1]]})
             return self.send_json({'rows':rows,'indices':INDICES})
         self.auth();uid=self.user['id']
+        if path=='/api/prefs' and method=='GET': return self.send_json(account.prefs(c,uid))
+        if path=='/api/prefs' and method=='POST':
+            kw={k:d[k] for k in ('streak_email','news_email') if k in d}
+            if 'breakDays' in d: kw['break_until']=time.time()+int(num(d,'breakDays',0,90))*86400
+            return self.send_json(account.set_prefs(c,uid,**kw))
+        if path=='/api/skills' and method=='GET': return self.send_json(learning.summary(c,uid,self.client_day()))
+        if path=='/api/review' and method=='GET':
+            sk=parse_qs(urlparse(self.path).query).get('skill',[None])[0]
+            return self.send_json(learning.review(c,uid,economy.is_pro(c,uid),sk if sk in learning.SKILL_NAMES else None))
+        if path=='/api/review/dismiss' and method=='POST':
+            c.execute('UPDATE mistakes SET cleared=1 WHERE id=? AND user_id=?',(int(num(d,'id',1,10**12)),uid));return self.send_json({'ok':True})
+        if path=='/api/review/retry' and method=='POST':
+            r=learning.retry(c,uid,int(num(d,'id',1,10**12)),d.get('given'));require(r,'That hand can’t be retried.',404)
+            return self.send_json(r)
         if path=='/api/account/export' and method=='GET':
             raw=json.dumps(account.export(c,uid),indent=2,default=str).encode()
             self.send_response(200);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store')
@@ -525,6 +540,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
         except BadTranscript as e: raise ApiError(str(e))
         require(originals==coach.expected_questions(lesson['steps'],plan.get('style','mix')),'These lesson results are incomplete. Please finish the lesson again.')
         record_skills(c,uid,skills)
+        learning.record(c,uid,d['results'],choices,'lesson:'+m[1],self.client_day())
         accuracy=round(100*first/originals)
         today=self.client_day()
         if lesson.get('checkpoint'):
