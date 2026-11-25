@@ -2,7 +2,7 @@ import {createLearn} from './learn.js';
 import {createPractice} from './practice.js';
 import {createSimulator} from './simulator.js';
 import {createDirectory} from './directory.js';
-import {storePage,loadEconomy} from './economy.js';
+import {storePage,questsPage,loadEconomy} from './economy.js';
 import {ace,g,Sound} from './ui.js';
 import {TOOLS} from './trainers.js';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -84,7 +84,7 @@ $('#app').innerHTML=navbar()+`<main id="main" class="landing"><section class="he
 <section class="section" id="faq"><div class="container">${sectionHead('','Questions','')}<div class="faq">${[['Is it really free?','Yes. There are no subscriptions, trials, or payments.'],['Is this gambling?','No. Felt & Fortune never takes a bet or any money. It teaches strategy and the math of risk.'],['I already know basic strategy. Do I start over?','No. The placement questions test what you know, and you skip the units you prove.'],['Which counting system is taught?','Hi‑Lo: 2–6 count +1, 7–9 count 0, and tens and aces count −1.'],['Is card counting legal?','Counting in your head is legal in most places, but casinos can refuse your play. Using a device to count is illegal in many places.'],['Does it work on my phone?','Yes. Every lesson and tool is built for touch and small screens.']].map(([q,a])=>`<details><summary>${q}</summary><p>${a}</p></details>`).join('')}</div></div></section></main>`+footer();}
 
 // ---- the app shell ---------------------------------------------------------------------------
-const TABS=[['learn','path','Learn','/learn'],['practice','dumbbell','Practice','/practice'],['store','gem','Store','/store'],['track','chart','Track','/track'],['community','users','Community','/community'],['profile','person','Profile','/profile']];
+const TABS=[['learn','path','Learn','/learn'],['practice','dumbbell','Practice','/practice'],['quests','target','Quests','/quests'],['store','gem','Store','/store'],['track','chart','Track','/track'],['community','users','Community','/community'],['profile','person','Profile','/profile']];
 function appShell(tab){
  if($('#app .app-shell')){$$('.rail-link').forEach(a=>{const on=a.dataset.tab===tab;a.classList.toggle('active',on);on?a.setAttribute('aria-current','page'):a.removeAttribute('aria-current');});$('#page').innerHTML='<div class="loading"><span class="spinner"></span>Loading…</div>';return;}
  $('#app').innerHTML=`<div class="app-shell"><aside class="learn-rail" aria-label="Main navigation">${brand()}<nav>${TABS.map(([k,gl,label,href])=>`<a href="${href}" data-tab="${k}" class="rail-link ${tab===k?'active':''}" ${tab===k?'aria-current="page"':''}>${g(gl)}<span>${label}</span></a>`).join('')}</nav><div class="rail-foot"><button type="button" class="icon-btn" id="feedback-btn" aria-label="Send feedback" title="Send feedback">${g('chat')}</button><button type="button" class="icon-btn sound-toggle" aria-pressed="${Sound.on}" aria-label="${Sound.on?'Turn sound off':'Turn sound on'}">${g(Sound.on?'speaker':'mute')}</button></div></aside><main id="main" class="app-content"><div id="page"><div class="loading"><span class="spinner"></span>Loading…</div></div></main></div>`;
@@ -167,6 +167,7 @@ async function render(){
   else if(path==='/track'||path==='/track/bankrolls'){withTabs([['/track','Sessions'],['/track/bankrolls','Bankrolls']],path);if(path==='/track')await resultsPage('results');else await bankrollPage();}
   else if(['/community','/community/directory','/community/reports','/community/messages'].includes(path)){withTabs([['/community','Forum'],['/community/directory','Casino Map'],['/community/reports','Player Reports'],['/community/messages','Messages']],path);if(path==='/community')await forumPage();else if(path==='/community/directory')await casinoDirectory();else if(path==='/community/reports')await directoryPage();else await messagesPage();}
   else if(path==='/store')await storePage(ctxBase);
+  else if(path==='/quests')await questsPage(ctxBase);
   else if(path==='/profile')await profilePage();
   else notFound();
  }catch(error){fail(error);}

@@ -45,7 +45,22 @@ export const Sound = (() => {
 })();
 
 // ---- Ace, the mascot: an original playing-card character -----------------------------------
-export function ace(mood = 'happy', cls = '') {
+// Coach styles (Store cosmetics): accessories drawn on Ace's card. Card spans x 9–89, y 8–112.
+const COACH_SKINS = {
+  bowtie: '<path d="M37 98l12 5-12 5zM61 98l-12 5 12 5z" fill="#E11D48" stroke="#9F1239" stroke-width="1.5" stroke-linejoin="round"/><circle cx="49" cy="103" r="3" fill="#9F1239"/>',
+  visor: '<path d="M14 26q35-16 70 0v6q-35-14-70 0z" fill="#16A34A"/><path d="M14 30q35-12 70 0l8 9q-43-18-86 0z" fill="#22C55E" opacity=".85"/>',
+  headphones: '<path d="M13 52q0-44 36-44t36 44" fill="none" stroke="#1F2937" stroke-width="6" stroke-linecap="round"/><rect x="4" y="46" width="13" height="24" rx="6" fill="#EF4444"/><rect x="81" y="46" width="13" height="24" rx="6" fill="#EF4444"/>',
+  sunglasses: '<rect x="26" y="47" width="21" height="15" rx="6" fill="#111827"/><rect x="52" y="47" width="21" height="15" rx="6" fill="#111827"/><path d="M47 52h5M20 51l6 1M79 51l-6 1" stroke="#111827" stroke-width="3" stroke-linecap="round"/><path d="M30 51l6-2" stroke="#fff" stroke-width="2" opacity=".6" stroke-linecap="round"/>',
+  cowboy: '<path d="M8 14q41 14 82 0q-4 8-41 10Q12 22 8 14z" fill="#92400E"/><path d="M28 14q2-20 21-20t21 20q-21 6-42 0z" fill="#B45309"/><path d="M28 12q21 5 42 0" stroke="#451A03" stroke-width="3" fill="none"/>',
+  party: '<path d="M49 -20L33 14h32z" fill="#A855F7"/><path d="M41 -3l14 7M37 6l20 5" stroke="#FDE047" stroke-width="3"/><circle cx="49" cy="-21" r="5" fill="#F472B6"/>',
+  tophat: '<rect x="22" y="6" width="54" height="6" rx="3" fill="#111"/><rect x="31" y="-22" width="36" height="30" rx="4" fill="#1C1C1E"/><rect x="31" y="0" width="36" height="5" fill="#DC2626"/>',
+  wizard: '<path d="M49 -28L27 12h44z" fill="#4C1D95"/><path d="M18 12q31 8 62 0" stroke="#4C1D95" stroke-width="7" stroke-linecap="round"/><path d="M45 -8l2 4 4 1-4 2-1 4-2-4-4-1 4-2z" fill="#FDE047"/><circle cx="56" cy="2" r="2" fill="#FDE047"/>',
+  monocle: '<circle cx="62" cy="56" r="11" fill="none" stroke="#B8860B" stroke-width="3"/><path d="M71 63q8 14 2 30" fill="none" stroke="#B8860B" stroke-width="1.5"/>',
+  crown: '<path d="M26 12l4-22 10 12 9-16 9 16 10-12 4 22z" fill="#FACC15" stroke="#B45309" stroke-width="2" stroke-linejoin="round"/><circle cx="49" cy="4" r="3" fill="#EF4444"/><circle cx="35" cy="6" r="2.2" fill="#3B82F6"/><circle cx="63" cy="6" r="2.2" fill="#3B82F6"/>',
+  pro: '<path d="M30 92q19 14 38 0" fill="none" stroke="#D4AF37" stroke-width="3.5" stroke-dasharray="3 2"/><circle cx="49" cy="101" r="6" fill="#D4AF37" stroke="#7A5B12" stroke-width="1.5"/><path d="M47 99h4M49 97v8" stroke="#7A5B12" stroke-width="1.5"/>',
+};
+
+export function ace(mood = 'happy', cls = '', skin = (typeof document !== 'undefined' && document.documentElement.dataset.coach) || 'none') {
   const eyes = mood === 'wow'
     ? '<path d="M31 57q7-9 14 0M55 57q7-9 14 0" stroke="#1C1C1E" stroke-width="4.5" fill="none" stroke-linecap="round"/>'
     : '<circle cx="38" cy="56" r="7" fill="#1C1C1E"/><circle cx="62" cy="56" r="7" fill="#1C1C1E"/><circle cx="40.5" cy="53.5" r="2.4" fill="#fff"/><circle cx="64.5" cy="53.5" r="2.4" fill="#fff"/>';
@@ -56,7 +71,7 @@ export function ace(mood = 'happy', cls = '') {
     think: '<path d="M43 74h14" stroke="#1C1C1E" stroke-width="4" stroke-linecap="round"/>',
   }[mood] || '';
   const brows = mood === 'oops' ? '<path d="M30 44l12 4M70 44l-12 4" stroke="#1C1C1E" stroke-width="3.5" stroke-linecap="round"/>' : mood === 'think' ? '<path d="M31 45q7-4 14 0" stroke="#1C1C1E" stroke-width="3.5" fill="none" stroke-linecap="round"/>' : '';
-  return `<svg class="ace ace-${mood} ${cls}" viewBox="0 0 100 124" role="img" aria-label="Ace, the Felt &amp; Fortune coach"><rect x="11" y="14" width="80" height="104" rx="16" fill="#C7C7CC"/><rect x="9" y="8" width="80" height="104" rx="16" fill="#fff" stroke="#D1D1D6" stroke-width="3"/><text x="19" y="31" font-family="ui-rounded,system-ui,sans-serif" font-weight="800" font-size="17" fill="#007AFF">A</text><path d="M24 34c-4 4-6 6-3 8 1.5 1 3 0 3-1 0 1 1.5 2 3 1 3-2 1-4-3-8z" fill="#007AFF"/>${brows}${eyes}<circle cx="27" cy="69" r="5.5" fill="#FF2D55" opacity=".22"/><circle cx="73" cy="69" r="5.5" fill="#FF2D55" opacity=".22"/>${mouth}<path d="M50 88c-6 6-9 9-4.5 12 2.2 1.4 4.5 0 4.5-1.5 0 1.5 2.3 2.9 4.5 1.5 4.5-3 1.5-6-4.5-12z" fill="#007AFF" opacity=".9"/></svg>`;
+  return `<svg class="ace ace-${mood} ${cls}" viewBox="0 0 100 124" role="img" aria-label="Ace, the Felt &amp; Fortune coach"><rect x="11" y="14" width="80" height="104" rx="16" fill="#C7C7CC"/><rect x="9" y="8" width="80" height="104" rx="16" fill="#fff" stroke="#D1D1D6" stroke-width="3"/><text x="19" y="31" font-family="ui-rounded,system-ui,sans-serif" font-weight="800" font-size="17" fill="#007AFF">A</text><path d="M24 34c-4 4-6 6-3 8 1.5 1 3 0 3-1 0 1 1.5 2 3 1 3-2 1-4-3-8z" fill="#007AFF"/>${brows}${eyes}<circle cx="27" cy="69" r="5.5" fill="#FF2D55" opacity=".22"/><circle cx="73" cy="69" r="5.5" fill="#FF2D55" opacity=".22"/>${mouth}<path d="M50 88c-6 6-9 9-4.5 12 2.2 1.4 4.5 0 4.5-1.5 0 1.5 2.3 2.9 4.5 1.5 4.5-3 1.5-6-4.5-12z" fill="#007AFF" opacity=".9"/>${COACH_SKINS[skin] || ''}</svg>`;
 }
 
 // ---- glyphs -------------------------------------------------------------------------------

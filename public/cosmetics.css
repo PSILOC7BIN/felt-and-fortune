@@ -1,0 +1,77 @@
+/* Cosmetics: card backs (--back-bg), table mats (--felt-*), and the table's printed layout and wood rail.
+   Each look is defined twice: on :root (what you've equipped) and as a .bk-* / .mt-* class (shop previews). */
+
+/* ---- card backs --------------------------------------------------------------------------------- */
+:root, .bk-classic { --back-bg: repeating-linear-gradient(135deg, #C62828 0 5px, #E04848 5px 10px); }
+:root[data-back="navy"], .bk-navy { --back-bg: repeating-linear-gradient(45deg, #1E3A8A 0 4px, #2B4FB3 4px 8px); }
+:root[data-back="chevron"], .bk-chevron { --back-bg: linear-gradient(135deg, #0F766E 25%, transparent 25%) -6px 0 / 12px 12px, linear-gradient(225deg, #0F766E 25%, transparent 25%) -6px 0 / 12px 12px, linear-gradient(315deg, #0F766E 25%, transparent 25%) 0 0 / 12px 12px, linear-gradient(45deg, #0F766E 25%, #2DD4BF 25%) 0 0 / 12px 12px; }
+:root[data-back="tartan"], .bk-tartan { --back-bg: repeating-linear-gradient(0deg, rgba(0, 0, 0, .28) 0 3px, transparent 3px 11px), repeating-linear-gradient(90deg, rgba(0, 0, 0, .28) 0 3px, transparent 3px 11px), repeating-linear-gradient(90deg, rgba(255, 214, 10, .35) 0 1px, transparent 1px 22px), #B91C1C; }
+:root[data-back="neon"], .bk-neon { --back-bg: repeating-linear-gradient(135deg, #7C3AED 0 5px, #EC4899 5px 10px); }
+:root[data-back="aurora"], .bk-aurora { --back-bg: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, .35), transparent 40%), linear-gradient(160deg, #0EA5A4, #6366F1 55%, #A855F7); }
+:root[data-back="carbon"], .bk-carbon { --back-bg: linear-gradient(45deg, #1F2937 25%, transparent 25%, transparent 75%, #1F2937 75%) 0 0 / 8px 8px, linear-gradient(45deg, #1F2937 25%, #374151 25%, #374151 75%, #1F2937 75%) 4px 4px / 8px 8px; }
+:root[data-back="sakura"], .bk-sakura { --back-bg: radial-gradient(circle, #F472B6 2.5px, transparent 3px) 0 0 / 12px 12px, radial-gradient(circle, #FBCFE8 2px, transparent 2.5px) 6px 6px / 12px 12px, #FDF2F8; }
+:root[data-back="artdeco"], .bk-artdeco { --back-bg: repeating-radial-gradient(circle at 50% 100%, #D4AF37 0 1.5px, transparent 1.5px 7px) 0 0 / 22px 14px, #111; }
+:root[data-back="galaxy"], .bk-galaxy { --back-bg: radial-gradient(circle at 20% 30%, #fff 0.8px, transparent 1.4px) 0 0 / 17px 19px, radial-gradient(circle at 70% 60%, #C4B5FD 0.8px, transparent 1.4px) 0 0 / 23px 13px, radial-gradient(ellipse at 40% 40%, #6D28D9, #1E1B4B 70%); }
+:root[data-back="koi"], .bk-koi { --back-bg: radial-gradient(ellipse 6px 3px at 30% 30%, #F59E0B 90%, transparent) 0 0 / 22px 22px, radial-gradient(ellipse 5px 2.5px at 70% 75%, #FB7185 90%, transparent) 0 0 / 22px 22px, linear-gradient(180deg, #0EA5E9, #1E3A8A); }
+:root[data-back="diamond"], .bk-diamond { --back-bg: conic-gradient(from 45deg at 50% 50%, #E2E8F0, #94A3B8, #F8FAFC, #64748B, #E2E8F0) 0 0 / 14px 14px; }
+:root[data-back="goldfoil"], .bk-goldfoil { --back-bg: radial-gradient(circle at 50% 50%, transparent 30%, rgba(120, 80, 0, .35) 31%, transparent 33%), linear-gradient(120deg, #B8860B, #FFE08A 35%, #C9971C 55%, #FFF1B8 75%, #A87B10); }
+:root[data-back="pro"], .bk-pro { --back-bg: repeating-linear-gradient(45deg, rgba(212, 175, 55, .55) 0 1px, transparent 1px 8px), repeating-linear-gradient(-45deg, rgba(212, 175, 55, .55) 0 1px, transparent 1px 8px), #0B0B0F; }
+/* Monthly event backs (earn-only) */
+:root[data-back="event-newyear"], .bk-event-newyear { --back-bg: radial-gradient(circle, #FDE68A 1px, transparent 1.6px) 0 0 / 9px 9px, linear-gradient(160deg, #111827, #1E3A8A); }
+:root[data-back="event-hearts"], .bk-event-hearts { --back-bg: radial-gradient(circle at 35% 40%, #FB7185 3px, transparent 3.5px) 0 0 / 16px 16px, radial-gradient(circle at 65% 40%, #FB7185 3px, transparent 3.5px) 0 0 / 16px 16px, #FFE4E6; }
+:root[data-back="event-clover"], .bk-event-clover { --back-bg: radial-gradient(circle, #22C55E 3px, transparent 3.5px) 0 0 / 12px 12px, linear-gradient(135deg, #14532D, #15803D); }
+:root[data-back="event-spring"], .bk-event-spring { --back-bg: radial-gradient(circle, #FDE047 2px, transparent 2.5px) 0 0 / 14px 14px, linear-gradient(135deg, #A7F3D0, #FBCFE8); }
+:root[data-back="event-derby"], .bk-event-derby { --back-bg: repeating-linear-gradient(90deg, #DC2626 0 6px, #FACC15 6px 12px, #2563EB 12px 18px); }
+:root[data-back="event-summer"], .bk-event-summer { --back-bg: linear-gradient(180deg, #F97316, #EC4899 55%, #7C3AED); }
+:root[data-back="event-stripes"], .bk-event-stripes { --back-bg: repeating-linear-gradient(0deg, #B91C1C 0 5px, #fff 5px 10px); }
+:root[data-back="event-neon"], .bk-event-neon { --back-bg: repeating-linear-gradient(90deg, #22D3EE 0 2px, transparent 2px 10px), #0F0A1F; }
+:root[data-back="event-school"], .bk-event-school { --back-bg: repeating-linear-gradient(0deg, rgba(255, 255, 255, .15) 0 1px, transparent 1px 9px), #1F3D2B; }
+:root[data-back="event-haunted"], .bk-event-haunted { --back-bg: radial-gradient(circle, #F97316 2px, transparent 2.5px) 0 0 / 13px 13px, linear-gradient(160deg, #1C1917, #4C1D95); }
+:root[data-back="event-harvest"], .bk-event-harvest { --back-bg: repeating-linear-gradient(45deg, #B45309 0 4px, #D97706 4px 8px); }
+:root[data-back="event-winter"], .bk-event-winter { --back-bg: radial-gradient(circle, #fff 1.5px, transparent 2px) 0 0 / 11px 11px, linear-gradient(160deg, #38BDF8, #1E40AF); }
+
+.pc.back { background: var(--back-bg) !important; border: 4px solid #fff; box-shadow: 0 0 0 1px #D1D1D6, 0 3px 0 rgba(0, 0, 0, .12); }
+.back-art { display: block; width: 52px; height: 74px; border-radius: 8px; border: 4px solid #fff; background: var(--back-bg); box-shadow: 0 0 0 1px rgba(0, 0, 0, .12), 0 6px 14px rgba(0, 0, 0, .18); }
+
+/* ---- table mats ---------------------------------------------------------------------------------- */
+:root, .mt-emerald { --felt-hi: #2E9D5B; --felt-lo: #145F34; --felt-ink: rgba(255, 255, 255, .55); --rail-a: #6B3F1D; --rail-b: #3D2210; }
+:root[data-felt="royal"], .mt-royal { --felt-hi: #3463C9; --felt-lo: #1A367D; --felt-ink: rgba(255, 255, 255, .55); }
+:root[data-felt="teal"], .mt-teal { --felt-hi: #14B8A6; --felt-lo: #0F6F67; --felt-ink: rgba(255, 255, 255, .6); }
+:root[data-felt="crimson"], .mt-crimson { --felt-hi: #B8324A; --felt-lo: #6E1222; --felt-ink: rgba(255, 228, 160, .6); }
+:root[data-felt="velvet"], .mt-velvet { --felt-hi: #7C3AED; --felt-lo: #3B1478; --felt-ink: rgba(255, 255, 255, .55); }
+:root[data-felt="midnight"], .mt-midnight { --felt-hi: #2B3566; --felt-lo: #0E1330; --felt-ink: rgba(203, 213, 255, .6); --rail-a: #2A2A2E; --rail-b: #111114; }
+:root[data-felt="neon"], .mt-neon { --felt-hi: #1A1033; --felt-lo: #07040F; --felt-ink: #F472B6; --rail-a: #22D3EE; --rail-b: #7C3AED; }
+:root[data-felt="monte"], .mt-monte { --felt-hi: #7F1D3A; --felt-lo: #3F0A1C; --felt-ink: rgba(212, 175, 55, .85); --rail-a: #D4AF37; --rail-b: #7A5B12; }
+:root[data-felt="gold"], .mt-gold { --felt-hi: #C9A23A; --felt-lo: #6E520C; --felt-ink: rgba(40, 25, 0, .55); --rail-a: #1C1C1C; --rail-b: #000; }
+:root[data-felt="pro"], .mt-pro { --felt-hi: #1C1C22; --felt-lo: #050507; --felt-ink: rgba(212, 175, 55, .9); --rail-a: #D4AF37; --rail-b: #7A5B12; }
+
+.felt-table, .deal-table, .mat-art {
+  position: relative; isolation: isolate;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, .035) 1px, transparent 1.5px) 0 0 / 5px 5px,
+    radial-gradient(ellipse 120% 90% at 50% 0%, var(--felt-hi), var(--felt-lo)) !important;
+  box-shadow: 0 0 0 9px var(--rail-a), 0 0 0 11px var(--rail-b), 0 14px 30px rgba(0, 0, 0, .28), inset 0 0 50px rgba(0, 0, 0, .35) !important;
+  margin: 11px;
+}
+/* Printed layout: payout line along the bottom, insurance arc through the middle. */
+.felt-table::before, .deal-table::before, .mat-art::before {
+  content: "BLACKJACK PAYS 3 TO 2"; position: absolute; left: 0; right: 0; bottom: 8px; z-index: -1; pointer-events: none;
+  text-align: center; font: 800 11px var(--round); letter-spacing: .32em; color: var(--felt-ink);
+}
+.felt-table::after, .deal-table::after, .mat-art::after {
+  content: "INSURANCE PAYS 2 TO 1"; position: absolute; left: 12%; right: 12%; top: 42%; height: 46%; z-index: -1; pointer-events: none;
+  border-top: 2px solid var(--felt-ink); border-radius: 50% 50% 0 0 / 100% 100% 0 0; opacity: .55;
+  text-align: center; font: 800 9px var(--round); letter-spacing: .28em; color: var(--felt-ink); padding-top: 4px;
+}
+:root[data-felt="neon"] .felt-table::before, :root[data-felt="neon"] .deal-table::before, .mt-neon::before { text-shadow: 0 0 6px #F472B6, 0 0 14px #EC4899; }
+.mat-art { display: block; width: 100%; aspect-ratio: 16 / 10; border-radius: 40% 40% 18px 18px / 30% 30% 18px 18px; }
+
+/* ---- coach styles --------------------------------------------------------------------------------- */
+.ace { overflow: visible; }
+.coach-art { display: grid; place-items: end center; height: 90px; padding-top: 14px; }
+.coach-art .ace { width: 56px; height: auto; }
+/* Small mat thumbnails: keep the arc and payout line, shrink the print. */
+.mat-art::before { font-size: 7px; letter-spacing: .18em; bottom: 5px; }
+.mat-art::after { font-size: 0; top: 40%; }
+.set-arts .mat-art::before { font-size: 5px; letter-spacing: .12em; }
+.felt-table::after, .deal-table::after { font-size: 0; top: 50%; }

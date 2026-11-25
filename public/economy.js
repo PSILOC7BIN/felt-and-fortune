@@ -15,6 +15,7 @@ export function applyLook(look) {
   if (!look) return;
   document.documentElement.dataset.felt = look.felt;
   document.documentElement.dataset.back = look.back;
+  document.documentElement.dataset.coach = look.coach || 'none';
 }
 
 const mins = s => s >= 3600 ? `${Math.floor(s / 3600)}h ${Math.round(s % 3600 / 60)}m` : `${Math.max(1, Math.round(s / 60))}m`;
@@ -31,7 +32,11 @@ export function chipsHTML(eco, streakOverride) {
     <a class="chip stars-chip" href="/store" title="Stars">${g('star')}<b data-stars>${eco.stars}</b><span class="sr">Stars</span></a>
     ${energy}</div>`;
 }
-function paintChips() { $$('[data-eco-chips]').forEach(el => { el.innerHTML = chipsHTML(cache); }); }
+function paintChips() {
+  $$('[data-eco-chips]').forEach(el => { el.innerHTML = chipsHTML(cache); });
+  const n = cache?.questsReady || 0;
+  $$('.rail-link[data-tab="quests"]').forEach(el => { el.dataset.count = n; el.classList.toggle('has-count', n > 0); });
+}
 
 // ---- sheets -------------------------------------------------------------------------------------
 export function openSheet(html, { wide = false, onClose } = {}) {
@@ -144,21 +149,6 @@ export function celebrateEvents(ctx, events = []) {
 }
 
 // ---- side cards ---------------------------------------------------------------------------------
-export function questsCard(eco) {
-  if (!eco) return '';
-  return `<div class="side-card quests"><div class="side-head"><h3>Daily quests</h3><span class="muted small">Resets at midnight</span></div>
-    ${eco.quests.map(q => `<div class="quest ${q.claimed ? 'claimed' : q.done ? 'ready' : ''}"><div class="quest-copy"><strong>${esc(q.text)}</strong><div class="quest-bar"><span style="width:${Math.round(q.progress / q.goal * 100)}%"></span></div><small>${q.progress}/${q.goal}</small></div>
-      ${q.claimed ? `<span class="quest-done">${g('check')}</span>` : `<button type="button" class="small ${q.done ? 'primary' : ''}" data-quest="${q.id}" ${q.done ? '' : 'disabled'}>${g('star')} ${q.stars}</button>`}</div>`).join('')}</div>`;
-}
-
-export function wireQuests(ctx, root = document) {
-  $$('[data-quest]', root).forEach(b => b.onclick = async () => {
-    b.disabled = true;
-    try { const r = await ctx.api('/api/quests/claim', 'POST', { quest: b.dataset.quest, day: ctx.localDate() }); flyStars(b, 5); setEconomy(r); const card = b.closest('.quests'); if (card) { card.outerHTML = questsCard(r); wireQuests(ctx, root); } }
-    catch (e) { ctx.toast(e.message); b.disabled = false; }
-  });
-}
-
 export function repairCard(eco) {
   if (!eco?.repair) return '';
   return `<div class="repair-card">${g('flame')}<div><strong>Your ${eco.repair.streak}-day streak broke</strong><span>You can repair it for free once a month.</span></div><button type="button" class="primary small" id="repair-streak">Repair</button></div>`;
@@ -181,65 +171,202 @@ export function leagueCard(lg) {
 }
 
 // ---- store --------------------------------------------------------------------------------------
-const LOOK_SWATCH = { emerald: '#0E6B3A', royal: '#1D3F8F', crimson: '#8E1B2B', midnight: '#151B3B', gold: '#8C6A12', classic: '#C62828', neon: '#7C3AED', aurora: '#0EA5A4', diamond: '#64748B' };
+const RARITY_LABEL = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
+const TABS = [['featured', 'star', 'Featured'], ['back', 'cards', 'Card backs'], ['felt', 'stack', 'Table mats'], ['coach', 'person', 'Coach'], ['sets', 'gift', 'Sets'], ['powerups', 'bolt', 'Power-ups'], ['pro', 'crown', 'Pro']];
+const DEFAULT_ITEMS = { back: ['classic', 'Classic Red', 'The original back.'], felt: ['emerald', 'Emerald', 'The classic table.'], coach: ['none', 'Just Ace', 'No accessories.'] };
 
-export async function storePage(ctx) {
-  const { api, esc: _e } = ctx;
+export function artHTML(kind, value) {
+  if (kind === 'back') return `<span class="back-art bk-${esc(value)}"></span>`;
+  if (kind === 'felt') return `<span class="mat-art mt-${esc(value)}"></span>`;
+  if (kind === 'coach') return `<span class="coach-art">${ace('happy', '', value)}</span>`;
+  if (kind === 'freeze') return `<span class="shop-art freeze">${g('snow')}</span>`;
+  return `<span class="shop-art energy">${g('bolt')}</span>`;
+}
+
+function previewHTML(look) {
+  return `<div class="try-table mt-${esc(look.felt)}"><div class="try-cards"><span class="pc try-face"><b>A</b>♠</span><span class="pc back bk-${esc(look.back)}"></span></div><div class="try-coach">${ace('happy', 'ace-md', look.coach)}</div></div>`;
+}
+
+export async function storePage(ctx, tab = location.hash.slice(1) || 'featured') {
+  const { api } = ctx;
   const st = await api('/api/store?day=' + ctx.localDate()); setEconomy(st);
-  const plan = st.plan, test = st.billingMode === 'test';
+  const plan = st.plan, test = st.billingMode === 'test', owned = new Set(st.owned);
+  if (!TABS.some(t => t[0] === tab)) tab = 'featured';
+  let preview = { ...st.look }, previewing = null;
   const fmtDate = ts => new Date(ts * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const day = iso => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const equipped = (kind, value) => st.look[kind] === value;
+  const has = (id, it) => owned.has(id) || (it.pro && plan.pro);
+
+  const itemCard = (id, it) => {
+    const mine = has(id, it), on = mine && equipped(it.kind, it.value);
+    const status = on ? `<span class="own-tag on">${g('check')} Equipped</span>` : mine ? '<span class="own-tag">Owned</span>'
+      : it.event ? `<span class="own-tag event">${g('trophy')} Event reward</span>` : it.pro ? `<span class="own-tag pro">${g('crown')} Pro</span>`
+      : `<span class="price ${st.stars >= it.stars ? '' : 'short'}">${g('star')} ${it.stars}</span>`;
+    const short = !mine && !it.event && !it.pro && st.stars < it.stars ? `<small class="to-go">${it.stars - st.stars} more Stars</small>` : '';
+    return `<button type="button" class="item-card r-${it.rarity} ${on ? 'equipped' : ''}" data-item="${id}">${artHTML(it.kind, it.value)}<span class="item-name">${esc(it.name)}</span><span class="rarity">${RARITY_LABEL[it.rarity]}</span>${status}${short}</button>`;
+  };
+  const defaultCard = kind => {
+    const [v, name, text] = DEFAULT_ITEMS[kind], on = equipped(kind, v);
+    return `<button type="button" class="item-card r-starter ${on ? 'equipped' : ''}" data-default="${kind}">${artHTML(kind, v)}<span class="item-name">${name}</span><span class="rarity">Starter</span>${on ? `<span class="own-tag on">${g('check')} Equipped</span>` : '<span class="own-tag">Owned</span>'}</button>`;
+  };
+  const kindGrid = kind => {
+    const items = Object.entries(st.catalog).filter(([, it]) => it.kind === kind && !it.event);
+    const order = ['common', 'rare', 'epic', 'legendary'];
+    items.sort((a, b) => (a[1].pro - b[1].pro) || order.indexOf(a[1].rarity) - order.indexOf(b[1].rarity));
+    const events = Object.entries(st.catalog).filter(([, it]) => it.kind === kind && it.event);
+    const have = items.filter(([id, it]) => has(id, it)).length + 1;
+    return `<p class="collection-count">${g('check')} You own ${have + events.filter(([id]) => owned.has(id)).length} of ${items.length + events.length + 1}</p><div class="item-grid">${defaultCard(kind)}${items.map(([id, it]) => itemCard(id, it)).join('')}</div>
+      ${events.length ? `<h3 class="sub-head">${g('trophy')} Event card backs <small>Earn one by finishing that month’s Quests event. Never sold.</small></h3><div class="item-grid">${events.map(([id, it]) => itemCard(id, it)).join('')}</div>` : ''}`;
+  };
+  const setCard = s => {
+    const items = s.items.map(id => [id, st.catalog[id]]);
+    const done = s.owned === s.total;
+    return `<div class="set-card"><div class="set-arts">${items.map(([, it]) => artHTML(it.kind, it.value)).join('')}</div><div class="set-copy"><h3>${esc(s.name)}</h3>
+      <div class="set-bar"><span style="width:${Math.round(s.owned / s.total * 100)}%"></span></div><small>${s.owned} of ${s.total} collected · Complete it for ${g('star')} ${s.bonus} bonus Stars</small></div>
+      ${done ? `<span class="own-tag on">${g('check')} Complete</span>` : `<button type="button" class="primary" data-set="${s.id}" ${st.stars >= s.price ? '' : 'disabled'}>${g('star')} ${s.price}<small>Get the rest · 20% off</small></button>`}</div>`;
+  };
   const planCard = (id, p, best) => {
-    const total = `$${p.price.toFixed(2)}`;
-    const per = p.period ? `${total} per ${p.period}` : `${total} once`;
-    const trial = p.trial ? `${p.trial}-day free trial, then ${per}.` : p.period ? `${per}, renews automatically.` : 'One payment. Pro forever.';
-    return `<div class="plan-card ${best ? 'best' : ''}">${best ? '<span class="plan-flag">Best value</span>' : ''}<h3>${esc(p.name)}</h3><p class="plan-price"><b>${total}</b>${p.period ? `<span>/${p.period}</span>` : ''}</p>${p.perMonth ? `<p class="muted small">Just $${p.perMonth}/month</p>` : '<p class="muted small">&nbsp;</p>'}
-      <p class="plan-terms">${trial}${p.period ? ' Cancel any time here in the Store; you keep Pro until the period ends.' : ''}</p>
-      <button type="button" class="${best ? 'primary' : ''} chunky" data-plan="${id}" ${plan.pro ? 'disabled' : ''}>${p.trial ? 'Start free trial' : p.period ? 'Subscribe' : 'Buy lifetime'}</button></div>`;
+    const total = `$${p.price.toFixed(2)}`, per = p.period ? `${total} per ${p.period}` : `${total} once`;
+    const terms = p.trial ? `${p.trial}-day free trial, then ${per}.` : p.period ? `${per}, renews automatically.` : 'One payment. Pro forever.';
+    return `<div class="plan-card ${best ? 'best' : ''}">${best ? '<span class="plan-flag">Best value</span>' : ''}<h3>${esc(p.name)}</h3><p class="plan-price"><b>${total}</b>${p.period ? `<span>/${p.period}</span>` : ''}</p>${p.perMonth ? `<p class="muted small">Just $${p.perMonth}/month</p>` : '<p class="muted small">&nbsp;</p>'}<p class="plan-terms">${terms}${p.period ? ' Cancel any time here in the Store; you keep Pro until the period ends.' : ''}</p><button type="button" class="${best ? 'primary' : ''} chunky" data-plan="${id}" ${plan.pro ? 'disabled' : ''}>${p.trial ? 'Start free trial' : p.period ? 'Subscribe' : 'Buy lifetime'}</button></div>`;
   };
-  const owned = new Set(st.owned);
-  const items = Object.entries(st.shop);
-  const shopItem = ([id, it]) => {
-    const isLook = it.kind === 'felt' || it.kind === 'back';
-    const have = owned.has(id), on = isLook && st.look[it.kind] === it.value;
-    const action = isLook && have ? `<button type="button" class="small" data-equip="${it.kind}:${it.value}" ${on ? 'disabled' : ''}>${on ? 'Equipped' : 'Use'}</button>`
-      : `<button type="button" class="small ${st.stars >= it.stars ? 'primary' : ''}" data-buy="${id}" ${st.stars >= it.stars ? '' : 'disabled'}>${g('star')} ${it.stars}</button>`;
-    const art = it.kind === 'freeze' ? `<span class="shop-art freeze">${g('snow')}</span>` : it.kind === 'refill' ? `<span class="shop-art energy">${g('bolt')}</span>` : `<span class="shop-art ${it.kind}" style="--sw:${LOOK_SWATCH[it.value]}"></span>`;
-    return `<div class="shop-item">${art}<div class="shop-copy"><strong>${esc(it.name)}</strong><small>${esc(it.text || (it.kind === 'felt' ? 'Table felt for every trainer.' : 'Card back for every trainer.'))}</small></div>${action}</div>`;
+  const panes = {
+    featured: () => {
+      const vegas = st.sets.find(s => s.owned < s.total) || st.sets[0];
+      return `<div class="featured-hero">${setCard(vegas)}</div><h3 class="sub-head">${g('star')} This week’s picks <small>New picks ${day(st.featured.ends)}</small></h3><div class="item-grid">${st.featured.items.map(id => itemCard(id, st.catalog[id])).join('')}</div>
+        ${plan.pro ? '' : `<button type="button" class="pro-banner" data-tab-go="pro">${g('crown')}<span><strong>Pro Gold collection</strong><small>A black-and-gold back, mat, and coach style, free with Pro.</small></span>${g('next')}</button>`}`;
+    },
+    back: () => kindGrid('back'), felt: () => kindGrid('felt'), coach: () => kindGrid('coach'),
+    sets: () => `<p class="muted">Sets bundle a card back, a table mat, and a coach style. Buying the rest of a set costs 20% less than the pieces, and finishing one pays a one-time bonus.</p><div class="set-list">${st.sets.map(setCard).join('')}</div>`,
+    powerups: () => `<div class="shop-grid">${Object.entries(st.powerups).map(([id, it]) => `<div class="shop-item">${artHTML(it.kind)}<div class="shop-copy"><strong>${esc(it.name)}</strong><small>${esc(it.text)}</small></div><button type="button" class="small ${st.stars >= it.stars ? 'primary' : ''}" data-power="${id}" ${st.stars >= it.stars ? '' : 'disabled'}>${g('star')} ${it.stars}</button></div>`).join('')}</div>`,
+    pro: () => `${plan.pro ? `<div class="plan-status"><strong>You have ${esc(st.plans[plan.plan]?.name || 'Pro')}</strong><span class="muted">${plan.trialEnds ? `Free trial ends ${fmtDate(plan.trialEnds)}. We’ll remind you 3 days before.` : plan.status === 'canceled' ? `Canceled. Pro stays on until ${fmtDate(plan.renews)}.` : plan.renews ? `Renews ${fmtDate(plan.renews)}.` : 'Lifetime access.'}</span>${plan.plan !== 'pro-lifetime' && plan.status !== 'canceled' ? '<button type="button" class="small" id="cancel-plan">Cancel subscription</button>' : ''}</div>`
+      : `<ul class="perks inline">${PRO_PERKS.map(([ic, t]) => `<li>${g(ic)} ${t}</li>`).join('')}<li>${g('gift')} Pro Gold collection</li><li>${g('target')} 2 quest swaps a day</li></ul><div class="plan-cards">${planCard('pro-monthly', st.plans['pro-monthly'])}${planCard('pro-annual', st.plans['pro-annual'], true)}${planCard('pro-lifetime', st.plans['pro-lifetime'])}</div>`}
+      <h3 class="sub-head">${g('crown')} Pro Gold collection <small>${plan.pro ? 'Claim each piece; it stays yours even if Pro ends.' : 'Included with Pro.'}</small></h3><div class="item-grid">${Object.entries(st.catalog).filter(([, it]) => it.pro).map(([id, it]) => itemCard(id, it)).join('')}</div>
+      <p class="muted small">Free forever: Smart Player, Strategy Master, the first unit of every track, all seven practice tools with daily Energy, quests, and responsible-gambling help. <button type="button" class="linklike" id="restore">Restore purchases</button></p>`,
   };
-  ctx.$('#page').innerHTML = `<div class="store">
-    <header class="store-hero"><div><h1>Store</h1><p class="muted">Stars are earned by learning, never bought. Spend them on freezes, refills, and new looks.</p></div><div class="store-wallet"><span class="chip stars-chip">${g('star')}<b data-stars>${st.stars}</b> Stars</span><span class="chip">${g('snow')}<b>${st.freezes}/${st.freezeMax}</b> freezes</span>${plan.pro ? `<span class="chip pro-chip">${g('crown')}<b>Pro</b></span>` : `<span class="chip energy-chip">${g('bolt')}<b>${st.energy}/${st.energyMax}</b> Energy</span>`}</div></header>
-    ${test ? '<p class="test-banner">Test mode: purchases are simulated and nothing is charged. Real billing uses the App Store, Google Play, or a secure web checkout.</p>' : ''}
-    <section id="plans" class="store-section"><h2>${g('crown')} Felt & Fortune Pro</h2>
-      ${plan.pro ? `<div class="plan-status"><strong>You have ${esc(st.plans[plan.plan]?.name || 'Pro')}</strong><span class="muted">${plan.trialEnds ? `Free trial ends ${fmtDate(plan.trialEnds)}. We’ll remind you 3 days before.` : plan.status === 'canceled' ? `Canceled. Pro stays on until ${fmtDate(plan.renews)}.` : plan.renews ? `Renews ${fmtDate(plan.renews)}.` : 'Lifetime access.'}</span>${plan.plan !== 'pro-lifetime' && plan.status !== 'canceled' ? '<button type="button" class="small" id="cancel-plan">Cancel subscription</button>' : ''}</div>`
-        : `<ul class="perks inline">${PRO_PERKS.map(([ic, t]) => `<li>${g(ic)} ${t}</li>`).join('')}</ul><div class="plan-cards">${planCard('pro-monthly', st.plans['pro-monthly'])}${planCard('pro-annual', st.plans['pro-annual'], true)}${planCard('pro-lifetime', st.plans['pro-lifetime'])}</div>`}
-      <p class="muted small">Free forever: Smart Player, Strategy Master, the first unit of every track, all seven practice tools with daily Energy, and responsible-gambling help. <button type="button" class="linklike" id="restore">Restore purchases</button></p></section>
-    <section class="store-section"><h2>${g('star')} Power-ups</h2><div class="shop-grid">${items.filter(([, it]) => it.kind === 'freeze' || it.kind === 'refill').map(shopItem).join('')}</div></section>
-    <section class="store-section"><h2>${g('cards')} Table looks</h2><div class="shop-grid">
-      <div class="shop-item"><span class="shop-art felt" style="--sw:${LOOK_SWATCH.emerald}"></span><div class="shop-copy"><strong>Emerald Felt</strong><small>The classic table.</small></div><button type="button" class="small" data-equip="felt:emerald" ${st.look.felt === 'emerald' ? 'disabled' : ''}>${st.look.felt === 'emerald' ? 'Equipped' : 'Use'}</button></div>
-      <div class="shop-item"><span class="shop-art back" style="--sw:${LOOK_SWATCH.classic}"></span><div class="shop-copy"><strong>Classic Card Back</strong><small>The original red back.</small></div><button type="button" class="small" data-equip="back:classic" ${st.look.back === 'classic' ? 'disabled' : ''}>${st.look.back === 'classic' ? 'Equipped' : 'Use'}</button></div>
-      ${items.filter(([, it]) => it.kind === 'felt' || it.kind === 'back').map(shopItem).join('')}</div></section>
-  </div>`;
-  const redo = () => storePage(ctx);
+
+  ctx.$('#page').innerHTML = `<div class="store2">
+    <header class="store-top"><div><h1>Store</h1><p class="muted">Stars are earned by learning, never bought.</p></div><div class="store-wallet sticky-wallet"><span class="chip stars-chip">${g('star')}<b data-stars>${st.stars}</b><span>Stars</span></span><span class="chip">${g('snow')}<b>${st.freezes}/${st.freezeMax}</b></span>${plan.pro ? `<span class="chip pro-chip">${g('crown')}<b>Pro</b></span>` : `<span class="chip energy-chip">${g('bolt')}<b>${st.energy}</b></span>`}<a class="chip earn-chip" href="/quests">${g('target')} Earn Stars</a></div></header>
+    ${test ? '<p class="test-banner">Test mode: purchases are simulated and nothing is charged.</p>' : ''}
+    <div class="store-body"><div class="store-main"><nav class="store-tabs" role="tablist" aria-label="Store sections">${TABS.map(([k, ic, label]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-tab="${k}">${g(ic)}<span>${label}</span></button>`).join('')}</nav>
+      <section class="store-pane" role="tabpanel">${panes[tab]()}</section></div>
+      <aside class="store-preview" aria-label="Preview"><h3>Your table</h3><div id="preview">${previewHTML(preview)}</div><p class="muted small" id="preview-note">Tap any item to try it on.</p><div id="preview-actions"></div></aside></div></div>`;
+
+  const redo = (t = tab) => { history.replaceState(null, '', '/store#' + t); storePage(ctx, t); };
+  $$('[data-tab]').forEach(b => b.onclick = () => { Sound.play('tap'); redo(b.dataset.tab); });
+  $$('[data-tab-go]').forEach(b => b.onclick = () => redo(b.dataset.tabGo));
+
+  const paintPreview = () => { $('#preview').innerHTML = previewHTML(preview); };
+  const tryOn = (kind, value, label, actionHTML) => {
+    preview = { ...st.look, [kind]: value }; paintPreview(); Sound.play('pop');
+    $('#preview-note').textContent = `Previewing ${label}.`;
+    $('#preview-actions').innerHTML = actionHTML;
+    $('#preview').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  };
+  const confirmSpend = (title, stars, art, onYes) => {
+    const { close } = openSheet(`<div class="confirm-buy">${art}<h2>${esc(title)}</h2><p class="reward">${g('star')} ${stars} Stars</p><p class="muted">You have ${st.stars} Stars. You’ll have ${st.stars - stars} left.</p><button type="button" class="primary chunky" id="yes-spend">Spend ${stars} Stars</button><button type="button" class="ghost" data-close>Cancel</button></div>`);
+    $('#yes-spend').onclick = async () => { $('#yes-spend').disabled = true; try { await onYes(); close(); } catch (e) { ctx.toast(e.message); $('#yes-spend').disabled = false; } };
+  };
+  const equip = async (kind, value) => { setEconomy(await api('/api/store/equip', 'POST', { kind, value })); Sound.play('select'); ctx.toast('Equipped.'); redo(); };
+
+  $$('[data-item]').forEach(b => b.onclick = () => {
+    const id = b.dataset.item, it = st.catalog[id], mine = has(id, it);
+    const ownedAlready = owned.has(id);
+    let action;
+    if (mine && ownedAlready) action = equipped(it.kind, it.value) ? '<span class="own-tag on">Equipped</span>' : `<button type="button" class="primary chunky" id="pv-equip">Equip</button>`;
+    else if (it.pro) action = plan.pro ? `<button type="button" class="primary chunky" id="pv-claim">${g('crown')} Claim free</button>` : `<button type="button" class="chunky pro-button" data-tab-go="pro">${g('crown')} Get Pro</button>`;
+    else if (it.event) action = '<p class="muted small">Finish a monthly Quests event to earn event backs.</p><a class="button" href="/quests">See this month’s event</a>';
+    else action = `<button type="button" class="primary chunky" id="pv-buy" ${st.stars >= it.stars ? '' : 'disabled'}>${g('star')} Buy for ${it.stars}</button>${st.stars < it.stars ? `<a class="button ghost" href="/quests">Earn ${it.stars - st.stars} more Stars</a>` : ''}`;
+    tryOn(it.kind, it.value, it.name, `<p class="pv-name"><strong>${esc(it.name)}</strong><span class="rarity r-${it.rarity}">${RARITY_LABEL[it.rarity]}</span></p><p class="muted small">${esc(it.text || '')}</p>${action}`);
+    $('#pv-equip')?.addEventListener('click', () => equip(it.kind, it.value));
+    $('#pv-claim')?.addEventListener('click', async () => { try { setEconomy(await api('/api/store/buy', 'POST', { item: id })); Sound.play('unlock'); confetti({ count: 60 }); redo(); } catch (e) { ctx.toast(e.message); } });
+    $('#pv-buy')?.addEventListener('click', () => confirmSpend(it.name, it.stars, artHTML(it.kind, it.value), async () => {
+      setEconomy(await api('/api/store/buy', 'POST', { item: id })); Sound.play('unlock'); confetti({ count: 70 }); ctx.toast(`${it.name} unlocked and equipped!`); redo();
+    }));
+    $$('#preview-actions [data-tab-go]').forEach(x => x.onclick = () => redo(x.dataset.tabGo));
+  });
+  $$('[data-default]').forEach(b => b.onclick = () => {
+    const kind = b.dataset.default, [v, name] = DEFAULT_ITEMS[kind];
+    tryOn(kind, v, name, equipped(kind, v) ? '<span class="own-tag on">Equipped</span>' : '<button type="button" class="primary chunky" id="pv-equip">Equip</button>');
+    $('#pv-equip')?.addEventListener('click', () => equip(kind, v));
+  });
+  $$('[data-set]').forEach(b => b.onclick = () => {
+    const s = st.sets.find(x => x.id === b.dataset.set);
+    confirmSpend(`${s.name} set`, s.price, `<div class="set-arts">${s.items.map(id => artHTML(st.catalog[id].kind, st.catalog[id].value)).join('')}</div>`, async () => {
+      setEconomy(await api('/api/store/buy-set', 'POST', { set: s.id })); Sound.play('levelup'); confetti(); ctx.toast(`${s.name} complete! +${s.bonus} bonus Stars`); redo();
+    });
+  });
+  $$('[data-power]').forEach(b => b.onclick = () => {
+    const it = st.powerups[b.dataset.power];
+    confirmSpend(it.name, it.stars, artHTML(it.kind), async () => { setEconomy(await api('/api/store/buy', 'POST', { item: b.dataset.power })); Sound.play(it.kind === 'freeze' ? 'freeze' : 'energy'); redo(); });
+  });
   $$('[data-plan]').forEach(b => b.onclick = () => {
     const p = st.plans[b.dataset.plan];
     const { close } = openSheet(`<div class="confirm-buy">${g('crown', 'paywall-crown')}<h2>${esc(p.name)}</h2><p><b>$${p.price.toFixed(2)}${p.period ? ` per ${p.period}` : ' one time'}</b></p>
       <p class="muted">${p.trial ? `Free for ${p.trial} days. Then $${p.price.toFixed(2)} is charged every ${p.period} until you cancel. We’ll remind you 3 days before the trial ends. Cancel any time in the Store or your device’s subscription settings.` : p.period ? `$${p.price.toFixed(2)} is charged now and every ${p.period} until you cancel. Cancel any time; Pro stays on until the period ends.` : 'One payment, no renewal.'}</p>
       ${test ? '<p class="test-banner">Test mode: nothing will be charged.</p>' : ''}<button type="button" class="primary chunky" id="confirm-buy">${p.trial ? 'Start free trial' : 'Confirm purchase'}</button><button type="button" class="ghost" data-close>Cancel</button></div>`);
-    $('#confirm-buy').onclick = async () => {
-      try { setEconomy(await api('/api/billing/test-purchase', 'POST', { plan: b.dataset.plan })); close(); confetti(); Sound.play('levelup'); ctx.toast('Welcome to Pro!'); redo(); } catch (e) { ctx.toast(e.message); }
-    };
+    $('#confirm-buy').onclick = async () => { try { setEconomy(await api('/api/billing/test-purchase', 'POST', { plan: b.dataset.plan })); close(); confetti(); Sound.play('levelup'); ctx.toast('Welcome to Pro!'); redo('pro'); } catch (e) { ctx.toast(e.message); } };
   });
   $('#cancel-plan')?.addEventListener('click', () => {
-    const { close } = openSheet(`<h2>Cancel Pro?</h2><p class="muted">${plan.trialEnds ? 'Your trial ends now and you won’t be charged.' : 'You keep Pro until the end of the period you paid for.'} Your Stars, streak, and progress stay.</p><button type="button" class="danger chunky" id="confirm-cancel">Cancel subscription</button><button type="button" class="primary" data-close>Keep Pro</button>`);
-    $('#confirm-cancel').onclick = async () => { try { setEconomy(await api('/api/billing/cancel', 'POST', {})); close(); ctx.toast('Subscription canceled.'); redo(); } catch (e) { ctx.toast(e.message); } };
+    const { close } = openSheet(`<h2>Cancel Pro?</h2><p class="muted">${plan.trialEnds ? 'Your trial ends now and you won’t be charged.' : 'You keep Pro until the end of the period you paid for.'} Your Stars, streak, progress, and claimed Pro Gold items stay.</p><button type="button" class="danger chunky" id="confirm-cancel">Cancel subscription</button><button type="button" class="primary" data-close>Keep Pro</button>`);
+    $('#confirm-cancel').onclick = async () => { try { setEconomy(await api('/api/billing/cancel', 'POST', {})); close(); ctx.toast('Subscription canceled.'); redo('pro'); } catch (e) { ctx.toast(e.message); } };
   });
-  $('#restore').onclick = async () => { await loadEconomy(api, ctx.localDate); ctx.toast(cache?.plan.pro ? 'Pro is active on this account.' : 'No purchases found for this account.'); };
-  $$('[data-buy]').forEach(b => b.onclick = async () => {
-    b.disabled = true;
-    try { const r = await api('/api/store/buy', 'POST', { item: b.dataset.buy }); setEconomy(r); Sound.play('coin'); ctx.toast('Got it!'); redo(); } catch (e) { ctx.toast(e.message); b.disabled = false; }
+  $('#restore')?.addEventListener('click', async () => { await loadEconomy(api, ctx.localDate); ctx.toast(cache?.plan.pro ? 'Pro is active on this account.' : 'No purchases found for this account.'); });
+}
+
+// ---- quests -------------------------------------------------------------------------------------
+const TIER_LABEL = { easy: 'Easy', medium: 'Medium', hard: 'Hard' };
+const until = iso => { const ms = new Date(iso + 'T00:00:00') - new Date(); const d = Math.floor(ms / 86400000), h = Math.floor(ms % 86400000 / 3600000); return d > 0 ? `${d}d ${h}h` : `${Math.max(1, h)}h`; };
+
+export function questsCard(eco) {
+  if (!eco) return '';
+  const n = eco.questsReady || 0;
+  return `<a class="side-card quest-link ${n ? 'ready' : ''}" href="/quests"><span class="tool-icon sm">${g('target')}</span><span><strong>Quests</strong><small>${n ? `${n} reward${n > 1 ? 's' : ''} ready to claim` : 'Daily and weekly goals for Stars'}</small></span>${n ? `<b class="q-badge">${n}</b>` : g('next')}</a>`;
+}
+export function wireQuests() {}
+
+export async function questsPage(ctx) {
+  const { api } = ctx;
+  const [b] = await Promise.all([api('/api/quests?day=' + ctx.localDate()), loadEconomy(api, ctx.localDate)]);
+  const quest = q => `<div class="quest-row t-${q.tier || 'weekly'} ${q.claimed ? 'claimed' : q.done ? 'ready' : ''}">
+      <span class="quest-tier">${q.tier ? TIER_LABEL[q.tier] : 'Weekly'}</span>
+      <div class="quest-copy"><strong>${esc(q.text)}</strong><div class="quest-bar"><span style="width:${Math.round(q.progress / q.goal * 100)}%"></span></div><small>${q.progress} / ${q.goal}</small></div>
+      ${q.claimed ? `<span class="quest-done">${g('check')}</span>` : q.done ? `<button type="button" class="primary claim" data-claim="${q.period[0]}:${q.id}">${g('star')} ${q.stars}</button>` : `<span class="quest-reward">${g('star')} ${q.stars}</span>`}
+      ${q.tier && !q.done && b.rerollsUsed < b.rerollsAllowed ? `<button type="button" class="icon-btn swap" data-reroll="${['easy', 'medium', 'hard'].indexOf(q.tier)}" aria-label="Swap this quest" title="Swap this quest (${b.rerollsAllowed - b.rerollsUsed} left today)">${g('rotr')}</button>` : ''}</div>`;
+  const ev = b.event, all = b.allDaily;
+  const evPct = Math.round(ev.progress / ev.goal * 100);
+  ctx.$('#page').innerHTML = `<div class="quests-page">
+    <header class="page-hero"><div><h1>Quests</h1><p class="muted">Quests reward careful practice, not just time spent. Finish them for Stars, freezes, and event rewards.</p></div><div data-eco-chips>${chipsHTML(cache)}</div></header>
+    <section class="event-banner">
+      <div class="event-art">${artHTML('back', ev.reward.replace('back-', ''))}${ev.earned ? `<span class="event-badge">${g('check')}</span>` : ''}</div>
+      <div class="event-copy"><small>Monthly event · ${ev.daysLeft} day${ev.daysLeft === 1 ? '' : 's'} left</small><h2>${esc(ev.name)}</h2><p>${ev.earned ? `You earned the <b>${esc(ev.rewardName)}</b> card back and this month’s badge!` : `Finish ${ev.goal} quests this month to earn the <b>${esc(ev.rewardName)}</b> card back and a badge. Event items are never sold.`}</p>
+        <div class="event-bar"><span style="width:${evPct}%"></span></div><small>${ev.progress} / ${ev.goal} quests</small></div>
+    </section>
+    <div class="quest-cols">
+      <section class="side-card quest-panel"><div class="side-head"><h3>${g('flame')} Daily quests</h3><span class="muted small">New in ${until(new Date(Date.now() + 864e5).toISOString().slice(0, 10))}</span></div>
+        ${b.daily.map(quest).join('')}
+        <div class="quest-row bonus ${all.claimed ? 'claimed' : all.ready ? 'ready' : ''}"><span class="quest-tier">Bonus</span><div class="quest-copy"><strong>Finish all 3 daily quests</strong><div class="quest-bar"><span style="width:${Math.round(b.daily.filter(q => q.done).length / 3 * 100)}%"></span></div><small>${b.daily.filter(q => q.done).length} / 3</small></div>${all.claimed ? `<span class="quest-done">${g('check')}</span>` : all.ready ? `<button type="button" class="primary claim" data-claim="all-daily">${g('star')} ${all.stars}</button>` : `<span class="quest-reward">${g('star')} ${all.stars}</span>`}</div>
+        <p class="muted small">${b.rerollsAllowed - b.rerollsUsed > 0 ? `You can swap ${b.rerollsAllowed - b.rerollsUsed} unfinished quest${b.rerollsAllowed - b.rerollsUsed > 1 ? 's' : ''} today.` : 'Quest swaps are used up for today.'}</p></section>
+      <section class="side-card quest-panel"><div class="side-head"><h3>${g('chart')} Weekly</h3><span class="muted small">Ends in ${until(b.weekEnds)}</span></div>
+        ${b.weekly.map(quest).join('')}
+        <h4 class="track-title">Daily quests finished this week: ${b.dailiesThisWeek}</h4>
+        <div class="week-track"><div class="week-track-bar"><span style="width:${Math.min(100, Math.round(b.dailiesThisWeek / 15 * 100))}%"></span></div>
+          ${b.track.map(t => `<div class="milestone-node ${t.claimed ? 'claimed' : t.reached ? 'ready' : ''}" style="left:${t.at / 15 * 100}%"><span class="m-at">${t.at}</span>${t.claimed ? `<span class="m-reward">${g('check')}</span>` : t.reached ? `<button type="button" class="primary claim small" data-claim="track-${t.at}">${g('gift')}</button>` : `<span class="m-reward">${g('gift')}</span>`}<small>${g('star')}${t.reward.stars}${t.reward.freeze ? ` + ${g('snow')}` : ''}${t.reward.energy ? ` + ${g('bolt')}${t.reward.energy}` : ''}</small></div>`).join('')}</div></section>
+    </div>
+    ${b.badges.length ? `<section class="side-card"><h3>${g('trophy')} Badges</h3><div class="badge-shelf">${b.badges.map(x => `<span class="badge-chip" title="Earned ${esc(x.earned)}">${g(x.badge.startsWith('set-') ? 'gift' : 'trophy')}${esc(x.badge.startsWith('set-') ? x.badge.slice(4).replace(/^./, c => c.toUpperCase()) + ' set' : new Date(x.badge.slice(6) + '-15').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + ' event')}</span>`).join('')}</div></section>` : ''}
+  </div>`;
+  $$('[data-claim]').forEach(btn => btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      const r = await api('/api/quests/claim', 'POST', { quest: btn.dataset.claim, day: ctx.localDate() });
+      setEconomy(r); flyStars(btn, Math.min(8, 3 + Math.round(r.reward.stars / 20))); Sound.play('coin');
+      if (r.reward.freeze) setTimeout(() => Sound.play('freeze'), 500);
+      setTimeout(() => questsPage(ctx), 1000);
+    } catch (e) { ctx.toast(e.message); btn.disabled = false; }
   });
-  $$('[data-equip]').forEach(b => b.onclick = async () => {
-    const [kind, value] = b.dataset.equip.split(':');
-    try { setEconomy(await api('/api/store/equip', 'POST', { kind, value })); Sound.play('select'); redo(); } catch (e) { ctx.toast(e.message); }
+  $$('[data-reroll]').forEach(btn => btn.onclick = async () => {
+    try { await api('/api/quests/reroll', 'POST', { slot: Number(btn.dataset.reroll), day: ctx.localDate() }); Sound.play('whoosh'); questsPage(ctx); } catch (e) { ctx.toast(e.message); }
   });
+  if (ev.earned && !localStorage.getItem('ff-event-seen-' + ev.month)) { localStorage.setItem('ff-event-seen-' + ev.month, '1'); confetti(); Sound.play('levelup'); }
 }
