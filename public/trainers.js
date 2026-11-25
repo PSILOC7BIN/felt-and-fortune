@@ -13,6 +13,7 @@ export const TOOLS = [
   { id: 'decks', name: 'Deck Estimator', glyph: 'stack', color: 'teal', purpose: 'Judge how many decks are in a 3D discard tray, to the half deck.', lesson: 'Deck estimation' },
   { id: 'truecount', name: 'True Count Trainer', glyph: 'divide', color: 'purple', purpose: 'Divide the running count by decks left, fast and under a timer.', lesson: 'True count' },
   { id: 'index', name: 'Index Trainer', glyph: 'target', color: 'pink', purpose: 'Know when the true count changes the right play, plus insurance.', lesson: 'Index plays' },
+  { id: 'table', name: 'Free Play Table', glyph: 'cards', color: 'green', purpose: 'Play real hands against Ace from a six-deck shoe. Every play that isn’t basic strategy gets flagged.', lesson: 'Playing real hands' },
   { id: 'challenge', name: 'Shoe Challenge', glyph: 'trophy', color: 'gold', purpose: 'Play through a shoe: count, estimate, convert, bet, and play. Three hearts.', lesson: 'Everything together' },
   { id: 'simulator', name: 'Bankroll Simulator', glyph: 'chart', color: 'green', purpose: 'See what a game and bet spread do to your bankroll over thousands of hours.', lesson: 'Bankroll and risk' },
 ];

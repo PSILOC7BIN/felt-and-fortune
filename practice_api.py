@@ -9,7 +9,7 @@ import time
 
 from engine import hilo, deviation, basic, total
 
-PRACTICE_TOOLS = ('strategy', 'count', 'decks', 'truecount', 'index', 'weak')
+PRACTICE_TOOLS = ('strategy', 'count', 'decks', 'truecount', 'index', 'weak', 'table')
 SHOE = 6
 ROUNDS = 12
 HEARTS = 3
@@ -220,8 +220,10 @@ def grade_item(item, choices=None):
     if not isinstance(item, dict) or not isinstance(item.get('data', {}), dict): raise BadTranscript('Invalid result.')
     k, d, given = item.get('kind'), item.get('data') or {}, item.get('given')
     if k == 'strategy':
-        cards = _cards(d.get('cards'), 2, 2); dealer = _int(d.get('dealer'), 1, 13)
-        return given == basic(cards, dealer, h17=bool(d.get('h17')), das=d.get('das', True) is not False, surrender=bool(d.get('surrender')))
+        # Up to 11 cards: Free Play checks every decision, including hits after hits and split hands.
+        cards = _cards(d.get('cards'), 2, 11); dealer = _int(d.get('dealer'), 1, 13)
+        if total(cards)[0] > 21: raise BadTranscript('Invalid hand.')
+        return given == basic(cards, dealer, h17=bool(d.get('h17')), das=d.get('das', True) is not False, surrender=bool(d.get('surrender')) and len(cards) == 2, split=d.get('split', True) is not False)
     if k in ('index', 'play'):
         cards = _cards(d.get('cards'), 2, 2); dealer = _int(d.get('dealer'), 1, 13); tc = _int(d.get('tc'), -40, 40)
         return given == deviation(cards, dealer, tc)

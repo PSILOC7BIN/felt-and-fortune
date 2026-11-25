@@ -4,6 +4,7 @@ import { energyMeter, guardContinue } from './economy.js';
 import { startRound, loadEconomy, setEconomy, chipsHTML, economyState, outOfEnergy, confetti, flyStars, countUp } from './economy.js';
 import * as bj from './bj.js';
 import { esc, $, $$, Sound, ace, g, tableHTML, cardHTML, mountTray, mountStepper, mountNumber } from './ui.js';
+import { freePlayPage } from './freeplay.js';
 import { TOOLS, createRunner, strategyQ, countQ, decksQ, trueCountQ, indexQ, betQ, chartHTML } from './trainers.js';
 
 export const SKILL_NAMES = { 'strategy-hard': 'Hard totals', 'strategy-soft': 'Soft totals', 'strategy-pair': 'Pairs', count: 'Running count', decks: 'Deck estimation', truecount: 'True count', index: 'Index plays', insurance: 'Insurance', bet: 'Bet sizing' };
@@ -53,7 +54,7 @@ export function createPractice(ctx) {
       + `<a class="weak-card review-link" href="/practice/review"><span class="tool-icon">${g('book')}</span><span class="tool-copy"><strong>Hand Review</strong><span>${rev.open ? `${rev.open} missed decision${rev.open === 1 ? '' : 's'} to fix. See the exact hands and retry them.` : 'Every hand you miss lands here with the right answer.'}</span></span>${g('next', 'tool-go')}</a>`
       + (weak.length ? `<a class="weak-card" href="/practice/weak"><span class="tool-icon">${g('target')}</span><span class="tool-copy"><strong>Practice your weak spots</strong><span>A mixed session built from the skills you’ve missed most: ${weak.map(w => `${SKILL_NAMES[w.skill]} (${Math.round(w.rate * 100)}% missed)`).join(', ')}.</span></span>${g('next', 'tool-go')}</a>` : `<div class="weak-card empty"><span class="tool-icon">${g('target')}</span><span class="tool-copy"><strong>Weak spots</strong><span>Finish a few lessons or practice sessions and Ace will build a session from the skills you miss most.</span></span></div>`)
       + group('Skill trainers', ['strategy', 'count', 'decks', 'truecount', 'index'])
-      + group('Put it all together', ['challenge'])
+      + group('Put it all together', ['table', 'challenge'])
       + group('Plan your game', ['simulator']);
   }
 
@@ -225,5 +226,6 @@ export function createPractice(ctx) {
     intro();
   }
 
-  return { hub, toolPage, challengePage };
+  const tablePage = () => freePlayPage(ctx, TOOLS.find(t => t.id === 'table'));
+  return { hub, toolPage, challengePage, tablePage };
 }

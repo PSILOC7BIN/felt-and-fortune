@@ -137,3 +137,16 @@ class PracticeApi(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class FreePlayGrading(unittest.TestCase):
+    def test_multi_card_and_split_hands_are_graded(self):
+        g = lambda cards, dealer, given, **kw: practice_api.grade_item({'kind': 'strategy', 'data': {'cards': cards, 'dealer': dealer, **kw}, 'given': given})
+        self.assertTrue(g([2, 3, 4, 3], 10, 'H'))      # hard 12 v 10, three hits in
+        self.assertTrue(g([5, 4, 1, 2, 4], 6, 'S'))    # hard 16 after hits v 6
+        self.assertTrue(g([1, 2, 4], 3, 'H'))          # soft 17, can't double with 3 cards
+        self.assertTrue(g([8, 8], 10, 'P'))
+        self.assertTrue(g([8, 8], 10, 'H', split=False))   # no more splits allowed
+        self.assertFalse(g([10, 6], 10, 'R'))          # surrender off by default
+        self.assertTrue(g([10, 6], 10, 'R', surrender=True))
+        with self.assertRaises(practice_api.BadTranscript): g([10, 10, 5], 6, 'S')

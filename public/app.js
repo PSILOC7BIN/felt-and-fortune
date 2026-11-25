@@ -175,6 +175,7 @@ async function render(){
   let m;
   if((m=path.match(/^\/learn\/lesson\/([a-z0-9-]+)$/))){await learn.lessonPage(m[1]);return;}
   if(path==='/practice/challenge'){await practice.challengePage();return;}
+  if(path==='/practice/table'){await practice.tablePage();return;}
   if((m=path.match(/^\/practice\/(strategy|count|decks|truecount|index|weak)$/))){await practice.toolPage(m[1]);return;}
   if(path==='/responsible'){appShell('profile');responsiblePage();return;}
   if(path==='/track'||path==='/track/bankrolls'){appShell('profile');withTabs([['/track','Sessions'],['/track/bankrolls','Bankrolls']],path);if(path==='/track')await resultsPage('results');else await bankrollPage();return;}
