@@ -1,0 +1,31 @@
+/* Public tool pages: light, fast, readable. */
+:root { --text: #1C1C1E; --muted: #6E6E73; --border: #E5E5EA; --blue: #0071E3; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; color: var(--text); }
+body { margin: 0; background: #F5F6FB; line-height: 1.55; }
+.seo-top { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 12px max(16px, 4vw); background: rgba(255, 255, 255, .88); backdrop-filter: blur(16px); border-bottom: 1px solid var(--border); }
+.seo-brand { display: flex; align-items: center; gap: 8px; font-weight: 800; color: var(--text); text-decoration: none; }
+.seo-top nav { display: flex; gap: 16px; flex-wrap: wrap; flex: 1; } .seo-top nav a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 14px; } .seo-top nav a:hover { color: var(--text); }
+.seo-cta { background: var(--blue); color: #fff; text-decoration: none; font-weight: 800; padding: 9px 16px; border-radius: 12px; box-shadow: 0 3px 0 #00539F; }
+.seo-cta.big { display: inline-block; padding: 14px 24px; font-size: 17px; }
+.seo-main { max-width: 980px; margin: 0 auto; padding: 24px 16px 40px; }
+h1 { font-size: clamp(28px, 5vw, 42px); line-height: 1.15; margin: 10px 0; } h2 { margin-top: 28px; } .lede { font-size: 18px; color: var(--muted); max-width: 720px; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 14px; } .legend span { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; font-weight: 800; }
+.tabs-static { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 20px; }
+.chart-wrap { overflow-x: auto; }
+.bs-chart { border-collapse: collapse; font-size: 13px; width: 100%; background: #fff; border-radius: 12px; overflow: hidden; }
+.bs-chart th, .bs-chart td { padding: 5px 0; text-align: center; border: 1px solid #fff; min-width: 26px; } .bs-chart thead th { background: #1C1C1E; color: #fff; } .bs-chart tbody th { background: #F2F2F7; padding: 5px 8px; }
+.a-h, .legend .a-h { background: #FFE8E6; color: #B42318; } .a-s, .legend .a-s { background: #E3F6E8; color: #1E7B34; } .a-d, .legend .a-d { background: #E5F0FF; color: #0060C7; }
+.a-p, .legend .a-p { background: #F3E8FF; color: #6B21A8; } .a-r, .legend .a-r { background: #F2F2F7; color: #3A3A3C; }
+.bs-chart td { font-weight: 800; }
+.he-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 18px; background: #fff; border-radius: 18px; border: 1px solid var(--border); }
+.he-form label { display: grid; gap: 4px; font-weight: 700; font-size: 14px; } select, input { font: inherit; padding: 9px 10px; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.he-result { margin: 16px 0; padding: 20px; border-radius: 18px; background: linear-gradient(135deg, #0A84FF, #5E5CE6); color: #fff; } .he-result b { display: block; font-size: 44px; } .he-result p { margin: 4px 0 0; opacity: .9; }
+.cc-box { display: grid; justify-items: center; gap: 12px; padding: 24px; background: #fff; border-radius: 22px; border: 1px solid var(--border); }
+.cc-card { width: 120px; height: 168px; display: grid; place-items: center; font-size: 46px; font-weight: 800; background: #fff; border: 2px solid var(--border); border-radius: 16px; box-shadow: 0 8px 20px rgba(0, 0, 0, .08); }
+.cc-card.red { color: #D70015; }
+.cc-controls, #cc-form { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+button { font: inherit; font-weight: 800; padding: 10px 18px; border: 0; border-radius: 12px; background: var(--blue); color: #fff; cursor: pointer; } button:disabled { opacity: .5; }
+#cc-result.ok { color: #1E7B34; font-weight: 800; } #cc-result.bad { color: #D70015; font-weight: 800; }
+.state-jump { display: flex; flex-wrap: wrap; gap: 8px; } .state-jump a { padding: 4px 10px; background: #fff; border: 1px solid var(--border); border-radius: 999px; text-decoration: none; color: var(--text); font-weight: 700; font-size: 13px; }
+.casino-list { list-style: none; padding: 0; display: grid; gap: 8px; } .casino-list li { display: grid; padding: 10px 14px; background: #fff; border: 1px solid var(--border); border-radius: 12px; } .casino-list span, .casino-list small { color: var(--muted); }
+.seo-pitch { margin-top: 40px; padding: 28px; text-align: center; border-radius: 24px; background: #fff; border: 1px solid var(--border); }
+.seo-foot { max-width: 980px; margin: 0 auto; padding: 20px 16px 40px; color: var(--muted); font-size: 13px; } .fine { color: var(--muted); font-size: 13px; }

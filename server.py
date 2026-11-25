@@ -10,7 +10,7 @@ from engine import basic, total, hilo, deviation, INDICES, simulate
 import coach
 mimetypes.add_type('application/manifest+json', '.webmanifest')
 from practice_api import PracticeRoutes, grade_transcript, record_skills, BadTranscript
-import economy, quests, account, learning
+import economy, quests, account, learning, seo
 from economy import EconomyRoutes
 
 # Pacing is teaching, not a paywall: it applies to every learner (tests can relax it).
@@ -133,6 +133,12 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
                         self.user=c.execute('SELECT users.* FROM sessions JOIN users ON users.id=sessions.user_id WHERE token=? AND expires>?',(hashlib.sha256(token.encode()).hexdigest(),time.time())).fetchone()
                     return self.api(path)
             require(self.command=='GET','Method not allowed.',405)
+            origin=os.environ.get('PUBLIC_ORIGIN','').rstrip('/') or f"http://{self.headers.get('Host','localhost')}"
+            special={'/sitemap.xml':('application/xml',lambda:seo.sitemap(origin)),'/robots.txt':('text/plain; charset=utf-8',lambda:seo.robots(origin))}
+            if path in seo.PAGES or path in special:
+                ctype,make=special.get(path,('text/html; charset=utf-8',seo.PAGES.get(path)))
+                raw=make().encode();self.send_response(200);self.send_header('Content-Type',ctype);self.send_header('Cache-Control','public, max-age=600');self.security_headers()
+                self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
             rel=path.lstrip('/')
             if rel in ('','index.html') and os.environ.get('FF_BUNDLE')=='1' and (ROOT/'public'/'dist'/'index.html').is_file(): rel='dist/index.html'
             file=(ROOT/'public'/rel).resolve()
