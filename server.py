@@ -14,7 +14,7 @@ import economy, quests, account, learning, seo, social
 from economy import EconomyRoutes
 
 # Pacing is teaching, not a paywall: it applies to every learner (tests can relax it).
-PACING={'daily_new':economy.DAILY_NEW_LESSONS,'checkpoints':True}
+PACING={'daily_new':None,'checkpoints':True}
 MIN_AGE=18
 
 ROOT=Path(__file__).parent
@@ -532,6 +532,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             raise ApiError(msg,423)
         if not m[2]:
             require(method=='GET','Method not allowed.',405)
+            if not economy.has_energy(c,uid): return self.send_json({'error':'You’re out of Energy for now.','outOfEnergy':True},402)
             steps=coach.resolve_steps(lesson['steps'],style=plan.get('style','mix'))
             return self.send_json({'lesson':{'id':lesson['id'],'title':lesson['title'],'unit':{'id':unit['id'],'title':unit['title'],'color':unit['color'],'tool':unit['tool']},'steps':steps}})
         require(method=='POST','Method not allowed.',405)
@@ -543,6 +544,8 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
         require(originals==coach.expected_questions(lesson['steps'],plan.get('style','mix')),'These lesson results are incomplete. Please finish the lesson again.')
         record_skills(c,uid,skills)
         learning.record(c,uid,d['results'],choices,'lesson:'+m[1],self.client_day())
+        from practice_api import grade_item
+        energy_result=economy.settle(c,uid,[grade_item(it,choices) for it in d['results']])
         accuracy=round(100*first/originals)
         today=self.client_day()
         if lesson.get('checkpoint'):
@@ -552,7 +555,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)',(uid,today,xp,m[1],time.time()))
             stars=economy.add_stars(c,uid,10,'checkpoint',today) if passed else 0
             stars+=self.goal_bonus(plan,today,xp)
-            return self.send_json({'xp':xp,'accuracy':accuracy,'first':False,'checkpoint':{'passed':passed,'need':coach.CHECKPOINT_PASS},'stars':stars,**self.path_state(plan)})
+            return self.send_json({'xp':xp,'accuracy':accuracy,'first':False,'checkpoint':{'passed':passed,'need':coach.CHECKPOINT_PASS},'stars':stars,'energy':energy_result,**self.path_state(plan)})
         first=c.execute('SELECT 1 FROM lesson_progress WHERE user_id=? AND lesson_id=?',(uid,m[1])).fetchone() is None
         xp=(10 if first else 5)+(5 if accuracy==100 else 0)
         c.execute('INSERT INTO lesson_progress VALUES(?,?,?,?,?) ON CONFLICT(user_id,lesson_id) DO UPDATE SET best=MAX(best,excluded.best),completions=completions+1,updated=excluded.updated',(uid,m[1],accuracy,1,time.time()))
@@ -565,7 +568,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             if c.execute('SELECT COUNT(*) FROM lesson_first WHERE user_id=?',(uid,)).fetchone()[0]==1: account.track(c,'first_lesson',None,uid,None,today)
             stars+=economy.add_stars(c,uid,10,'lesson',today)
         stars+=self.goal_bonus(plan,today,xp)
-        return self.send_json({'xp':xp,'accuracy':accuracy,'first':first,'stars':stars,**self.path_state(plan)})
+        return self.send_json({'xp':xp,'accuracy':accuracy,'first':first,'stars':stars,'energy':energy_result,**self.path_state(plan)})
     def goal_bonus(self,plan,today,just_earned):
         """20 Stars the moment today's XP first reaches the daily goal."""
         total=self.c.execute('SELECT COALESCE(SUM(xp),0) FROM xp_log WHERE user_id=? AND day=?',(self.user['id'],today)).fetchone()[0]

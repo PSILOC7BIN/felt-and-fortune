@@ -1,6 +1,7 @@
 // Economy UI: streak/Stars/Energy chips, the store, the Pro paywall, quests, leagues, and celebrations.
 // The server is the source of truth (economy.py); this module only renders and calls it.
 import { esc, $, $$, Sound, g, ace } from './ui.js';
+import { react } from './reactions.js';
 
 let cache = null;
 export const economyState = () => cache;
@@ -373,4 +374,57 @@ export async function questsPage(ctx) {
     try { await api('/api/quests/reroll', 'POST', { slot: Number(btn.dataset.reroll), day: ctx.localDate() }); Sound.play('whoosh'); questsPage(ctx); } catch (e) { ctx.toast(e.message); }
   });
   if (ev.earned && !localStorage.getItem('ff-event-seen-' + ev.month)) { localStorage.setItem('ff-event-seen-' + ev.month, '1'); confetti(); Sound.play('levelup'); }
+}
+
+
+// ---- live Energy meter (lessons and practice) --------------------------------------------------------
+// Mirrors the server's rule: 1 Energy per answer, +2 for every 3 correct in a row. Pro is unlimited.
+export function energyMeter(host) {
+  const eco = cache, pro = !!eco?.plan?.pro, max = eco?.energyMax || 25;
+  let e = pro ? null : (eco?.energy ?? max), run = 0;
+  const paint = () => { if (!host) return; host.innerHTML = pro ? `<span class="chip pro-chip energy-live" title="Pro: unlimited Energy">${g('crown')}<b>∞</b></span>` : `<span class="chip energy-live ${e <= 3 ? 'low' : ''}" title="Energy">${g('bolt')}<b>${e}</b></span>`; };
+  const bonus = () => {
+    const pill = host?.querySelector('.energy-live'); if (!pill) return;
+    const r = pill.getBoundingClientRect(), f = document.createElement('span');
+    f.className = 'energy-float'; f.innerHTML = `+2 ${g('bolt')}`;
+    f.style.left = r.left + r.width / 2 + 'px'; f.style.top = r.top + 'px';
+    document.body.append(f); setTimeout(() => f.remove(), 1300);
+    pill.classList.add('bump'); setTimeout(() => pill.classList.remove('bump'), 400);
+    Sound.play('energy');
+  };
+  paint();
+  return {
+    pro, get value() { return e },
+    answer(ok) {
+      if (pro) return;
+      e = Math.max(0, e - 1); run = ok ? run + 1 : 0;
+      if (ok && run % 3 === 0) { e = Math.min(max, e + 2); setTimeout(() => { bonus(); react(true, { line: '+2 Energy! Three in a row.' }); }, 350); }
+      if (cache) cache.energy = e;
+      paint();
+    },
+    empty() { return !pro && e <= 0; },
+    sync(value) { if (!pro && value != null) { e = value; if (cache) cache.energy = e; paint(); } },
+    refill() { e = max; paint(); },
+  };
+}
+
+/** When Energy runs out mid-lesson or mid-round: the Continue button opens the refill sheet instead. */
+export function guardContinue(ctx, meter, foot, { quitHref = '/learn', quitLabel = 'Quit' } = {}) {
+  if (!meter.empty()) return;
+  const btn = foot.querySelector('#run-primary'); if (!btn) return;
+  const go = btn.onclick;
+  btn.onclick = () => {
+    Sound.play('wrong');
+    const canRefill = (cache?.stars || 0) >= 350;
+    const { close } = openSheet(`<div class="paywall">${ace('oops', 'ace-md')}<h2>Out of Energy</h2>
+      <p class="muted">Every answer uses 1 Energy, and 3 right in a row earns 2 back. Energy refills over time, about 1 every 20 minutes.</p>
+      <div class="energy-meter big"><span style="width:0%"></span></div>
+      <button type="button" class="primary chunky" id="oe-refill" ${canRefill ? '' : 'disabled'}>${g('star')} Refill for 350 chips</button>
+      <a class="button chunky pro-button" href="/store#pro" data-close>${g('crown')} Unlimited with Pro</a>
+      <a class="button ghost" href="${quitHref}" data-close>${quitLabel}</a></div>`);
+    $('#oe-refill')?.addEventListener('click', async () => {
+      try { setEconomy(await ctx.api('/api/store/buy', 'POST', { item: 'refill' })); meter.refill(); Sound.play('energy'); close(); btn.onclick = go; go?.(); }
+      catch (e) { ctx.toast(e.message); }
+    });
+  };
 }

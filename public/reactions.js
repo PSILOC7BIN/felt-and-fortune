@@ -68,7 +68,7 @@ function coach(mood, move, line, ok) {
 }
 
 /** React to an answer. streak = correct answers in a row so far (including this one). */
-export function react(ok, { streak = 0, anchor = null } = {}) {
+export function react(ok, { streak = 0, anchor = null, line = null } = {}) {
   const level = celebrateLevel();
   if (level === 'off') return;
   const rect = anchor?.getBoundingClientRect?.();
@@ -76,7 +76,7 @@ export function react(ok, { streak = 0, anchor = null } = {}) {
   if (ok) {
     const big = STREAK[streak];
     let pose = pick(WIN_POSES, lastPose); lastPose = pose;
-    coach(big ? 'cheer' : pose[0], big ? 'jump' : pose[1], big || pick(PRAISE), true);
+    coach(big || line ? 'cheer' : pose[0], big || line ? 'jump' : pose[1], line || big || pick(PRAISE), true);
     if (level === 'full') {
       const fx = big ? (streak >= 10 ? 'fireworks' : 'confetti') : pick(WIN_FX, lastFx); lastFx = fx;
       particles(fx, origin);

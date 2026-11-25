@@ -1,5 +1,6 @@
 // Felt & Fortune Coach: onboarding survey, personalized plan, the learning path, and the lesson player.
 import { skillsCard } from './review.js';
+import { energyMeter, guardContinue, outOfEnergy } from './economy.js';
 import { openSheet, loadEconomy, setEconomy, chipsHTML, questsCard, wireQuests, leagueCard, repairCard, wireRepair, celebrateEvents, paywall, confetti, countUp, flyStars } from './economy.js';
 import { Sound, ace, g, tableHTML } from './ui.js';
 import { createRunner, questionsForStep, choiceQ } from './trainers.js';
@@ -236,8 +237,10 @@ export function createLearn(ctx) {
   async function lessonPage(id) {
     $('#app').innerHTML = `<main id="main" class="coach-screen lesson"><div class="coach-body"><div class="loading"><span class="spinner"></span>Loading lesson…</div></div></main>`;
     let lesson;
+    await loadEconomy(api, localDate);
     try { ({ lesson } = await api('/api/path/lesson/' + encodeURIComponent(id))); }
     catch (error) {
+      if (/Energy/.test(error.message)) { go(paths.learn); setTimeout(() => outOfEnergy(ctx, null), 250); return; }
       if (/Pro/.test(error.message)) { go(paths.learn); setTimeout(() => paywall(ctx, error.message), 200); return; }
       $('#app').innerHTML = `<main id="main" class="coach-screen"><section class="coach-body"><div class="coach-intro">${ace(/tomorrow|day/.test(error.message) ? 'happy' : 'oops', 'ace-lg')}<h1>${/tomorrow|day/.test(error.message) ? 'Back tomorrow' : 'Can’t open this lesson'}</h1><p>${esc(error.message)}</p><a class="button primary chunky" href="${paths.learn}">Back to my path</a></div></section></main>`;
       return;
@@ -247,9 +250,10 @@ export function createLearn(ctx) {
     let pos = -1, firstTry = 0, combo = 0, finished = false;
     const results = [];
 
-    $('#app').innerHTML = `<main id="main" class="coach-screen lesson c-${lesson.unit.color}"><header class="coach-top"><button type="button" class="icon-btn" id="lesson-quit" aria-label="Quit lesson">${g('close')}</button><div class="progress" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100"><span></span></div><span class="combo" aria-live="polite"></span>${soundButton()}</header><section class="coach-body" id="coach-body"></section><footer class="coach-foot" id="coach-foot"></footer><div class="sheet-shade" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="quit-title">${ace('oops', 'ace-sm')}<h2 id="quit-title">Quit this lesson?</h2><p>You’ll lose your progress in this lesson.</p><button type="button" class="primary chunky" id="keep-going">Keep learning</button><button type="button" class="ghost danger-text" id="quit-now">Quit</button></div></div></main>`;
+    $('#app').innerHTML = `<main id="main" class="coach-screen lesson c-${lesson.unit.color}"><header class="coach-top"><button type="button" class="icon-btn" id="lesson-quit" aria-label="Quit lesson">${g('close')}</button><div class="progress" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100"><span></span></div><span class="combo" aria-live="polite"></span><span id="energy-live"></span>${soundButton()}</header><section class="coach-body" id="coach-body"></section><footer class="coach-foot" id="coach-foot"></footer><div class="sheet-shade" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="quit-title">${ace('oops', 'ace-sm')}<h2 id="quit-title">Quit this lesson?</h2><p>You’ll lose your progress in this lesson.</p><button type="button" class="primary chunky" id="keep-going">Keep learning</button><button type="button" class="ghost danger-text" id="quit-now">Quit</button></div></div></main>`;
     wireSound();
     const shade = $('.sheet-shade');
+    const meter = energyMeter($('#energy-live'));
     $('#lesson-quit').onclick = () => { shade.hidden = false; $('#keep-going').focus(); };
     $('#keep-going').onclick = () => { shade.hidden = true; };
     $('#quit-now').onclick = () => go(paths.learn);
@@ -264,6 +268,7 @@ export function createLearn(ctx) {
       next: () => { pos++; progress(); return queue[pos] || null; },
       onResult: (q, r) => {
         results.push({ ...r.record, retry: q.tries > 0 });
+        meter.answer(r.ok); if (pos < queue.length - 1 || !r.ok) guardContinue(ctx, meter, $('#coach-foot'), { quitHref: paths.learn, quitLabel: 'Quit lesson' });
         if (r.ok) { combo++; if (!q.tries) firstTry++; }
         else {
           combo = 0;
@@ -301,7 +306,7 @@ export function createLearn(ctx) {
         $$('.rate-star', body).forEach(b => b.onclick = async () => { const n = Number(b.dataset.n); $$('.rate-star', body).forEach(x => x.classList.toggle('on', Number(x.dataset.n) <= n)); try { await api('/api/feedback', 'POST', { rating: n, area: 'lesson', page: lesson.id }); $('#rate-lesson span').textContent = 'Thanks for the rating!'; } catch { /* optional */ } });
         $$('.count', body).forEach((el, i) => setTimeout(() => countUp(el, Number(el.dataset.to)), 250 + i * 180));
         if (r.stars) setTimeout(() => flyStars($('#done-stars'), Math.min(8, 3 + Math.round(r.stars / 10))), 900);
-        loadEconomy(api, localDate);
+        loadEconomy(api, localDate); if (r.energy) meter.sync(r.energy.energy);
         foot.innerHTML = `${lesson.unit.tool ? `<a class="button ghost" href="${lesson.unit.tool}">${g('dumbbell')} Practice this skill</a>` : '<span></span>'}<button type="button" class="primary chunky" id="lesson-done">Continue</button>`;
         $('#lesson-done').onclick = () => go(paths.learn); $('#lesson-done').focus();
       } catch (error) {

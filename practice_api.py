@@ -125,8 +125,8 @@ class PracticeRoutes:
             stars = economy.add_stars(c, uid, 5, 'practice', day) if q >= 5 and ok * 10 >= q * 9 else 0
             plan = self.load_plan() if hasattr(self, 'load_plan') else None
             if xp: stars += self.goal_bonus(plan, day, xp)
-            energy_back = economy.earn_energy(c, uid, day, (1 if q >= 5 and ok == q else 0) + min(streak, ok) // 15)
-            return self.send_json({'xp': xp, 'questions': q, 'correct': ok, 'stars': stars, 'energyBack': energy_back, 'stats': self.practice_stats()})
+            energy_result = economy.settle(c, uid, [grade_item(it) for it in d['results']]) if tool not in economy.FREE_TOOLS else {'energy': None, 'spent': 0, 'bonus': 0}
+            return self.send_json({'xp': xp, 'questions': q, 'correct': ok, 'stars': stars, 'energy': energy_result, 'stats': self.practice_stats()})
         if path == '/api/practice/weak' and method == 'GET':
             return self.send_json({'skills': weak_spots(c, uid)})
         if path == '/api/practice/stats' and method == 'GET':

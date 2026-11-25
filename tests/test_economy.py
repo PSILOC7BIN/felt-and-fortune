@@ -31,35 +31,36 @@ class EconomyTests(unittest.TestCase):
         self.assertEqual(status, 403)
         self.assertEqual(c.call('/api/signup', 'POST', {'username': n, 'email': n + '@example.test', 'password': 'Test-password-only-42'})[0], 400)
 
-    def test_energy_meters_free_practice_only(self):
-        client, _, _ = self.signup(NEW)
-        eco = client.call('/api/me/economy')[1]
-        self.assertEqual((eco['energy'], eco['plan']['pro']), (25, False))
-        # A logged round needs a started round, which costs Energy.
-        self.assertEqual(client.call('/api/practice/log', 'POST', {'tool': 'count', 'results': [item('count')] * 3})[0], 402)
-        for _ in range(8): self.assertEqual(client.call('/api/energy/start', 'POST', {'tool': 'strategy'})[0], 200)
-        self.assertEqual(client.call('/api/challenge/start', 'POST', {})[0], 200)          # costs 3
-        self.assertEqual(client.call('/api/me/economy')[1]['energy'], 14)
-        self.assertEqual(client.call('/api/energy/start', 'POST', {'tool': 'weak'})[1]['energy'], 14)   # mistake review is free
-        for _ in range(14): client.call('/api/energy/start', 'POST', {'tool': 'count'})
-        status, body = client.call('/api/energy/start', 'POST', {'tool': 'count'})
-        self.assertEqual((status, body['outOfEnergy']), (402, True))
-        # Lessons never cost Energy.
-        self.assertEqual(self.finish(client, 'sm1-1')[0], 200)
-        # Pro is unlimited.
-        client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
-        status, body = client.call('/api/energy/start', 'POST', {'tool': 'count'})
-        self.assertEqual((status, body['energy']), (200, None))
+    def log(self, client, tool, results):
+        rid = client.call('/api/energy/start', 'POST', {'tool': tool})[1]['round']
+        return client.call('/api/practice/log', 'POST', {'tool': tool, 'round': rid, 'results': results})
 
-    def test_accurate_practice_earns_stars_and_energy_back(self):
-        client, _, _ = self.signup(NEW)
-        rid = client.call('/api/energy/start', 'POST', {'tool': 'count'})[1]['round']
-        status, body = client.call('/api/practice/log', 'POST', {'tool': 'count', 'round': rid, 'results': [item('count')] * 15, 'bestStreak': 15, 'day': DAY()})
-        self.assertEqual(status, 200)
-        self.assertEqual((body['stars'] >= 5, body['energyBack']), (True, 2))
+    def test_energy_per_answer_with_streak_bonus(self):
+        client, _, _ = self.signup(NEW); uid = self.uid(client)
         self.assertEqual(client.call('/api/me/economy')[1]['energy'], 25)
-        # A round can only be logged once.
-        self.assertEqual(client.call('/api/practice/log', 'POST', {'tool': 'count', 'round': rid, 'results': [item('count')] * 5})[0], 402)
+        r = self.log(client, 'strategy', [item('strategy')] * 6)[1]
+        self.assertEqual(r['energy'], {'energy': 23, 'spent': 6, 'bonus': 4})       # 6 answers, two runs of 3 correct
+        r = self.log(client, 'strategy', [item('strategy', ok=False)] * 3)[1]
+        self.assertEqual(r['energy']['energy'], 20)
+        self.assertEqual(self.log(client, 'weak', [item('strategy', ok=False)] * 3)[1]['energy']['energy'], None)   # mistake review is free
+        self.assertEqual(client.call('/api/me/economy')[1]['energy'], 20)
+        self.assertEqual(client.call('/api/challenge/start', 'POST', {})[0], 200)   # the Shoe Challenge costs 3 up front
+        self.assertEqual(client.call('/api/me/economy')[1]['energy'], 17)
+        with server.db() as c: c.execute('UPDATE wallets SET energy=0, energy_at=? WHERE user_id=?', (time.time(), uid))
+        status, body = client.call('/api/path/lesson/sm1-1')
+        self.assertEqual((status, body.get('outOfEnergy')), (402, True))
+        self.assertEqual(client.call('/api/energy/start', 'POST', {'tool': 'count'})[0], 402)
+        self.assertEqual(client.call('/api/practice/log', 'POST', {'tool': 'count', 'results': [item('count')] * 3})[0], 402)
+        client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
+        self.assertEqual(client.call('/api/path/lesson/sm1-1')[0], 200)
+        self.assertIsNone(client.call('/api/me/economy')[1]['energy'])
+
+    def test_lessons_settle_energy(self):
+        client, _, _ = self.signup(NEW)
+        r = self.finish(client, 'sm1-1')[1]
+        self.assertEqual(r['energy']['energy'], 25 - r['energy']['spent'] + r['energy']['bonus'] if r['energy']['spent'] < 25 else r['energy']['energy'])
+        self.assertGreater(r['energy']['spent'], 0)
+        self.assertGreater(r['energy']['bonus'], 0)
 
     def test_stars_buy_freezes_and_looks(self):
         client, _, _ = self.signup(NEW)
@@ -153,6 +154,7 @@ class EconomyTests(unittest.TestCase):
         server.PACING['daily_new'] = 99
         try:
             client, _, _ = self.signup(NEW); uid = self.uid(client)
+            client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
             for l in coach.UNIT_BY_ID['sm1']['lessons']:
                 self.assertEqual(self.finish(client, l['id'])[0], 200)
             self.assertEqual(client.call('/api/path')[1]['current'], 'sm1-checkpoint')

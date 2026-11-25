@@ -13,9 +13,10 @@ import cosmetics as C
 from datetime import date, timedelta
 
 ENERGY_MAX = 25
-ENERGY_REFILL_SECONDS = 58 * 60
-ENERGY_EARN_CAP = 10                      # Energy earned back per day
-ROUND_COST = {'challenge': 3}             # every other standalone round costs 1
+ENERGY_REFILL_SECONDS = 20 * 60          # +1 every 20 minutes: full again in about 8 hours
+STREAK_BONUS = (3, 2)                     # every 3 correct answers in a row gives +2 Energy
+ENERGY_EARN_CAP = 10                      # (legacy) daily cap on earned-back Energy
+ROUND_COST = {'challenge': 3}             # the Shoe Challenge costs 3 up front; every other answer costs 1
 FREE_TOOLS = {'weak'}                     # mistake review never costs Energy
 FREEZE_MAX = 2
 STREAK_MILESTONES = {3: 25, 7: 50, 14: 100, 30: 200, 100: 500}
@@ -101,11 +102,11 @@ def energy(c, uid, now=None):
 
 def start_round(c, uid, tool):
     """Charge a standalone practice round up front (so it is never cut off). Returns (round_id, energy)."""
-    cost = 0 if tool in FREE_TOOLS else ROUND_COST.get(tool, 1)
+    cost = 0 if tool in FREE_TOOLS else ROUND_COST.get(tool, 0)
     pro = is_pro(c, uid)
     e, _ = energy(c, uid)
+    if not pro and tool not in FREE_TOOLS and e < max(1, cost): return None, e
     if not pro and cost:
-        if e < cost: return None, e
         c.execute('UPDATE wallets SET energy=energy-?, energy_at=CASE WHEN energy>=? THEN ? ELSE energy_at END WHERE user_id=?', (cost, ENERGY_MAX, time.time(), uid))
         e -= cost
     rid = secrets.token_hex(12)
@@ -120,6 +121,26 @@ def use_round(c, uid, rid, tool):
     if not row: return False
     c.execute('UPDATE rounds SET used=1 WHERE id=?', (row['id'],))
     return True
+
+
+def settle(c, uid, items):
+    """Charge 1 Energy per answer and give +2 for every 3 correct in a row, in answer order (never below 0).
+    `items` is a list of booleans (correct or not). Returns {'energy', 'spent', 'bonus'}; Pro is unlimited."""
+    if is_pro(c, uid): return {'energy': None, 'spent': 0, 'bonus': 0}
+    e, _ = energy(c, uid); start = e
+    run = spent = bonus = 0; n, plus = STREAK_BONUS
+    for ok in items:
+        e = max(0, e - 1); spent += 1
+        run = run + 1 if ok else 0
+        if ok and run % n == 0: e = min(ENERGY_MAX, e + plus); bonus += plus
+    at = time.time() if start >= ENERGY_MAX and e < ENERGY_MAX else None
+    if at: c.execute('UPDATE wallets SET energy=?, energy_at=? WHERE user_id=?', (e, at, uid))
+    else: c.execute('UPDATE wallets SET energy=? WHERE user_id=?', (e, uid))
+    return {'energy': e, 'spent': spent, 'bonus': bonus}
+
+
+def has_energy(c, uid):
+    return is_pro(c, uid) or energy(c, uid)[0] >= 1
 
 
 def earn_energy(c, uid, day, amount):

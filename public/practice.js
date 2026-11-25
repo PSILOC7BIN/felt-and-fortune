@@ -1,5 +1,6 @@
 // Practice: the tool hub, a focused page for each trainer, and the server-graded Shoe Challenge.
 import { react } from './reactions.js';
+import { energyMeter, guardContinue } from './economy.js';
 import { startRound, loadEconomy, setEconomy, chipsHTML, economyState, outOfEnergy, confetti, flyStars, countUp } from './economy.js';
 import * as bj from './bj.js';
 import { esc, $, $$, Sound, ace, g, tableHTML, cardHTML, mountTray, mountStepper, mountNumber } from './ui.js';
@@ -72,7 +73,7 @@ export function createPractice(ctx) {
 
     $('#app').innerHTML = `<main id="main" class="coach-screen practice c-${meta.color}">
       <header class="coach-top practice-top"><button type="button" class="icon-btn" id="pr-end" aria-label="End practice">${g('close')}</button><div class="pr-title"><span class="tool-icon sm">${g(meta.glyph)}</span><div><strong>${meta.name}</strong><small>${meta.purpose}</small></div></div>
-        <div class="pr-stats"><span class="chip streak" title="Current streak">${g('flame')}<b id="pr-streak">0</b></span><span class="chip" title="Correct answers this round"><b id="pr-score">0/${size}</b></span></div>
+        <div class="pr-stats"><span class="chip streak" title="Current streak">${g('flame')}<b id="pr-streak">0</b></span><span class="chip" title="Correct answers this round"><b id="pr-score">0/${size}</b></span><span id="energy-live"></span></div>
         ${tool === 'strategy' ? `<button type="button" class="pill-btn" id="pr-chart">${g('book')} Chart</button>` : ''}${defs.length ? `<button type="button" class="icon-btn" id="pr-gear" aria-expanded="false" aria-controls="pr-settings" aria-label="Settings">${g('gear')}</button>` : ''}${soundButton()}</header>
       <div class="settings-bar" id="pr-settings" hidden>${defs.map(([k, label, opts]) => `<div class="seg-group"><span>${label}</span><div class="segmented" role="radiogroup" aria-label="${label}">${opts.map(([v, t]) => `<button type="button" role="radio" data-k="${k}" data-v="${v}" aria-checked="${s[k] === v}">${t}</button>`).join('')}</div></div>`).join('')}</div>
       <div class="round-bar" aria-hidden="true"><span id="round-fill"></span></div>
@@ -80,10 +81,11 @@ export function createPractice(ctx) {
       <div class="sheet-shade" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"></div></div></main>`;
     wireSound();
     const body = $('#coach-body'), foot = $('#coach-foot'), shade = $('.sheet-shade'), sheet = $('.sheet');
+    const meter = tool === 'weak' ? { answer() {}, empty: () => false, sync() {} } : energyMeter($('#energy-live'));
     const paintStats = () => { $('#pr-streak').textContent = stats.streak; $('#pr-score').textContent = `${stats.correct}/${size}`; $('.chip.streak').classList.toggle('lit', stats.streak > 0); $('#round-fill').style.width = Math.round(stats.questions / size * 100) + '%'; };
     const runner = createRunner({
       body, foot, next: nextQ,
-      onResult: (q, r) => { results.push(r.record); stats.questions++; if (r.ok) { stats.correct++; stats.streak++; stats.best = Math.max(stats.best, stats.streak); } else stats.streak = 0; paintStats(); },
+      onResult: (q, r) => { results.push(r.record); meter.answer(r.ok); if (stats.questions + 1 < size) guardContinue(ctx, meter, foot, { quitHref: '/practice', quitLabel: 'End practice' }); stats.questions++; if (r.ok) { stats.correct++; stats.streak++; stats.best = Math.max(stats.best, stats.streak); } else stats.streak = 0; paintStats(); },
       onKeyExtra: e => { if (e.key === 'Escape' && !shade.hidden) { shade.hidden = true; return true; } return false; },
       onEmpty: () => endRound(),
     });

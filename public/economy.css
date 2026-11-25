@@ -149,3 +149,11 @@
 [data-theme="dark"] .node.rest { background: #1E2D55 !important; color: #8DB4FF !important; box-shadow: 0 6px 0 #142046 !important; }
 [data-theme="dark"] .pro-tag { background: rgba(0, 0, 0, .35); color: #FFD66B; }
 [data-theme="dark"] .cp-pips i { box-shadow: 0 0 0 2px #0B1022; }
+
+/* Live Energy meter */
+.energy-live { display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: 999px; font: 900 14px var(--round); background: var(--panel); border: 2px solid var(--border); }
+.energy-live .glyph { width: 18px; height: 18px; color: #0A84FF; }
+.energy-live.low .glyph { color: #FF3B30; animation: low-pulse 1.4s ease-in-out infinite; }
+.energy-float { position: fixed; z-index: 120; transform: translate(-50%, 0); display: inline-flex; align-items: center; gap: 3px; font: 900 20px var(--round); color: #0A84FF; text-shadow: 0 2px 8px rgba(10, 132, 255, .35); pointer-events: none; animation: energy-float 1.25s cubic-bezier(.2, .9, .3, 1) forwards; }
+.energy-float .glyph { width: 20px; height: 20px; }
+@keyframes energy-float { 0% { opacity: 0; transform: translate(-50%, 20px) scale(.6); } 25% { opacity: 1; transform: translate(-50%, -6px) scale(1.25); } 100% { opacity: 0; transform: translate(-50%, -46px) scale(1); } }
