@@ -1,4 +1,5 @@
 // Practice: the tool hub, a focused page for each trainer, and the server-graded Shoe Challenge.
+import { react } from './reactions.js';
 import { startRound, loadEconomy, setEconomy, chipsHTML, economyState, outOfEnergy, confetti, flyStars, countUp } from './economy.js';
 import * as bj from './bj.js';
 import { esc, $, $$, Sound, ace, g, tableHTML, cardHTML, mountTray, mountStepper, mountNumber } from './ui.js';
@@ -171,6 +172,7 @@ export function createPractice(ctx) {
       try { res = await api('/api/challenge/answer', 'POST', { id: game.id, answers }); } catch (e) { ctx.toast(e.message); return; }
       const allOk = res.results.every(x => x.ok);
       Sound.play(allOk ? 'correct' : 'wrong');
+      react(allOk, { streak: allOk ? 1 : 0, anchor: body });
       setHearts(res.hearts); $('#ch-score').textContent = res.score;
       const fmt = (part, v) => v === null || v === undefined ? '—' : part === 'play' ? bj.ACTIONS[v] || v : part === 'decks' ? bj.halves(v) : part === 'bet' ? `${v} unit${v === 1 ? '' : 's'}` : bj.signed(v);
       const label = { rc: 'Running count', decks: 'Decks in tray', tc: 'True count', bet: 'Bet', play: 'Play' };

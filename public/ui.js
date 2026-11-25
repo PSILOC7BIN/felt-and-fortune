@@ -4,43 +4,90 @@ import { rank, halves } from './bj.js';
 export const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
 
-// ---- sound: small synthesized cues (Web Audio), no audio files -------------------------------
+// ---- sound: synthesized cues (Web Audio), no audio files ----------------------------------------
+// A small mix bus (compressor + generated room reverb) and a few voices: bell, marimba, pluck, and
+// filtered noise for card snaps, chip clacks, and whooshes.
 export const Sound = (() => {
-  let ac = null, on = localStorage.getItem('ff-sound') !== 'off';
+  let ac = null, bus = null, wet = null, on = localStorage.getItem('ff-sound') !== 'off';
   function audio() {
-    if (!ac) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; ac = new C(); }
+    if (!ac) {
+      const C = window.AudioContext || window.webkitAudioContext; if (!C) return null;
+      ac = new C();
+      const comp = ac.createDynamicsCompressor(); comp.threshold.value = -16; comp.knee.value = 12; comp.ratio.value = 4;
+      const master = ac.createGain(); master.gain.value = .9;
+      comp.connect(master).connect(ac.destination);
+      bus = ac.createGain(); bus.connect(comp);
+      // Room reverb from decaying stereo noise.
+      const len = Math.floor(ac.sampleRate * 1.4), ir = ac.createBuffer(2, len, ac.sampleRate);
+      for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3.2); }
+      const verb = ac.createConvolver(); verb.buffer = ir;
+      wet = ac.createGain(); wet.gain.value = .22; wet.connect(verb).connect(comp);
+    }
     if (ac.state === 'suspended') ac.resume();
     return ac;
   }
-  function tone(freq, start, dur, { type = 'sine', gain = .16, slide = 0 } = {}) {
-    const a = audio(); if (!a) return;
-    const t = a.currentTime + start, o = a.createOscillator(), g = a.createGain();
-    o.type = type; o.frequency.setValueAtTime(freq, t);
-    if (slide) o.frequency.exponentialRampToValueAtTime(freq * slide, t + dur);
-    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(gain, t + .012); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
-    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + .03);
+  const out = (node, reverb = true) => { node.connect(bus); if (reverb) node.connect(wet); };
+  const env = (g, t, peak, attack, decay) => { g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(peak, t + attack); g.gain.exponentialRampToValueAtTime(.0001, t + attack + decay); };
+
+  // Bell: a few sine partials with their own decays.
+  function bell(f, at = 0, { gain = .12, decay = 1.1, bright = 1 } = {}) {
+    const a = audio(); if (!a) return; const t = a.currentTime + at;
+    [[1, 1], [2.0, .42 * bright], [3.01, .18 * bright], [4.2, .08 * bright]].forEach(([r, amp], i) => {
+      const o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = f * r;
+      env(g, t, gain * amp, .004, decay / (1 + i * .9)); o.connect(g); out(g); o.start(t); o.stop(t + decay + .1);
+    });
   }
+  // Marimba: warm and short.
+  function marimba(f, at = 0, { gain = .14, decay = .32 } = {}) {
+    const a = audio(); if (!a) return; const t = a.currentTime + at;
+    [[1, 1], [4, .25], [9.9, .06]].forEach(([r, amp], i) => {
+      const o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = f * r;
+      env(g, t, gain * amp, .003, decay / (1 + i * 2)); o.connect(g); out(g); o.start(t); o.stop(t + decay + .05);
+    });
+  }
+  // Pluck: triangle through a closing lowpass.
+  function pluck(f, at = 0, { gain = .1, decay = .25, slide = 1 } = {}) {
+    const a = audio(); if (!a) return; const t = a.currentTime + at;
+    const o = a.createOscillator(), lp = a.createBiquadFilter(), g = a.createGain();
+    o.type = 'triangle'; o.frequency.setValueAtTime(f, t); if (slide !== 1) o.frequency.exponentialRampToValueAtTime(f * slide, t + decay);
+    lp.type = 'lowpass'; lp.frequency.setValueAtTime(f * 6, t); lp.frequency.exponentialRampToValueAtTime(f * 1.2, t + decay);
+    env(g, t, gain, .004, decay); o.connect(lp).connect(g); out(g); o.start(t); o.stop(t + decay + .05);
+  }
+  let noiseBuf = null;
+  function noise(at = 0, { dur = .05, type = 'bandpass', freq = 2500, q = 1, gain = .1, sweep = 0, reverb = false } = {}) {
+    const a = audio(); if (!a) return; const t = a.currentTime + at;
+    if (!noiseBuf) { noiseBuf = a.createBuffer(1, a.sampleRate, a.sampleRate); const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1; }
+    const s = a.createBufferSource(), f = a.createBiquadFilter(), g = a.createGain();
+    s.buffer = noiseBuf; f.type = type; f.Q.value = q; f.frequency.setValueAtTime(freq, t); if (sweep) f.frequency.exponentialRampToValueAtTime(sweep, t + dur);
+    env(g, t, gain, .003, dur); s.connect(f).connect(g); out(g, reverb); s.start(t); s.stop(t + dur + .05);
+  }
+  const N = { C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99, A5: 880, B5: 987.77, C6: 1046.5, D6: 1174.66, E6: 1318.51, G6: 1567.98, A6: 1760, C7: 2093 };
+  const sparkle = (at = 0, n = 4) => { for (let i = 0; i < n; i++) bell(2093 * Math.pow(2, (Math.random() * 7 | 0) / 12), at + i * .045, { gain: .03, decay: .5, bright: .4 }); };
+
   const fx = {
-    tap: () => tone(660, 0, .05, { gain: .06 }),
-    select: () => tone(523, 0, .09, { type: 'triangle', gain: .1, slide: 1.2 }),
-    deal: () => tone(1400, 0, .035, { type: 'square', gain: .025, slide: .6 }),
-    correct: () => { tone(784, 0, .12, { type: 'triangle' }); tone(1175, .09, .24, { type: 'triangle' }); },
-    wrong: () => { tone(330, 0, .14, { type: 'sawtooth', gain: .05 }); tone(247, .12, .28, { type: 'sawtooth', gain: .05 }); },
-    complete: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .11, i === 3 ? .55 : .16, { type: 'triangle', gain: .14 })),
-    reveal: () => [659, 988, 1319].forEach((f, i) => tone(f, i * .07, .22, { gain: .07 })),
-    tick: () => tone(880, 0, .03, { gain: .04 }),
-    coin: () => { tone(1319, 0, .07, { type: 'square', gain: .05 }); tone(1976, .06, .22, { type: 'square', gain: .05 }); },
-    energy: () => [440, 554, 659, 880].forEach((f, i) => tone(f, i * .05, .14, { type: 'sawtooth', gain: .035, slide: 1.05 })),
-    freeze: () => [1568, 1319, 1760, 2093].forEach((f, i) => tone(f, i * .06, .3, { gain: .05 })),
-    unlock: () => { tone(392, 0, .1, { type: 'triangle', gain: .12 }); tone(784, .08, .3, { type: 'triangle', gain: .12, slide: 1.5 }); },
-    levelup: () => [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => tone(f, i * .08, i === 5 ? .7 : .18, { type: 'triangle', gain: .12 })),
-    whoosh: () => tone(200, 0, .25, { type: 'sawtooth', gain: .03, slide: 4 }),
-    pop: () => tone(600, 0, .06, { gain: .1, slide: 2 }),
+    tap: () => { noise(0, { dur: .018, type: 'highpass', freq: 2600, gain: .05 }); marimba(1200, 0, { gain: .03, decay: .05 }); },
+    tick: () => noise(0, { dur: .012, type: 'bandpass', freq: 3800, q: 2, gain: .06 }),
+    select: () => marimba(N.G5, 0, { gain: .1, decay: .2 }),
+    deal: () => { noise(0, { dur: .05, type: 'bandpass', freq: 3200, q: .8, gain: .14, sweep: 1400 }); noise(.012, { dur: .02, type: 'highpass', freq: 5000, gain: .05 }); },
+    chips: () => [0, .055, .1].forEach((d, i) => { noise(d, { dur: .025, type: 'bandpass', freq: 2300 + i * 300, q: 6, gain: .12 }); marimba(1700 + i * 120, d, { gain: .03, decay: .04 }); }),
+    correct: () => { bell(N.E6, 0, { gain: .1, decay: .9 }); bell(N.A6, .085, { gain: .11, decay: 1.2 }); sparkle(.12, 2); },
+    wrong: () => { pluck(196, 0, { gain: .12, decay: .3, slide: .75 }); pluck(147, .1, { gain: .1, decay: .38, slide: .8 }); },
+    streak: () => [N.C6, N.E6, N.G6, N.C7].forEach((f, i) => bell(f, i * .07, { gain: .08, decay: .8 })),
+    complete: () => { [N.C5, N.E5, N.G5, N.C6].forEach((f, i) => marimba(f, i * .1, { gain: .13, decay: .35 })); [N.C6, N.E6, N.G6].forEach(f => bell(f, .42, { gain: .07, decay: 1.6 })); sparkle(.5, 6); },
+    reveal: () => [N.G5, N.C6, N.E6].forEach((f, i) => bell(f, i * .07, { gain: .07, decay: .7 })),
+    coin: () => { pluck(N.B5, 0, { gain: .08, decay: .06 }); bell(N.E6, .06, { gain: .09, decay: .55, bright: 1.3 }); },
+    energy: () => { noise(0, { dur: .35, type: 'bandpass', freq: 500, q: 3, gain: .05, sweep: 3500, reverb: true }); [N.C6, N.G6].forEach((f, i) => bell(f, .2 + i * .08, { gain: .06, decay: .6 })); },
+    freeze: () => { noise(0, { dur: .4, type: 'highpass', freq: 6000, gain: .03, reverb: true }); [N.A6, N.E6, N.C7, N.G6].forEach((f, i) => bell(f, i * .06, { gain: .045, decay: 1, bright: .5 })); },
+    unlock: () => { noise(0, { dur: .2, type: 'bandpass', freq: 600, q: 2, gain: .05, sweep: 2600 }); bell(N.C6, .12, { gain: .09 }); bell(N.G6, .2, { gain: .09, decay: 1.4 }); sparkle(.3, 4); },
+    levelup: () => { [N.C5, N.E5, N.G5, N.C6, N.E6, N.G6].forEach((f, i) => marimba(f, i * .075, { gain: .12, decay: .3 })); [N.C6, N.E6, N.G6, N.C7].forEach(f => bell(f, .5, { gain: .06, decay: 2 })); sparkle(.55, 8); },
+    whoosh: () => noise(0, { dur: .28, type: 'bandpass', freq: 350, q: 1.2, gain: .09, sweep: 3200, reverb: true }),
+    pop: () => pluck(420, 0, { gain: .1, decay: .09, slide: 2.2 }),
+    cheer: () => { [N.G5, N.C6, N.E6].forEach((f, i) => marimba(f, i * .05, { gain: .1, decay: .25 })); sparkle(.15, 3); },
   };
   return {
     play(name) { window.ffHaptic?.(name); if (on && fx[name]) { try { fx[name](); } catch { /* audio unavailable */ } } },
     get on() { return on; },
-    toggle() { on = !on; localStorage.setItem('ff-sound', on ? 'on' : 'off'); if (on) fx.tap(); return on; },
+    toggle() { on = !on; localStorage.setItem('ff-sound', on ? 'on' : 'off'); if (on) fx.select(); return on; },
   };
 })();
 
@@ -61,16 +108,32 @@ const COACH_SKINS = {
 };
 
 export function ace(mood = 'happy', cls = '', skin = (typeof document !== 'undefined' && document.documentElement.dataset.coach) || 'none') {
-  const eyes = mood === 'wow'
-    ? '<path d="M31 57q7-9 14 0M55 57q7-9 14 0" stroke="#1C1C1E" stroke-width="4.5" fill="none" stroke-linecap="round"/>'
-    : '<circle cx="38" cy="56" r="7" fill="#1C1C1E"/><circle cx="62" cy="56" r="7" fill="#1C1C1E"/><circle cx="40.5" cy="53.5" r="2.4" fill="#fff"/><circle cx="64.5" cy="53.5" r="2.4" fill="#fff"/>';
+  const K = '#1C1C1E';
+  const dots = '<circle cx="38" cy="56" r="7" fill="#1C1C1E"/><circle cx="62" cy="56" r="7" fill="#1C1C1E"/><circle cx="40.5" cy="53.5" r="2.4" fill="#fff"/><circle cx="64.5" cy="53.5" r="2.4" fill="#fff"/>';
+  const arcs = `<path d="M31 57q7-9 14 0M55 57q7-9 14 0" stroke="${K}" stroke-width="4.5" fill="none" stroke-linecap="round"/>`;
+  const eyes = {
+    wow: arcs, cheer: arcs,
+    wink: `<circle cx="38" cy="56" r="7" fill="${K}"/><circle cx="40.5" cy="53.5" r="2.4" fill="#fff"/><path d="M55 57q7-6 14 0" stroke="${K}" stroke-width="4.5" fill="none" stroke-linecap="round"/>`,
+    love: '<path d="M38 63l-8-8a4.6 4.6 0 0 1 8-5 4.6 4.6 0 0 1 8 5z" fill="#FF2D55"/><path d="M62 63l-8-8a4.6 4.6 0 0 1 8-5 4.6 4.6 0 0 1 8 5z" fill="#FF2D55"/>',
+    cool: `<rect x="27" y="49" width="20" height="12" rx="5" fill="${K}"/><rect x="53" y="49" width="20" height="12" rx="5" fill="${K}"/><path d="M47 53h6" stroke="${K}" stroke-width="3"/><path d="M31 52l5-1.5" stroke="#fff" stroke-width="2" opacity=".6" stroke-linecap="round"/>`,
+    shock: `<circle cx="38" cy="56" r="9" fill="#fff" stroke="${K}" stroke-width="3"/><circle cx="62" cy="56" r="9" fill="#fff" stroke="${K}" stroke-width="3"/><circle cx="38" cy="56" r="3.5" fill="${K}"/><circle cx="62" cy="56" r="3.5" fill="${K}"/>`,
+    sad: dots,
+  }[mood] || dots;
   const mouth = {
-    happy: '<path d="M41 71q9 9 18 0" stroke="#1C1C1E" stroke-width="4" fill="none" stroke-linecap="round"/>',
-    wow: '<path d="M39 68q11 17 22 0z" fill="#FF3B30" stroke="#1C1C1E" stroke-width="3.5" stroke-linejoin="round"/>',
-    oops: '<path d="M42 77q8-7 16 0" stroke="#1C1C1E" stroke-width="4" fill="none" stroke-linecap="round"/>',
-    think: '<path d="M43 74h14" stroke="#1C1C1E" stroke-width="4" stroke-linecap="round"/>',
+    happy: `<path d="M41 71q9 9 18 0" stroke="${K}" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+    wow: `<path d="M39 68q11 17 22 0z" fill="#FF3B30" stroke="${K}" stroke-width="3.5" stroke-linejoin="round"/>`,
+    cheer: `<path d="M37 67q13 20 26 0z" fill="#FF3B30" stroke="${K}" stroke-width="3.5" stroke-linejoin="round"/><path d="M43 74q7 4 14 0" stroke="#FF8A80" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+    wink: `<path d="M42 72q10 6 17-3" stroke="${K}" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+    love: `<path d="M41 70q9 10 18 0" stroke="${K}" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+    cool: `<path d="M42 73q9 3 16-4" stroke="${K}" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+    shock: `<ellipse cx="50" cy="75" rx="6" ry="7" fill="${K}"/>`,
+    sad: `<path d="M42 78q8-8 16 0" stroke="${K}" stroke-width="4" fill="none" stroke-linecap="round"/><path d="M66 63q3 5 0 8q-3-3 0-8z" fill="#5AC8FA"/>`,
+    oops: `<path d="M42 77q8-7 16 0" stroke="${K}" stroke-width="4" fill="none" stroke-linecap="round"/>`,
+    think: `<path d="M43 74h14" stroke="${K}" stroke-width="4" stroke-linecap="round"/>`,
   }[mood] || '';
-  const brows = mood === 'oops' ? '<path d="M30 44l12 4M70 44l-12 4" stroke="#1C1C1E" stroke-width="3.5" stroke-linecap="round"/>' : mood === 'think' ? '<path d="M31 45q7-4 14 0" stroke="#1C1C1E" stroke-width="3.5" fill="none" stroke-linecap="round"/>' : '';
+  const brows = mood === 'oops' || mood === 'sad' ? `<path d="M30 44l12 4M70 44l-12 4" stroke="${K}" stroke-width="3.5" stroke-linecap="round"/>`
+    : mood === 'think' ? `<path d="M31 45q7-4 14 0" stroke="${K}" stroke-width="3.5" fill="none" stroke-linecap="round"/>`
+    : mood === 'shock' ? `<path d="M30 40q8-5 16 0M54 40q8-5 16 0" stroke="${K}" stroke-width="3.5" fill="none" stroke-linecap="round"/>` : '';
   return `<svg class="ace ace-${mood} ${cls}" viewBox="0 0 100 124" role="img" aria-label="Ace, the Felt &amp; Fortune coach"><rect x="11" y="14" width="80" height="104" rx="16" fill="#C7C7CC"/><rect x="9" y="8" width="80" height="104" rx="16" fill="#fff" stroke="#D1D1D6" stroke-width="3"/><text x="19" y="31" font-family="ui-rounded,system-ui,sans-serif" font-weight="800" font-size="17" fill="#007AFF">A</text><path d="M24 34c-4 4-6 6-3 8 1.5 1 3 0 3-1 0 1 1.5 2 3 1 3-2 1-4-3-8z" fill="#007AFF"/>${brows}${eyes}<circle cx="27" cy="69" r="5.5" fill="#FF2D55" opacity=".22"/><circle cx="73" cy="69" r="5.5" fill="#FF2D55" opacity=".22"/>${mouth}<path d="M50 88c-6 6-9 9-4.5 12 2.2 1.4 4.5 0 4.5-1.5 0 1.5 2.3 2.9 4.5 1.5 4.5-3 1.5-6-4.5-12z" fill="#007AFF" opacity=".9"/>${COACH_SKINS[skin] || ''}</svg>`;
 }
 

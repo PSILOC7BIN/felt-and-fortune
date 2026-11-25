@@ -1,5 +1,6 @@
 // The trainers: question generators shared by the Practice tools and the lessons.
 // A question renders into a container, tells the runner when it can be checked, and grades itself.
+import { react } from './reactions.js';
 import * as bj from './bj.js';
 import { esc, $, $$, Sound, ace, g, cardHTML, tableHTML, mountTray, mountStepper, mountNumber } from './ui.js';
 
@@ -303,7 +304,7 @@ export function scenarioQs({ shoe = 6 } = {}) {
 // Runner: draws a question in `body`, drives Check/Continue in `foot`, and reports results.
 // ---------------------------------------------------------------------------------------------
 export function createRunner({ body, foot, next, onResult, onEmpty, onKeyExtra }) {
-  let q = null, checked = false, ready = false;
+  let q = null, checked = false, ready = false, streak = 0;
   function setFoot(html, cls = '') { foot.className = 'coach-foot ' + cls; foot.innerHTML = html; }
   function primary() { return $('#run-primary', foot); }
   function show() {
@@ -326,6 +327,8 @@ export function createRunner({ body, foot, next, onResult, onEmpty, onKeyExtra }
     const r = q.check(body);
     r.record = { kind: q.recKind || q.kind, data: q.data, given: q.given ?? null };
     Sound.play(r.ok ? 'correct' : 'wrong');
+    streak = r.ok ? streak + 1 : 0;
+    react(r.ok, { streak, anchor: body.querySelector('.felt-table, .deal-table, .tray-row, .choice-grid, .answers') || body });
     setFoot(`<div class="verdict">${ace(r.ok ? 'wow' : 'oops', 'ace-xs')}<div><strong>${r.ok ? PRAISE[Math.floor(Math.random() * PRAISE.length)] : 'Correct answer: ' + esc(r.answer)}</strong><p>${esc(r.explain || '')}</p></div></div><button type="button" class="primary chunky" id="run-primary">Continue</button>`, r.ok ? 'ok' : 'bad');
     primary().onclick = advance; primary().focus({ preventScroll: true });
     onResult?.(q, r);

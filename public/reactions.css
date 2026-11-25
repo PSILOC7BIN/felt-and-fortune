@@ -1,0 +1,46 @@
+/* Ace's answer reactions: pops in above the answer bar, bottom right, with a speech bubble. */
+.ace-react { position: fixed; right: max(18px, calc((100vw - 1100px) / 2)); bottom: 118px; z-index: 90; display: grid; justify-items: end; gap: 6px;
+  pointer-events: none; opacity: 0; transform: translateY(40px) scale(.6); transition: opacity .2s, transform .35s cubic-bezier(.2, 1.5, .4, 1); }
+.ace-react.show { opacity: 1; transform: none; }
+.ace-react .ace { width: 74px; height: auto; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, .22)); }
+.ace-bubble { max-width: 220px; padding: 10px 14px; border-radius: 18px 18px 4px 18px; font: 900 16px var(--round); color: #fff; box-shadow: 0 8px 20px rgba(0, 0, 0, .18); }
+.ace-react.win .ace-bubble { background: linear-gradient(135deg, #34C759, #0A84FF); }
+.ace-react.lose .ace-bubble { background: #fff; color: #1C1C1E; border: 2px solid #E5E5EA; }
+[data-theme="dark"] .ace-react.lose .ace-bubble { background: #1E2747; color: #EEF1FF; border-color: #2A3456; }
+
+.ace-react.show.m-jump .ace-body { animation: r-jump .7s cubic-bezier(.3, 1.6, .5, 1); }
+.ace-react.show.m-spin .ace-body { animation: r-spin .8s cubic-bezier(.3, 1.3, .5, 1); }
+.ace-react.show.m-bounce .ace-body { animation: r-bounce .9s ease; }
+.ace-react.show.m-dance .ace-body { animation: r-dance .9s ease-in-out; }
+.ace-react.show.m-slide .ace-body { animation: r-slide .6s cubic-bezier(.2, 1.4, .4, 1); }
+.ace-react.show.m-flip .ace-body { animation: r-flip .8s ease; }
+.ace-react.show.m-shake .ace-body { animation: r-shake .55s ease; }
+.ace-react.show.m-slump .ace-body { animation: r-slump .9s ease forwards; }
+.ace-react.show.m-jolt .ace-body { animation: r-jolt .5s ease; }
+.ace-react.show.m-tilt .ace-body { animation: r-tilt 1s ease forwards; }
+.ace-react.show .ace-bubble { animation: r-pop .4s cubic-bezier(.2, 1.6, .4, 1) .08s both; }
+
+@keyframes r-pop { from { transform: scale(.3); opacity: 0; } }
+@keyframes r-jump { 30% { transform: translateY(-38px) scaleY(1.06); } 55% { transform: translateY(0) scaleY(.9); } 75% { transform: translateY(-10px); } }
+@keyframes r-spin { from { transform: rotate(-360deg) scale(.5); } }
+@keyframes r-bounce { 20%, 60% { transform: translateY(-18px); } 40%, 80% { transform: translateY(0) scaleX(1.06) scaleY(.94); } }
+@keyframes r-dance { 20% { transform: rotate(-14deg); } 40% { transform: rotate(12deg); } 60% { transform: rotate(-10deg); } 80% { transform: rotate(8deg); } }
+@keyframes r-slide { from { transform: translateX(120px) rotate(20deg); } }
+@keyframes r-flip { 50% { transform: rotateY(180deg) translateY(-12px); } }
+@keyframes r-shake { 20%, 60% { transform: translateX(-9px) rotate(-4deg); } 40%, 80% { transform: translateX(9px) rotate(4deg); } }
+@keyframes r-slump { to { transform: translateY(8px) rotate(-8deg) scaleY(.94); } }
+@keyframes r-jolt { 20% { transform: translateY(-14px) scale(1.08); } }
+@keyframes r-tilt { to { transform: rotate(12deg); } }
+
+/* A gentle shake of the question on a miss. */
+.miss-shake { animation: miss-shake .45s ease; }
+@keyframes miss-shake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
+
+@media (max-width: 700px) {
+  .ace-react { right: 12px; bottom: 150px; }
+  .ace-react .ace { width: 58px; }
+  .ace-bubble { font-size: 14px; max-width: 170px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ace-react, .ace-react .ace-body, .ace-react .ace-bubble, .miss-shake { animation: none !important; transition: opacity .2s; transform: none; }
+}
