@@ -274,3 +274,9 @@
 [data-theme="dark"] .node.gated{background:#3A2A07;color:#FFD27A;box-shadow:0 7px 0 #6B4A0B}
 [data-theme="dark"] .placed-card .tool-icon,[data-theme="dark"] .placed-links a.done{background:#0F2E19;color:#6EE38D}
 .unit:has(.node-pop) { position: relative; z-index: 30; }
+/* One screen per question: the footer stays in view and the body never pushes the answers below the fold. */
+.coach-screen{height:100vh;height:100dvh;min-height:0;overflow:hidden}
+.coach-screen .coach-body{min-height:0;overflow-y:auto;justify-content:safe center}
+.coach-screen .coach-foot{flex-shrink:0}
+@media(max-height:760px){.coach-top{padding-top:10px}.coach-body{padding-top:14px;padding-bottom:16px}.coach-foot{min-height:76px;padding-top:12px;padding-bottom:12px}.choice-tile{min-height:50px;padding:10px 16px}.q{gap:12px}}
+.coach-screen .coach-body > *{flex-shrink:0}

@@ -84,13 +84,14 @@ def simulate(config):
     rph = float(config.get('rph', 100))
     unit = float(config.get('unit', 10))
     wong = int(config.get('wong', -20))
+    wong_out = int(config.get('wongOut', -20))
     spreads = config.get('spread', [{'count': -3, 'units': 1, 'hands': 1}, {'count': 1, 'units': 2, 'hands': 1}, {'count': 2, 'units': 4, 'hands': 1}, {'count': 3, 'units': 8, 'hands': 1}, {'count': 4, 'units': 12, 'hands': 1}])
-    if not 1000 <= rounds <= 1000000 or decks not in (4,6,8) or not .25 <= pen <= .9 or not 0 < unit <= 100000 or not 0 < bankroll <= 1e9 or not 1 <= rph <= 1000 or payout not in (1.2,1.5) or not -20 <= wong <= 10:
+    if not 1000 <= rounds <= 1000000 or decks not in (1,2,4,5,6,8) or not .25 <= pen <= .9 or not 0 < unit <= 100000 or not 0 < bankroll <= 1e9 or not 1 <= rph <= 1000 or payout not in (1.2,1.5) or not -20 <= wong <= 10 or not -20 <= wong_out <= 10:
         raise ValueError('Invalid simulation settings.')
     if max_hands not in (1,2,4) or double_rule not in ('any','10-11','9-11') or play_mode not in ('basic','deviations'):
         raise ValueError('Invalid play rules.')
-    if play_mode=='deviations' and (h17 or surrender or decks!=6):
-        raise ValueError('The implemented Hi-Lo indices require six decks, S17 and no surrender.')
+    if play_mode=='deviations' and (h17 or surrender):
+        raise ValueError('The Hi-Lo index plays here are for S17 games without surrender. Turn off H17 and surrender, or use basic strategy.')
     if not isinstance(spreads,list) or not 1 <= len(spreads) <= 20: raise ValueError('Supply 1–20 bet spread rows.')
     spreads = sorted(spreads, key=lambda s: int(s['count']))
     for s in spreads:
@@ -98,7 +99,7 @@ def simulate(config):
     if len({int(s['count']) for s in spreads})!=len(spreads): raise ValueError('Bet spread thresholds must be unique.')
     shoe=[]; rc=0; reshuffles=0
     profits=[]; trajectory=[]; wagered=0; played=0; wins=0; losses=0; pushes=0
-    cumulative=0; shoe_profit=0; shoe_rounds=0; blocks=[]
+    cumulative=0; shoe_profit=0; shoe_rounds=0; blocks=[]; left=False; seated=False; initial=0.
     def draw():
         nonlocal rc
         c=shoe.pop(); rc+=hilo(c); return c
@@ -167,16 +168,17 @@ def simulate(config):
         if len(shoe)<max(52,52*decks*(1-pen)):
             if shoe_rounds: blocks.append((shoe_profit,shoe_rounds))
             shoe=[c for _ in range(decks) for c in range(1,14) for _ in range(4)]
-            rng.shuffle(shoe);rc=0;reshuffles+=1;shoe_profit=0;shoe_rounds=0
+            rng.shuffle(shoe);rc=0;reshuffles+=1;shoe_profit=0;shoe_rounds=0;left=False;seated=False
         tc=math.floor(rc/max(.25,len(shoe)/52))
         spread=spreads[0]
         for s in spreads:
             if tc>=int(s['count']): spread=s
-        if tc<wong:
+        if wong_out>-20 and seated and tc<wong_out: left=True
+        if tc<wong or left:
             # Observe a complete flat-bet round; do not charge it to the player.
             before=wagered;settle_round(tc,unit,1);wagered=before;p=0
         else:
-            p=settle_round(tc,unit*float(spread['units']),int(spread['hands']));played+=1
+            p=settle_round(tc,unit*float(spread['units']),int(spread['hands']));played+=1;seated=True;initial+=unit*float(spread['units'])*int(spread['hands'])
             wins+=p>0;losses+=p<0;pushes+=p==0
         profits.append(p);cumulative+=p;shoe_profit+=p;shoe_rounds+=1
         if round_no%max(1,rounds//200)==0: trajectory.append([round_no+1,cumulative])
@@ -188,4 +190,4 @@ def simulate(config):
     residual=sum((p-mean*n)**2 for p,n in blocks)
     se=math.sqrt(residual*len(blocks)/max(1,len(blocks)-1))/rounds
     ev=mean*rph; sd=math.sqrt(variance*rph)
-    return {'rounds':rounds,'played':played,'wins':wins,'losses':losses,'pushes':pushes,'shoes':reshuffles,'profit':cumulative,'ev':ev,'sd':sd,'ci':[ev-1.96*se*rph,ev+1.96*se*rph],'risk':min(1,math.exp(-2*mean*bankroll/variance)) if mean>0 and variance else 1,'n0':variance/(mean*mean)/rph if mean>0 else None,'averageBet':wagered/max(1,played),'edge':cumulative/wagered if wagered else 0,'trajectory':trajectory,'seed':config.get('seed',42),'model':f'{play_mode}; Hi-Lo bet selection; US peek. Risk and N₀ are diffusion approximations.'}
+    return {'rounds':rounds,'played':played,'wins':wins,'losses':losses,'pushes':pushes,'shoes':reshuffles,'profit':cumulative,'ev':ev,'sd':sd,'ci':[ev-1.96*se*rph,ev+1.96*se*rph],'risk':min(1,math.exp(-2*mean*bankroll/variance)) if mean>0 and variance else 1,'n0':variance/(mean*mean)/rph if mean>0 else None,'averageBet':wagered/max(1,played),'averageInitial':initial/max(1,played),'wagered':wagered,'edge':cumulative/wagered if wagered else 0,'trajectory':trajectory,'seed':config.get('seed',42),'model':f'{play_mode}; Hi-Lo bet selection; US peek. Risk and N₀ are diffusion approximations.'}

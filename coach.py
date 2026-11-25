@@ -581,9 +581,7 @@ PRO_UNITS = {u['id'] for t in PRO_TRACKS if t in TRACKS for u in TRACKS[t][(0 if
 CHECKPOINT_PASS = 90          # accuracy needed on a checkpoint attempt
 
 TRACK_BASE = {'smart': 1100, 'strategy': 1150, 'counter': 1200, 'pro': 1250, 'expert': 1300}
-SKILL_TOOL = {'strategy-hard': '/practice/strategy', 'strategy-soft': '/practice/strategy', 'strategy-pair': '/practice/strategy',
-              'count': '/practice/count', 'decks': '/practice/decks', 'truecount': '/practice/truecount', 'index': '/practice/index',
-              'insurance': '/practice/index', 'bet': '/practice/bet'}
+SKILL_TOOL = {k: '/practice/skill/' + k for k in ('strategy-hard', 'strategy-soft', 'strategy-pair', 'count', 'decks', 'truecount', 'index', 'insurance', 'bet')}
 
 
 def _gate_skills(u, track):
@@ -661,7 +659,7 @@ def path_units(plan):
         lessons = [{'id': l['id'], 'title': l['title']} for l in u['lessons']]
         if u['id'] in plan.get('focus', []): lessons.append({'id': u['id'] + '-review', 'title': 'Focus review', 'review': True})
         lessons.append({'id': u['id'] + '-checkpoint', 'title': 'Checkpoint', 'checkpoint': True})
-        units.append({'id': u['id'], 'title': u['title'], 'summary': u['summary'], 'color': u['color'], 'tool': u['tool'],
+        units.append({'id': u['id'], 'title': u['title'], 'summary': u['summary'], 'color': u['color'], 'tool': SKILL_TOOL.get((GATES.get(u['id']) or [[None]])[0][0], u['tool'].replace('/practice/', '/tools/')),
                       'note': plan.get('notes', {}).get(u['id']), 'pro': u['id'] in PRO_UNITS and u['id'] != first, 'placed': u['id'] in placed,
                       'gate': [{'skill': sk, 'target': t, 'tool': SKILL_TOOL.get(sk, '/practice')} for sk, t in GATES.get(u['id'], [])], 'phase': PHASE[TRACK_OF_UNIT[u['id']]], 'lessons': lessons})
     return units

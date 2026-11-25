@@ -153,7 +153,7 @@
 .fp-hands:has(.fp-hand:nth-child(2)) .fp-hand { zoom: .85; }
 .fp-hands:has(.fp-hand:nth-child(3)) .fp-hand { zoom: .7; }
 @media (max-width: 700px) {
-  .fp-table { height: 340px; }
+  .fp-table { height: 430px; padding-bottom: 58px !important; gap: 10px !important; } .fp-rules { font-size: 9px; letter-spacing: .1em; }
   .fp-table .cards:has(.pc:nth-child(4)) .pc + .pc { margin-left: -50px; }
   .fp-hands:has(.fp-hand:nth-child(2)) .fp-hand { zoom: .72; }
   .fp-hands:has(.fp-hand:nth-child(3)) .fp-hand { zoom: .58; }

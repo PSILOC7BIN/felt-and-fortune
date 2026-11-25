@@ -9,6 +9,7 @@ RUN npm install --no-save esbuild@0.24 && node scripts/bundle.mjs
 FROM python:3.13-slim
 WORKDIR /app
 COPY *.py ./
+COPY content ./content
 COPY public ./public
 COPY --from=bundle /app/public/dist ./public/dist
 ENV HOST=0.0.0.0 PORT=8080 DATABASE_PATH=/data/felt-and-fortune.sqlite3 COOKIE_SECURE=1 FF_BUNDLE=1 PYTHONUNBUFFERED=1

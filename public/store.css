@@ -319,3 +319,10 @@
 [data-theme="dark"] .look-tabs button[aria-selected="true"] { background: #EEF1FF; color: #0B1022; }
 .store4 .item-card .back-art { width: 64px; height: 90px; }
 .store4 .item-card .coach-art .ace { width: 66px; }
+/* Hand Review cards: Ace gets his own space above the rail, and the labels never sit on the printed arc. */
+.review-card .bj-table.has-dealer { margin: 70px 11px 11px; padding: 52px 14px 38px !important; gap: 26px !important; }
+.review-card .bj-table .dealer-ace { top: -60px; }
+.review-card .bj-table .ace-dealer { width: 56px; }
+.review-card .bj-table::after { display: none; }
+.review-card .bj-table::before { font-size: 9px; letter-spacing: .22em; }
+.review-card .bj-table .hand-label { background: rgba(0, 0, 0, .28); padding: 2px 8px; border-radius: 99px; }

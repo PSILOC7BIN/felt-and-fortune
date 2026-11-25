@@ -35,7 +35,7 @@ function freshness(c) {
 export function createDirectory(ctx) {
   let map = null, data = null;
   async function load() {
-    if (!map) [map, data] = await Promise.all([fetch('/us-map.json').then(r => r.json()), fetch('/casinos.json').then(r => r.json())]);
+    if (!map) [map, data] = await Promise.all([fetch('/us-map.json').then(r => r.json()), ctx.api('/api/casinos')]);
   }
 
   return async function directoryPage() {

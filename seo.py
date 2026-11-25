@@ -81,23 +81,19 @@ def count_practice():
 
 
 def casino_rules():
-    try: data = json.loads((ROOT / 'public' / 'casinos.json').read_text(encoding='utf-8'))
+    """Public teaser for the Pro Casino Map: how many casinos per state and what the map shows, never the rules data."""
+    try: data = json.loads((ROOT / 'content' / 'casinos.json').read_text(encoding='utf-8'))
     except (OSError, ValueError): data = {'casinos': []}
     by_state = {}
     for c in data['casinos']: by_state.setdefault(c['state'], []).append(c)
-    def best(c):
-        g = [x for x in c['games'] if x.get('edge') is not None]
-        if not g: return 'Rules unverified'
-        b = min(g, key=lambda x: x['edge'])
-        bits = [f"{b['decks']} decks" if b.get('decks') else None, b.get('payout'), b.get('soft17')]
-        return f"{', '.join(x for x in bits if x)} · about {b['edge']:.2f}% house edge"
-    sections = ''.join(f'<section><h2 id="{s}">{s}</h2><ul class="casino-list">' + ''.join(
-        f'<li><b>{html.escape(c["name"])}</b> <span>{html.escape(c["city"])}</span><small>{html.escape(best(c))}{" · checked " + html.escape(c["verified"]) if c.get("verified") else ""}</small></li>'
-        for c in sorted(cs, key=lambda x: x['name'])) + '</ul></section>' for s, cs in sorted(by_state.items()))
-    body = f'''<h1>Blackjack Rules at US Casinos</h1><p class="lede">{len(data["casinos"])} casinos in {len(by_state)} states, with the best blackjack game each source reported and when it was checked. Rules change often, so always confirm at the table. Sign in for the interactive map, full game tables, and sources.</p>
-<p class="state-jump">{" ".join(f'<a href="#{s}">{s}</a>' for s in sorted(by_state))}</p>{sections}'''
-    return page('/blackjack-casino-rules', 'Blackjack Rules at US Casinos by State | Felt & Fortune',
-                'Which casinos pay 3:2, stand on soft 17, and allow surrender? Blackjack rules for 145 US casinos, with dates and sources.', body)
+    rows = ''.join(f'<li><b>{html.escape(st)}</b><span>{len(cs)} casino{"s" if len(cs) != 1 else ""}</span></li>' for st, cs in sorted(by_state.items()))
+    body = f'''<h1>Blackjack Casinos and Table Rules</h1><p class="lede">Felt &amp; Fortune Pro includes a map of {len(data["casinos"])} US casinos in {len(by_state)} states, with each casino’s blackjack games: decks, 3:2 or 6:5, soft 17, surrender, the house edge of the best table, when it was last checked, and player reports.</p>
+<h2>What to look for at any casino</h2><ul><li><b>3:2 blackjack, never 6:5.</b> 6:5 costs about 1.4% more, more than every other rule combined.</li><li><b>Dealer stands on soft 17</b> (S17) saves about 0.2%.</li><li><b>Double after split and late surrender</b> each help a little.</li><li><b>Fewer decks and deeper penetration</b> matter most if you count.</li></ul>
+<p>Try the free <a href="/blackjack-house-edge-calculator">house edge calculator</a> with any table’s rules.</p>
+<h2>Casinos in the map, by state</h2><ul class="casino-list states">{rows}</ul>
+<p class="lede">Rules, house edges, and reports for every casino are in the <a href="/start">Pro Casino Map</a>.</p>'''
+    return page('/blackjack-casino-rules', 'Blackjack Casinos and Table Rules | Felt & Fortune',
+                'What blackjack rules to look for at a casino, and the Felt & Fortune Pro map of US casinos with decks, payouts, soft 17, and surrender.', body)
 
 
 PAGES = {'/blackjack-strategy-chart': strategy_chart, '/blackjack-house-edge-calculator': house_edge,

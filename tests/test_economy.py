@@ -225,3 +225,46 @@ class EconomyTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ToolsAndPathTests(unittest.TestCase):
+    setUpClass = EconomyTests.__dict__['setUpClass']
+    tearDownClass = EconomyTests.__dict__['tearDownClass']
+    setUp = EconomyTests.setUp
+    signup = EconomyTests.signup
+    log = EconomyTests.log
+
+    def test_skill_trainers_log_and_move_their_rating(self):
+        client, _, _ = self.signup(NEW)
+        status, body = self.log(client, 'skill-strategy-hard', [item('strategy')] * 5)
+        self.assertEqual(status, 200, body)
+        skills = {s['skill']: s for s in client.call('/api/skills')[1]['skills']}
+        self.assertGreater(skills['strategy-hard']['rating'], 1000)
+        self.assertEqual(client.call('/api/energy/start', 'POST', {'tool': 'skill-nope'})[0], 200)   # starting is generic
+        self.assertEqual(client.call('/api/practice/log', 'POST', {'tool': 'skill-nope', 'results': []})[0], 400)
+
+    def test_free_units_come_before_one_block_of_pro_units(self):
+        client, _, _ = self.signup(NEW)
+        units = client.call('/api/path')[1]['units']
+        flags = [u['pro'] for u in units]
+        first_pro = flags.index(True)
+        self.assertTrue(all(flags[first_pro:]), 'a free unit appears after a Pro unit')
+        self.assertEqual(client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})[0], 200)
+        self.assertEqual([u['id'] for u in client.call('/api/path')[1]['units']], [u['id'] for u in coach.path_units(client.call('/api/path')[1]['plan'])])
+
+    def test_checkpoint_gates_point_at_skill_trainers(self):
+        self.assertTrue(all(v.startswith('/practice/skill/') for v in coach.SKILL_TOOL.values()))
+
+    def test_casino_map_data_is_pro_only(self):
+        from test_api import Client
+        client, _, _ = self.signup(NEW)
+        self.assertEqual(client.call('/api/casinos')[0], 402)
+        self.assertEqual(Client(self.base).call('/api/casinos')[0], 401)
+        self.assertEqual(client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})[0], 200)
+        status, body = client.call('/api/casinos')
+        self.assertEqual(status, 200); self.assertGreater(len(body['casinos']), 100)
+        import urllib.request, urllib.error
+        with self.assertRaises(urllib.error.HTTPError) as e: urllib.request.urlopen(self.base + '/casinos.json')
+        self.assertEqual(e.exception.code, 404)
+        page = urllib.request.urlopen(self.base + '/blackjack-casino-rules').read().decode()
+        self.assertNotIn('house edge ·', page); self.assertIn('Pro Casino Map', page)

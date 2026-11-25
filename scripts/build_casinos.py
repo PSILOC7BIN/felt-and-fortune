@@ -1,4 +1,4 @@
-"""Build public/casinos.json for the Game Directory from the researched casino notes.
+"""Build content/casinos.json for the Game Directory from the researched casino notes.
 
 Reads the JSON blocks in research_notes/US casino blackjack rules/*.md, normalizes each game's rules,
 estimates the house edge where the source did not give one, checks coordinates against OpenStreetMap
@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 NOTES = ROOT / 'research_notes' / 'US casino blackjack rules'
 CACHE = ROOT / 'scripts' / 'geocode_cache.json'
-OUT = ROOT / 'public' / 'casinos.json'
+OUT = ROOT / 'content' / 'casinos.json'   # served only to Pro members through /api/casinos
 UA = 'FeltAndFortune-directory-builder/1.0'
 
 

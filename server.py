@@ -415,6 +415,10 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             c.execute('INSERT INTO feedback(user_id,rating,area,page,comment,created) VALUES(?,?,?,?,?,?)',(uid,rating,area,textfield(d,'page',100,False),textfield(d,'comment',2000,False),time.time()))
             return self.send_json({'ok':True},201)
         if path.startswith('/api/practice/') or path.startswith('/api/challenge/'): return self.practice_api(path,method,require,num,ApiError)
+        if path=='/api/casinos' and method=='GET':
+            # The casino map's data is a Pro feature: never served as a public file.
+            require(economy.is_pro(c,self.user['id']),'The Casino Map is part of Felt & Fortune Pro.',402)
+            return self.send_json(json.loads((ROOT/'content'/'casinos.json').read_text(encoding='utf-8')))
         if path=='/api/simulate' and method=='POST':
             require(economy.is_pro(c,self.user['id']),'The Bankroll Simulator is part of Felt & Fortune Pro.',402)
             self.throttle('simulate',10)
@@ -471,6 +475,10 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
         units=coach.path_units(plan)
         ratings={r['skill']:r['rating'] for r in c.execute('SELECT skill,rating FROM skill_rating WHERE user_id=?',(uid,))}
         pro=economy.is_pro(c,uid)
+        if not pro:
+            # Free learners get every free unit first, then one solid block of Pro units (never Pro, free, Pro again).
+            units=[u for u in units if not u['pro']]+[u for u in units if u['pro']]
+            order=[l['id'] for u in units for l in u['lessons']]
         # Free learners skip past Pro units and keep going through the free ones.
         pro_lessons=set() if pro else {l['id'] for u in units if u['pro'] for l in u['lessons']}
         current=next((l for l in order if l not in done and l not in tested and l not in pro_lessons),None)

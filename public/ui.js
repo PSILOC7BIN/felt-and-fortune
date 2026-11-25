@@ -159,6 +159,7 @@ export function ace(mood = 'happy', cls = '', skin = (typeof document !== 'undef
 
 // ---- glyphs -------------------------------------------------------------------------------
 const glyphs = {
+  wrench: '<path d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/>',
   star: '<path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z"/>',
   check: '<path d="M4.5 12.5l4.8 4.8L19.5 7" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>',
   lock: '<path d="M7 10V7.5a5 5 0 0 1 10 0V10h1a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 18 21H6a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 6 10zm2.5 0h5V7.5a2.5 2.5 0 0 0-5 0z"/>',
@@ -281,4 +282,32 @@ export function mountNumber(el, { label = 'Answer', onChange, placeholder = '?' 
   el.querySelector('.sign').onclick = () => { const s = input.value.replace(/[−–]/g, '-'); input.value = s.startsWith('-') ? s.slice(1) : '-' + s.replace(/^\+/, ''); onChange?.(read()); input.focus(); };
   setTimeout(() => input.focus({ preventScroll: true }), 30);
   return { get value() { return read(); }, input };
+}
+
+// ---- keep every question on one screen ----------------------------------------------------------
+// Lesson and practice screens are exactly one viewport tall. When a question (title, table, and choices) is taller
+// than the space above the footer, its content is zoomed down (to 60% at most) so the answers are never below the fold.
+export function fitCoachScreens(root = document.getElementById('app')) {
+  if (!root || typeof ResizeObserver === 'undefined') return;
+  const watched = new WeakSet();
+  let raf = 0;
+  const fit = body => {
+    const kids = [...body.children];
+    if (!kids.length || body.classList.contains('fp-body')) return;
+    kids.forEach(k => { k.style.zoom = ''; });
+    const cs = getComputedStyle(body), pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+    const avail = body.clientHeight - pad, need = body.scrollHeight - pad;
+    if (need <= avail + 1 || avail < 120) return;
+    let z = Math.max(0.6, avail / need);
+    kids.forEach(k => { k.style.zoom = z; });
+    const again = body.scrollHeight - pad;   // text rewraps at a new zoom; correct once
+    if (again > avail + 1 && z > 0.6) { z = Math.max(0.6, z * avail / again); kids.forEach(k => { k.style.zoom = z; }); }
+  };
+  const ro = new ResizeObserver(entries => entries.forEach(e => fit(e.target)));
+  const scan = () => {
+    raf = 0;
+    document.querySelectorAll('.coach-screen .coach-body').forEach(b => { if (!watched.has(b)) { watched.add(b); ro.observe(b); } fit(b); });
+  };
+  new MutationObserver(() => { if (!raf) raf = requestAnimationFrame(scan); }).observe(root, { childList: true, subtree: true });
+  addEventListener('resize', () => { if (!raf) raf = requestAnimationFrame(scan); });
 }

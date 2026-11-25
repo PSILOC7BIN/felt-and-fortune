@@ -21,7 +21,7 @@ export async function freePlayPage(ctx, meta) {
   const save = () => { localStorage.setItem('ff-practice-table', JSON.stringify({ h17: rules.h17 ? 'h17' : 's17', surrender: rules.surrender ? 'on' : 'off', count: rules.count ? 'on' : 'off', bet })); localStorage.setItem('ff-freeplay-bank', String(bank)); };
 
   let round = await startRound(ctx, 'table');
-  if (!round) { if (location.pathname !== '/practice') go('/practice'); return; }
+  if (!round) { if (location.pathname !== '/tools') go('/tools'); return; }
 
   // Session state.
   let shoe = [], rc = 0, results = [], phase = 'bet', busy = false, handsPlayed = 0, roundStarted = Date.now();
@@ -244,7 +244,7 @@ export async function freePlayPage(ctx, meta) {
     if (busy && phase !== 'play') return;
     await logRound();
     if (session.decisions) ctx.toast(`${handsPlayed} hand${handsPlayed === 1 ? '' : 's'} · ${Math.round(session.correct / session.decisions * 100)}% right plays · ${session.net >= 0 ? '+' : '−'}${fmt(Math.abs(session.net))} practice bankroll`);
-    go('/practice');
+    go('/tools');
   };
 
   reshuffle(); paint(); paintStats();

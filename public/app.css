@@ -334,3 +334,58 @@ a.weak-card:active { transform: translateY(4px); box-shadow: none; }
 .forum-guides { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
 .forum-guide { display: grid; gap: 4px; padding: 14px 16px; border-radius: 18px; background: var(--panel); border: 2px dashed var(--border); }
 .forum-guide span { color: var(--muted); font-size: 14px; } .forum-guide small { font-weight: 800; color: #0A84FF; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; }
+
+/* Practice: one trainer per skill rating */
+.skill-meter { display: block; height: 8px; border-radius: 99px; background: #EEF0F5; overflow: hidden; margin-top: 6px; }
+.skill-meter > span { display: block; height: 100%; border-radius: inherit; background: var(--c); }
+.tool-copy .skill-meter > span { color: transparent; }
+.skill-card.gating { border-color: var(--c); box-shadow: 0 4px 0 var(--c-shadow); }
+.gate-banner { display: flex; align-items: center; gap: 12px; padding: 14px 18px; margin: 0 0 14px; border-radius: 18px; background: #EEF0FF; border: 2px solid #C9CCFF; color: #3634A3; font-size: 15px; }
+.gate-banner .glyph { width: 26px; height: 26px; flex-shrink: 0; }
+.practice-top-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.practice-top-cards .weak-card { margin: 0; }
+.hub-foot { margin-top: 28px; text-align: center; }
+.pro-tag { display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; margin-left: 6px; padding: 2px 8px; border-radius: 99px; background: #FFF4D6; color: #8A6100; font: 800 11px var(--round); }
+.pro-tag .glyph { width: 12px; height: 12px; }
+[data-theme="dark"] .skill-meter { background: #1E2747; }
+[data-theme="dark"] .gate-banner { background: #1B1B4A; border-color: #3634A3; color: #B9B8FF; }
+[data-theme="dark"] .pro-tag { background: #3A2E0A; color: #FFD166; }
+
+/* Bankroll Simulator: bet spread table, trip planner */
+.sim-inputs.four { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.sim-inputs.two { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.affix.right i { order: 2; }
+.preset.custom:disabled { opacity: .45; cursor: default; }
+.spread-wrap { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 22px; margin-top: 16px; align-items: start; }
+.spread-table { width: 100%; border-collapse: collapse; font-size: 15px; }
+.spread-table th, .spread-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+.spread-table thead th { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.spread-table tbody th { font-weight: 800; white-space: nowrap; }
+.spread-table input, .spread-table select { width: 100%; min-width: 70px; padding: 6px 8px; border-radius: 10px; }
+.spread-table .sp-bet { font-weight: 700; color: var(--muted); white-space: nowrap; }
+.spread-sum { font-size: 16px; }
+.trip { display: grid; grid-template-columns: 200px 1fr; gap: 18px; align-items: center; }
+.trip p { margin: 0; line-height: 1.5; }
+@media (max-width: 760px) { .spread-wrap, .trip { grid-template-columns: 1fr; } }
+
+/* House Edge Calculator */
+.edge-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.edge-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.edge-out { position: sticky; top: 20px; }
+.edge-big { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 18px; border-radius: 18px; background: #E3F6E8; color: #1E7B34; }
+.edge-big small { font: 800 12px var(--round); text-transform: uppercase; letter-spacing: .06em; }
+.edge-big strong { font: 800 48px/1.05 var(--round); }
+.edge-big span { font-weight: 700; }
+.edge-big[data-grade="good"] { background: #E8F1FF; color: #0062CC; }
+.edge-big[data-grade="meh"] { background: #FFF4D6; color: #8A6100; }
+.edge-big[data-grade="bad"] { background: #FFE8E6; color: #B5170D; }
+.edge-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.edge-list li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 12px; border-radius: 12px; background: #F7F7FA; }
+.edge-list li.bad > b { color: #D70015; }
+.edge-list li.good > b { color: #248A3D; }
+[data-theme="dark"] .edge-big { background: #0F2E19; color: #6EE38D; }
+[data-theme="dark"] .edge-big[data-grade="good"] { background: #0A2A4D; color: #64B0FF; }
+[data-theme="dark"] .edge-big[data-grade="meh"] { background: #3A2E0A; color: #FFD166; }
+[data-theme="dark"] .edge-big[data-grade="bad"] { background: #3A1411; color: #FF8A80; }
+[data-theme="dark"] .edge-list li { background: #141B33; }
+@media (max-width: 900px) { .edge-layout { grid-template-columns: 1fr; } .edge-out { position: static; } }

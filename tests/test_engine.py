@@ -51,8 +51,14 @@ class StrategyTests(unittest.TestCase):
         self.assertAlmostEqual(b['sd'],a['sd']*2)
         self.assertTrue(all(math.isfinite(v) for v in [a['ev'],a['sd'],a['risk']]))
     def test_invalid_simulation_inputs(self):
-        for cfg in [{'rounds':0},{'decks':1},{'penetration':99},{'unit':float('nan')},{'spread':[]},{'spread':[{'count':0,'units':0,'hands':1}]}]:
+        for cfg in [{'rounds':0},{'decks':3},{'wongOut':30},{'penetration':99},{'unit':float('nan')},{'spread':[]},{'spread':[{'count':0,'units':0,'hands':1}]}]:
             with self.subTest(cfg=cfg),self.assertRaises(ValueError): simulate(cfg)
+
+    def test_wong_out_sits_out_the_rest_of_the_shoe(self):
+        cfg={'rounds':20000,'seed':5,'spread':[{'count':-3,'units':1,'hands':1},{'count':2,'units':8,'hands':1}]}
+        a=simulate(cfg);b=simulate({**cfg,'wongOut':-1})
+        self.assertEqual(a['played'],20000);self.assertLess(b['played'],a['played'])
+        self.assertGreater(b['averageInitial'],a['averageInitial'])
 
     def test_indices_preserve_pair_splits(self):
         self.assertEqual(deviation([8,8],10,6),'P')
@@ -69,9 +75,9 @@ class StrategyTests(unittest.TestCase):
                 self.assertEqual(result['averageBet'],2*limit)
 
     def test_restricted_rules_and_deviation_configuration(self):
-        for rules in ({'maxHands':3},{'doubleRule':'invalid'},{'playMode':'deviations','h17':True},{'playMode':'deviations','decks':8},{'playMode':'deviations','surrender':True}):
+        for rules in ({'maxHands':3},{'doubleRule':'invalid'},{'playMode':'deviations','h17':True},{'playMode':'deviations','surrender':True}):
             with self.subTest(rules=rules),self.assertRaises(ValueError): simulate({'rounds':1000,**rules})
-        for rules in ({'maxHands':1,'splitAces':False,'doubleRule':'10-11'}, {'doubleRule':'9-11','das':False}, {'playMode':'deviations','rsa':True}):
+        for rules in ({'maxHands':1,'splitAces':False,'doubleRule':'10-11'}, {'doubleRule':'9-11','das':False}, {'playMode':'deviations','rsa':True}, {'playMode':'deviations','decks':2}, {'decks':1,'wong':1,'wongOut':0}):
             with self.subTest(rules=rules):
                 result=simulate({'rounds':2000,**rules})
                 self.assertEqual(result['rounds'],2000)
