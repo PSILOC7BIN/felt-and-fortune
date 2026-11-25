@@ -235,3 +235,6 @@ button.chip { border: 0; cursor: pointer; font: inherit; }
 .item-card.r-mythic { --r: #A78BFA; border-color: #A78BFA; background: linear-gradient(160deg, color-mix(in srgb, #F472B6 10%, var(--panel)), color-mix(in srgb, #60A5FA 10%, var(--panel))); }
 .r-mythic .rarity, .rarity.r-mythic { background: linear-gradient(90deg, #EC4899, #8B5CF6, #3B82F6); -webkit-background-clip: text; background-clip: text; color: transparent !important; }
 .item-grid.events .coach-art .ace { width: 64px; }
+.refill-row > button { flex: none !important; width: auto !important; min-width: 0; padding: 8px 14px; white-space: nowrap; }
+.refill-row .refill-copy { min-width: 0; }
+.energy-panel > .ghost, .energy-panel > #ep-go, .energy-panel > a.button { width: 100%; }

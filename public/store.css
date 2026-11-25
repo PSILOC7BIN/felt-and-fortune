@@ -314,3 +314,8 @@
 .store4 .plan-pick .plan-flag { left: auto; right: 16px; width: auto; transform: none; translate: none; }
 .store4 button.pro-cta, [data-theme="dark"] .store4 button.pro-cta { background: linear-gradient(180deg, #FFD34D, #FFB800); color: #3A2600; border: 0; box-shadow: 0 5px 0 #B88300; }
 .store4 button.pro-cta:hover { filter: brightness(1.05); }
+[data-theme="dark"] .look-tabs { background: #0E1530; }
+[data-theme="dark"] .look-tabs button { color: #9AA3C7; }
+[data-theme="dark"] .look-tabs button[aria-selected="true"] { background: #EEF1FF; color: #0B1022; }
+.store4 .item-card .back-art { width: 64px; height: 90px; }
+.store4 .item-card .coach-art .ace { width: 66px; }

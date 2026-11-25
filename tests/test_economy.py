@@ -160,6 +160,22 @@ class EconomyTests(unittest.TestCase):
         self.assertTrue(ev['earned'])
         self.assertIn(ev['reward'], client.call('/api/store')[1]['owned'])
 
+    def test_placement_check_and_badges(self):
+        from test_api import Client
+        anon = Client(self.base)
+        ok = {q['id']: coach.PLACEMENT_ANSWERS[q['id']] for q in coach.SURVEY if q.get('stage') == 1}
+        r = anon.call('/api/placement/check', 'POST', {'stage': 1, 'answers': ok})[1]
+        self.assertEqual((r['passed'], r['correct'], r['last']), (True, 3, False))
+        self.assertFalse(anon.call('/api/placement/check', 'POST', {'stage': 4, 'answers': ok})[1]['passed'])
+        client, _, _ = self.signup(NEW); uid = self.uid(client)
+        self.finish(client, 'sm1-1')
+        with server.db() as c: c.execute('INSERT INTO badges VALUES(?,?,?)', (uid, 'event-2026-10', '2026-10-30'))
+        b = client.call('/api/badges')[1]
+        ids = [x['id'] for x in b['earned']]
+        self.assertEqual(ids[0], 'event-2026-10'); self.assertIn('first-lesson', ids); self.assertEqual(b['events'], 1)
+        self.assertNotIn('first-lesson', [x['id'] for x in b['locked']])
+        self.assertEqual(client.call('/api/friends')[1]['board'][0]['badges'][0]['tier'], 'event')
+
     def test_free_energy_claim_is_hourly(self):
         client, _, _ = self.signup(NEW); uid = self.uid(client)
         self.assertEqual(client.call('/api/energy/claim', 'POST', {})[0], 400)            # already full

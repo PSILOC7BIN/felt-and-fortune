@@ -146,7 +146,7 @@
 .fp-tip b, .fp-tip strong, .fp-tip span { color: inherit; }
 .fp-tip.bad { background: color-mix(in srgb, #FF3B30 9%, var(--panel)) !important; }
 .fp-tip.ok { background: color-mix(in srgb, #34C759 9%, var(--panel)) !important; }
-.fp-table { height: 400px; min-height: 0 !important; overflow: hidden; }
+.fp-table { height: 440px; min-height: 0 !important; flex-wrap: nowrap !important; padding-bottom: 64px !important; }
 .fp-hands { flex-wrap: nowrap; }
 .fp-table .cards:has(.pc:nth-child(4)) .pc + .pc { margin-left: -46px; }
 .fp-table .cards:has(.pc:nth-child(6)) .pc + .pc { margin-left: -62px; }

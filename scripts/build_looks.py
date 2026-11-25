@@ -5,6 +5,12 @@ Every design is original artwork drawn from simple shapes. Card backs are 100×1
 `--back-bg`; mats get a repeating print (`--felt-tile`) and a center emblem (`--felt-mark`).
 """
 import math
+import random
+
+
+def stars(n, w, h, seed, rmin=.4, rmax=1.2, col='#fff', op=None):
+    rng = random.Random(seed)
+    return ''.join(f'<circle cx="{rng.uniform(3, w - 3):.1f}" cy="{rng.uniform(3, h - 3):.1f}" r="{rng.uniform(rmin, rmax):.2f}" fill="{col}"' + (f' opacity="{rng.uniform(*op):.2f}"' if op else '') + '/>' for _ in range(n))
 from pathlib import Path
 
 OUT = Path(__file__).resolve().parent.parent / 'public' / 'looks.css'
@@ -115,7 +121,7 @@ BACKS['artdeco'] = card('#0A0A0A', '<rect width="100" height="140" fill="url(#p)
                         defs=pat('p', 20, 12, '<path d="M0 12A10 10 0 0 1 20 12M3 12A7 7 0 0 1 17 12M6 12A4 4 0 0 1 14 12" stroke="#D4AF37" stroke-width=".8" fill="none" opacity=".55"/>', '#0A0A0A'))
 BACKS['galaxy'] = card('url(#g)', '<ellipse cx="50" cy="70" rx="44" ry="16" transform="rotate(-30 50 70)" fill="#C4B5FD" opacity=".18"/><ellipse cx="50" cy="70" rx="30" ry="8" transform="rotate(-30 50 70)" fill="#F0ABFC" opacity=".25"/>'
                        + '<circle cx="50" cy="70" r="7" fill="#FDE68A"/><circle cx="72" cy="36" r="8" fill="#60A5FA"/><ellipse cx="72" cy="36" rx="13" ry="3" fill="none" stroke="#BFDBFE" stroke-width="1.2" transform="rotate(-20 72 36)"/>'
-                       + ''.join(f'<circle cx="{(i * 37) % 92 + 4}" cy="{(i * 53) % 132 + 4}" r="{.5 + (i % 3) * .35}" fill="#fff"/>' for i in range(40)), defs=rad('g', ((0, '#6D28D9'), (1, '#0F0A2A'))))
+                       + stars(40, 100, 140, 'galaxy'), defs=rad('g', ((0, '#6D28D9'), (1, '#0F0A2A'))))
 BACKS['koi'] = card('url(#g)', ''.join(f'<circle cx="{x}" cy="{y}" r="{r}" fill="none" stroke="#BAE6FD" stroke-width=".8" opacity=".6"/>' for x, y, r in ((30, 40, 8), (30, 40, 13), (70, 100, 9), (70, 100, 15)))
                     + '<g transform="translate(36 52) rotate(30) scale(1.4)">' + koi() + '</g><g transform="translate(64 92) rotate(210) scale(1.4)">' + koi('#FDE68A', '#F97316') + '</g>'
                     + '<ellipse cx="74" cy="34" rx="10" ry="7" fill="#15803D"/><path d="M74 34L84 31 83 37z" fill="#0EA5E9"/><ellipse cx="24" cy="112" rx="8" ry="6" fill="#16A34A"/><g transform="translate(72 30) scale(.6)">' + flower('#FBCFE8', '#F472B6') + '</g>',
@@ -150,7 +156,7 @@ BACKS['circuit'] = card('#064E3B', '<rect width="100" height="140" fill="url(#p)
                         + f'<g transform="translate(50 70) scale(.8)">{P(SPADE, "#34D399")}</g>', frame='#34D399',
                         defs=pat('p', 28, 28, '<path d="M0 6H10L16 12V28M28 20H20L14 14M6 28V18" stroke="#10B981" stroke-width="1.1" fill="none"/><circle cx="10" cy="6" r="1.6" fill="#FCD34D"/><circle cx="20" cy="20" r="1.6" fill="#FCD34D"/><circle cx="6" cy="18" r="1.6" fill="#FCD34D"/>', '#064E3B'))
 BACKS['nebula'] = card('#0B0620', ''.join(f'<ellipse cx="{x}" cy="{y}" rx="{rx}" ry="{ry}" fill="{c}" opacity=".35" transform="rotate({r} {x} {y})"/>' for x, y, rx, ry, c, r in ((40, 50, 40, 20, '#EC4899', -30), (60, 90, 44, 18, '#6366F1', 20), (50, 70, 22, 12, '#F0ABFC', 0), (30, 110, 26, 10, '#22D3EE', -10)))
-                       + ''.join(f'<circle cx="{(i * 41) % 92 + 4}" cy="{(i * 29) % 132 + 4}" r="{.4 + (i % 4) * .3}" fill="#fff"/>' for i in range(46)) + f'<g transform="translate(50 70)"><path d="{star(7, .25, 4)}" fill="#fff"/></g>', frame='#F0ABFC')
+                       + stars(46, 100, 140, 'nebula') + f'<g transform="translate(50 70)"><path d="{star(7, .25, 4)}" fill="#fff"/></g>', frame='#F0ABFC')
 BACKS['peacock'] = card('#0E4D64', '<rect width="100" height="140" fill="url(#p)"/>' + medallion('<ellipse rx="9" ry="12" fill="#0EA5A4"/><ellipse rx="6" ry="8.5" fill="#1D4ED8"/><ellipse rx="3" ry="4.5" fill="#111827"/>', ring='#FBBF24', fill='#065F46'), frame='#FBBF24',
                         defs=pat('p', 18, 22, '<path d="M9 22V4" stroke="#14B8A6" stroke-width=".6"/><ellipse cx="9" cy="8" rx="6" ry="7.5" fill="#059669"/><ellipse cx="9" cy="8" rx="4" ry="5" fill="#0EA5A4"/><ellipse cx="9" cy="8.5" rx="2.4" ry="3" fill="#1D4ED8"/><ellipse cx="9" cy="9" rx="1.1" ry="1.5" fill="#111827"/>', '#0E4D64'))
 BACKS['rose'] = card('#4C0519', ''.join(f'<path d="M{x} 0Q{x + 8} 35 {x} 70T{x} 140" stroke="#166534" stroke-width="1.4" fill="none"/>' for x in (14, 86))
@@ -215,7 +221,7 @@ MATS = {
     'monte': (tile('<path d="M0 20Q10 10 20 20T40 20" stroke="#D4AF37" stroke-width=".8" fill="none" opacity=".12"/>', 40, 40), mark('<g fill="none" stroke="#D4AF37" opacity=".45" stroke-width="1.4"><circle r="32"/><circle r="27" stroke-dasharray="2 3"/></g><text y="7" text-anchor="middle" font-family="Georgia,serif" font-size="20" font-weight="700" fill="#D4AF37" opacity=".5">MC</text>')),
     'gold': (tile('<path d="M0 0L20 20M20 0L0 20" stroke="#3B2A05" stroke-width=".6" opacity=".12"/>', 20, 20), mark('<g opacity=".3" fill="#3B2A05"><path d="M-11 -2l-3-12 7 5 7-9 7 9 7-5-3 12z" transform="scale(1.6)"/></g>' + ''.join(f'<path transform="scale({s} 1)" d="M10 24Q30 16 28-12" stroke="#3B2A05" stroke-width="2" fill="none" opacity=".3"/>' for s in (1, -1)))),
     'pro': (tile('<path d="M0 0L24 24M24 0L0 24" stroke="#D4AF37" stroke-width=".5" opacity=".14"/>', 24, 24), mark('<rect x="-26" y="-26" width="52" height="52" rx="6" transform="rotate(45)" fill="none" stroke="#D4AF37" stroke-width="1.6" opacity=".7"/><text y="8" text-anchor="middle" font-family="Georgia,serif" font-size="22" font-weight="700" fill="#D4AF37" opacity=".8">F&amp;F</text>')),
-    'starfield': (tile(''.join(f'<circle cx="{(i * 37) % 80}" cy="{(i * 23) % 80}" r="{.5 + (i % 3) * .4}" fill="#fff" opacity="{.25 + (i % 4) * .12}"/>' for i in range(14)), 80, 80), mark('<ellipse rx="40" ry="12" fill="#F0ABFC" opacity=".15" transform="rotate(-20)"/><circle r="9" fill="#FDE68A" opacity=".55"/><ellipse rx="18" ry="5" fill="none" stroke="#FDE68A" stroke-width="1.4" opacity=".55" transform="rotate(-20)"/>')),
+    'starfield': (tile(stars(14, 80, 80, 'starfield', .5, 1.3, op=(.25, .6)), 80, 80), mark('<ellipse rx="40" ry="12" fill="#F0ABFC" opacity=".15" transform="rotate(-20)"/><circle r="9" fill="#FDE68A" opacity=".55"/><ellipse rx="18" ry="5" fill="none" stroke="#FDE68A" stroke-width="1.4" opacity=".55" transform="rotate(-20)"/>')),
     'ocean': (tile('<path d="M0 20Q10 12 20 20T40 20" stroke="#BAE6FD" stroke-width="1.2" fill="none" opacity=".18"/><path d="M0 34Q10 26 20 34T40 34" stroke="#BAE6FD" stroke-width=".8" fill="none" opacity=".12"/>', 40, 40),
               mark('<g opacity=".35" fill="none" stroke="#FEF3C7"><circle r="28" stroke-width="1.4"/>' + ''.join(f'<path transform="rotate({a})" d="M0-34L4 0 0 4-4 0z" fill="#FEF3C7" stroke="none"/>' for a in (0, 90, 180, 270)) + '</g>')),
     'noir': (tile('<path d="M-10 60L60 -10" stroke="#fff" stroke-width="7" opacity=".05"/>', 50, 50), mark('<g opacity=".25"><path d="M-22 12Q0 2 22 12L18 16Q0 8-18 16z" fill="#000"/><path d="M-14 12Q-12-8 0-8T14 12z" fill="#000"/></g>')),
