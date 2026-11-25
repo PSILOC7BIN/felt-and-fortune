@@ -49,7 +49,7 @@ export function openSheet(html, { wide = false, onClose } = {}) {
 const PRO_PERKS = [
   ['cards', 'All of Card Counter and Advantage Pro', 'Hi‑Lo at a full table, true count, bet ramps, index plays, Kelly betting, and team play.'],
   ['bolt', 'Unlimited practice Energy', 'Drill any tool as long as you like.'],
-  ['target', 'Every advanced tool mode', 'Custom table rules, faster decks, and full-table counting.'],
+  ['shield', 'Cancel any time', 'Pro stays on until the end of the period you paid for.'],
 ];
 
 export function paywall(ctx, reason = '') {

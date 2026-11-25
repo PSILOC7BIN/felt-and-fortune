@@ -56,3 +56,31 @@ The container (see `Dockerfile`) sets `COOKIE_SECURE=1`, listens on port 8080, a
 ## Notes
 - Email password reset stays off unless you set the `SMTP_*` variables (see `.env.example`).
 - The server accepts form submissions only from its own address (http or https), so links work through the tunnel and on Fly.io without extra settings.
+
+## iOS and Android apps (Capacitor, `app-v2` branch)
+
+The apps wrap the same interface (`public/`) and call the hosted server's API with a bearer token.
+
+1. Deploy the server first (above) so it has an `https://` address.
+2. Build the app bundle and copy it into the native projects:
+   ```
+   FF_API_BASE=https://your-app.fly.dev npm run native:sync
+   ```
+3. **Android:** install Android Studio, then `npm run native:android` and press Run. A Google Play developer account ($25 once) is needed to publish.
+4. **iOS:** needs a Mac with Xcode (or a cloud Mac build service such as Codemagic or a GitHub Actions macOS runner). Run `npm run native:ios`, set your team, and build. Publishing needs the Apple Developer Program ($99/year).
+
+**Before submitting**
+- Payments run in test mode (`BILLING_MODE=test`): the Store simulates purchases. For release, connect StoreKit and Google Play Billing (for example through RevenueCat) and a Stripe checkout for the web, then set `BILLING_MODE=live`, which turns the test endpoint off.
+- Rate the app 18+ (frequent simulated gambling). Describe it as training only, with play chips that have no cash value. Apple guideline 5.3.4 bars "card counters" used at real tables, so don't add live-table, camera, or discreet-mode features.
+- The casino map hides casino website links inside the native apps (Google Play bars links to real-money gambling).
+- Guideline 4.2 (minimum functionality): the bundle works offline for the interface and uses native haptics, status bar, splash screen, and back button. Give reviewers a demo account.
+- See `reports/Gamified app monetization and retention.md` for the full compliance checklist.
+
+## Casino map data
+
+`public/casinos.json` is built from the researched notes in `research_notes/US casino blackjack rules/`:
+```
+python scripts/build_casinos.py      # geocodes new casinos with OpenStreetMap (cached)
+node scripts/build_us_map.mjs        # US state outlines (US Census, via us-atlas) and pin positions
+```
+Every casino shows the date of its newest source and a warning when sources disagree. Re-check rules regularly; they change often.
