@@ -10,7 +10,7 @@ from engine import basic, total, hilo, deviation, INDICES, simulate
 import coach
 mimetypes.add_type('application/manifest+json', '.webmanifest')
 from practice_api import PracticeRoutes, grade_transcript, record_skills, BadTranscript
-import economy, quests
+import economy, quests, account
 from economy import EconomyRoutes
 
 # Pacing is teaching, not a paywall: it applies to every learner (tests can relax it).
@@ -56,6 +56,7 @@ def initialize():
         ''')
         c.executescript(economy.SCHEMA)
         c.executescript(quests.SCHEMA)
+        c.executescript(account.SCHEMA)
 
 def password_hash(password,salt=None):
     salt=salt or secrets.token_hex(16)
@@ -132,12 +133,13 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
                     return self.api(path)
             require(self.command=='GET','Method not allowed.',405)
             rel=path.lstrip('/')
+            if rel in ('','index.html') and os.environ.get('FF_BUNDLE')=='1' and (ROOT/'public'/'dist'/'index.html').is_file(): rel='dist/index.html'
             file=(ROOT/'public'/rel).resolve()
             public=(ROOT/'public').resolve()
             require(file.is_relative_to(public),'Not found.',404)
             if not file.is_file():
                 require('.' not in Path(path).name,'Not found.',404)
-                file=public/'index.html'
+                file=public/'dist'/'index.html' if os.environ.get('FF_BUNDLE')=='1' and (public/'dist'/'index.html').is_file() else public/'index.html'
             raw=file.read_bytes();self.send_response(200)
             self.send_header('Content-Type',mimetypes.guess_type(str(file))[0] or 'application/octet-stream');self.send_header('Cache-Control','no-cache');self.security_headers()
             self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
@@ -216,6 +218,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
                 except ValueError as e: raise ApiError(str(e))
             uid=secrets.token_hex(12);c.execute('INSERT INTO users VALUES(?,?,?,?,?)',(uid,username,email,password_hash(pw),time.time()))
             c.execute('INSERT OR IGNORE INTO wallets(user_id,energy,energy_at,birth_year) VALUES(?,?,?,?)',(uid,economy.ENERGY_MAX,time.time(),birth))
+            account.track(c,'signup',d.get('anon'),uid,{'survey':plan is not None},self.client_day())
             bid=secrets.token_hex(12);now=time.time()
             c.execute('INSERT INTO records VALUES(?,?,?,?,?,?,?)',(bid,'bankroll',uid,None,json.dumps({'name':'My bankroll','currency':'USD','initial':0,'type':'solo'}),now,now))
             c.execute('INSERT INTO members VALUES(?,?,?,?)',(bid,uid,'owner',100))
@@ -254,6 +257,10 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             self.throttle('plan-preview',40)
             try: return self.send_json({'plan':coach.build_plan(d.get('answers'))})
             except ValueError as e: raise ApiError(str(e))
+        if path=='/api/events' and method=='POST':
+            self.throttle('events',300)
+            account.track(c,str(d.get('name','')),d.get('anon'),self.user['id'] if self.user else None,d.get('props') if isinstance(d.get('props'),dict) else None,self.client_day())
+            return self.send_json({'ok':True})
         # Strategy charts are public; account data is never public.
         if path=='/api/charts' and method=='GET':
             h17=parse_qs(urlparse(self.path).query).get('h17',['false'])[0]=='true'
@@ -262,6 +269,17 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
                 rows.append({'label':label,'actions':[basic(cards,up,h17) for up in [2,3,4,5,6,7,8,9,10,1]]})
             return self.send_json({'rows':rows,'indices':INDICES})
         self.auth();uid=self.user['id']
+        if path=='/api/account/export' and method=='GET':
+            raw=json.dumps(account.export(c,uid),indent=2,default=str).encode()
+            self.send_response(200);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store')
+            self.send_header('Content-Disposition','attachment; filename="felt-and-fortune-data.json"');self.cors_headers();self.security_headers()
+            self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw);return
+        if path=='/api/account/delete' and method=='POST':
+            self.throttle('account-delete',5)
+            pw=str(d.get('password',''))[:256]
+            require(hmac.compare_digest(password_hash(pw,self.user['password'].split(':')[0]),self.user['password']),'That password is incorrect.',400)
+            account.delete(c,uid)
+            return self.send_json({'ok':True},cookie='ap_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0')
         if path=='/api/change-password' and method=='POST':
             self.throttle('change-password',10)
             current=str(d.get('current',''))[:256]
@@ -525,6 +543,8 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
         stars=0
         if first:
             c.execute('INSERT OR IGNORE INTO lesson_first VALUES(?,?,?)',(uid,m[1],today))
+            account.track(c,'lesson_complete',None,uid,{'lesson':m[1]},today)
+            if c.execute('SELECT COUNT(*) FROM lesson_first WHERE user_id=?',(uid,)).fetchone()[0]==1: account.track(c,'first_lesson',None,uid,None,today)
             stars+=economy.add_stars(c,uid,10,'lesson',today)
         stars+=self.goal_bonus(plan,today,xp)
         return self.send_json({'xp':xp,'accuracy':accuracy,'first':first,'stars':stars,**self.path_state(plan)})
@@ -535,8 +555,17 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
         if total>=goal and total-just_earned<goal: return economy.add_stars(self.c,self.user['id'],20,'daily-goal',today)
         return 0
 
+def reminder_loop():
+    """Trial-ending and renewal notices, checked every hour."""
+    while True:
+        try:
+            with db() as c: account.run_reminders(c)
+        except Exception as e: print('reminders', type(e).__name__, e)
+        time.sleep(3600)
+
 if __name__=='__main__':
     initialize()
+    threading.Thread(target=reminder_loop,daemon=True).start()
     host=os.environ.get('HOST','127.0.0.1');port=int(os.environ.get('PORT','8000'))
     print(f'Felt & Fortune free preview: http://{host}:{port}',flush=True)
     ThreadingHTTPServer((host,port),Handler).serve_forever()

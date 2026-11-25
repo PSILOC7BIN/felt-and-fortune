@@ -168,3 +168,10 @@
   .rail-link.has-count::after { left: 50%; margin-left: 4px; top: 2px; }
 }
 @media (max-width: 700px) { .app-shell .learn-rail .rail-foot { display: none; } .app-shell .learn-rail .rail-link span { font-size: 10.5px; } }
+
+/* First-run tour and player reports on casinos */
+.tour { display: grid; justify-items: center; gap: 10px; text-align: center; }
+.tour h2 { margin: 0; } .tour p { margin: 0; max-width: 360px; }
+.tour-dots { display: flex; gap: 6px; margin: 4px 0; } .tour-dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--border); } .tour-dots i.on { background: #0A84FF; width: 22px; border-radius: 999px; }
+.report-row { display: grid; gap: 2px; padding: 10px 12px; border-radius: 14px; background: var(--panel2); color: var(--text); text-decoration: none; margin-bottom: 8px; font-size: 14px; }
+.report-row small { color: var(--muted); }

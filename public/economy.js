@@ -58,7 +58,7 @@ const PRO_PERKS = [
 ];
 
 export function paywall(ctx, reason = '') {
-  Sound.play('reveal');
+  Sound.play('reveal'); window.ffTrack?.('paywall_view', { reason: String(reason).slice(0, 80) });
   const { close } = openSheet(`<div class="paywall">${g('crown', 'paywall-crown')}<h2>Felt & Fortune Pro</h2>
     <p class="muted">${esc(reason || 'Go from playing smart to playing with an edge.')}</p>
     <ul class="perks">${PRO_PERKS.map(([ic, t, d]) => `<li><span class="tool-icon sm">${g(ic)}</span><span><strong>${t}</strong><small>${d}</small></span></li>`).join('')}</ul>
@@ -189,7 +189,7 @@ function previewHTML(look) {
 
 export async function storePage(ctx, tab = location.hash.slice(1) || 'featured') {
   const { api } = ctx;
-  const st = await api('/api/store?day=' + ctx.localDate()); setEconomy(st);
+  const st = await api('/api/store?day=' + ctx.localDate()); setEconomy(st); window.ffTrack?.('store_view', { tab });
   const plan = st.plan, test = st.billingMode === 'test', owned = new Set(st.owned);
   if (!TABS.some(t => t[0] === tab)) tab = 'featured';
   let preview = { ...st.look }, previewing = null;
@@ -243,7 +243,7 @@ export async function storePage(ctx, tab = location.hash.slice(1) || 'featured')
     pro: () => `${plan.pro ? `<div class="plan-status"><strong>You have ${esc(st.plans[plan.plan]?.name || 'Pro')}</strong><span class="muted">${plan.trialEnds ? `Free trial ends ${fmtDate(plan.trialEnds)}. We’ll remind you 3 days before.` : plan.status === 'canceled' ? `Canceled. Pro stays on until ${fmtDate(plan.renews)}.` : plan.renews ? `Renews ${fmtDate(plan.renews)}.` : 'Lifetime access.'}</span>${plan.plan !== 'pro-lifetime' && plan.status !== 'canceled' ? '<button type="button" class="small" id="cancel-plan">Cancel subscription</button>' : ''}</div>`
       : `<ul class="perks inline">${PRO_PERKS.map(([ic, t]) => `<li>${g(ic)} ${t}</li>`).join('')}<li>${g('gift')} Pro Gold collection</li><li>${g('target')} 2 quest swaps a day</li></ul><div class="plan-cards">${planCard('pro-monthly', st.plans['pro-monthly'])}${planCard('pro-annual', st.plans['pro-annual'], true)}${planCard('pro-lifetime', st.plans['pro-lifetime'])}</div>`}
       <h3 class="sub-head">${g('crown')} Pro Gold collection <small>${plan.pro ? 'Claim each piece; it stays yours even if Pro ends.' : 'Included with Pro.'}</small></h3><div class="item-grid">${Object.entries(st.catalog).filter(([, it]) => it.pro).map(([id, it]) => itemCard(id, it)).join('')}</div>
-      <p class="muted small">Free forever: Smart Player, Strategy Master, the first unit of every track, all seven practice tools with daily Energy, quests, and responsible-gambling help. <button type="button" class="linklike" id="restore">Restore purchases</button></p>`,
+      <p class="muted small">Free forever: Smart Player, Strategy Master, the first unit of every track, all seven practice tools with daily Energy, quests, and responsible-gambling help. <button type="button" class="linklike" id="restore">Restore purchases</button> · <a href="/terms">Billing, cancellation, and refund terms</a></p>`,
   };
 
   ctx.$('#page').innerHTML = `<div class="store2">

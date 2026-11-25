@@ -101,3 +101,13 @@ Every casino shows the date of its newest source and a warning when sources disa
 With a free Apple ID the install expires after 7 days (just press Run again). For longer-lived installs and sharing with testers, join the Apple Developer Program ($99/year) and use **TestFlight**; a cloud Mac service (Codemagic, GitHub Actions macOS runners) can then build and upload without owning a Mac.
 
 Regenerate icons after changing the logo: `node scripts/build_icons.mjs`.
+
+## Email, reminders, and analytics
+
+- Set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM`, and `PUBLIC_ORIGIN` to send real email. Without them, every message (receipts, cancellations, trial-ending and renewal reminders) is still written to the `outbox` table so you can check it.
+- The server checks for trial-ending (3 days before) and yearly renewal (21 days before) reminders every hour.
+- `python scripts/funnel_report.py` prints the landing → survey → signup → first lesson → trial → paid funnel from first-party events. No third-party trackers are used.
+
+## Production bundle
+
+`node scripts/bundle.mjs` builds one minified JS and one CSS file into `public/dist/`. The server uses it when `FF_BUNDLE=1` (the Dockerfile builds and enables it automatically).

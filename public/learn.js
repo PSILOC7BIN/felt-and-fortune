@@ -1,5 +1,5 @@
 // Felt & Fortune Coach: onboarding survey, personalized plan, the learning path, and the lesson player.
-import { loadEconomy, setEconomy, chipsHTML, questsCard, wireQuests, leagueCard, repairCard, wireRepair, celebrateEvents, paywall, confetti, countUp, flyStars } from './economy.js';
+import { openSheet, loadEconomy, setEconomy, chipsHTML, questsCard, wireQuests, leagueCard, repairCard, wireRepair, celebrateEvents, paywall, confetti, countUp, flyStars } from './economy.js';
 import { Sound, ace, g, tableHTML } from './ui.js';
 import { createRunner, questionsForStep, choiceQ } from './trainers.js';
 
@@ -55,7 +55,7 @@ export function createLearn(ctx) {
       if (phase === 'intro') {
         body.innerHTML = `<div class="coach-intro">${ace('happy', 'ace-xl bob')}<h1>Hi, I’m Ace.</h1><p>Answer ${questions.length} quick questions, a few of them real blackjack checks. I’ll build a plan that takes you from where you are now to playing like a pro.</p></div>`;
         foot.innerHTML = `<a class="button ghost" href="/auth/login">I already have an account</a><button type="button" class="primary chunky" id="coach-next">Let’s go</button>`;
-        $('#coach-next').onclick = () => { Sound.play('select'); phase = 'question'; paint(); };
+        $('#coach-next').onclick = () => { Sound.play('select'); phase = 'question'; window.ffTrack?.('survey_start'); paint(); };
         return;
       }
       if (phase === 'question') {
@@ -85,7 +85,7 @@ export function createLearn(ctx) {
           plan = r.plan;
           await new Promise(res => setTimeout(res, Math.max(0, 2100 - (Date.now() - started))));
           if (!document.body.contains(body)) return;
-          phase = 'plan'; Sound.play('reveal'); paint();
+          phase = 'plan'; Sound.play('reveal'); window.ffTrack?.('plan_shown', { track: state.plan?.track }); paint();
         }).catch(error => {
           body.innerHTML = `<div class="coach-intro">${ace('oops', 'ace-lg')}<h1>That didn’t work</h1><p>${esc(error.message)}</p></div>`;
           foot.innerHTML = `<button type="button" class="primary chunky" id="coach-retry">Start over</button>`;
@@ -141,6 +141,26 @@ export function createLearn(ctx) {
   // -------------------------------------------------------------------------
   const OFFSETS = [0, 46, 72, 46, 0, -46, -72, -46];
 
+  // First-run tour: four short cards that explain the tabs.
+  function tour() {
+    const steps = [
+      ['path', 'Your path', 'Lessons unlock in order. You can learn 2 new lessons a day, and each unit ends with a checkpoint you pass on two different days. That spacing is what makes it stick.'],
+      ['dumbbell', 'Practice', 'Seven trainers, one skill each. Free practice rounds use Energy, which refills over the day. Lessons and Weak Spots never cost Energy.'],
+      ['target', 'Quests', 'Three daily quests and weekly goals reward careful play with Stars, freezes, and a monthly event card back.'],
+      ['gem', 'Store', 'Spend Stars on card backs, table mats, and coach styles. Stars are earned, never sold. Pro unlocks the counting courses.'],
+    ];
+    let i = 0;
+    const { host, close } = openSheet('<div class="tour" id="tour"></div>', { onClose: () => localStorage.setItem('ff-tour-v1', '1') });
+    const paint = () => {
+      const [ic, title, text] = steps[i];
+      $('#tour', host).innerHTML = `${ace(i === 0 ? 'cheer' : i === 3 ? 'wink' : 'happy', 'ace-md')}<span class="tool-icon">${g(ic)}</span><h2>${title}</h2><p class="muted">${text}</p>
+        <div class="tour-dots">${steps.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div>
+        <button type="button" class="primary chunky" id="tour-next">${i < steps.length - 1 ? 'Next' : 'Let’s go'}</button>${i < steps.length - 1 ? '<button type="button" class="ghost" data-close>Skip</button>' : ''}`;
+      $('#tour-next', host).onclick = () => { Sound.play('tap'); if (i < steps.length - 1) { i++; paint(); } else close(); };
+    };
+    paint();
+  }
+
   async function learnPage() {
     const [state, eco, league] = await Promise.all([api('/api/path?day=' + localDate()), loadEconomy(api, localDate), api('/api/league?day=' + localDate()).catch(() => null)]);
     if (!state.plan) {
@@ -174,8 +194,9 @@ export function createLearn(ctx) {
       : blocked === 'checkpoint-again' ? `<div class="resume-card c-indigo rest-card"><span class="resume-icon">${g('shield')}</span><span class="resume-copy"><small>Checkpoint 1 of 2 passed</small><strong>Pass it once more on another day to unlock the next unit.</strong></span><a class="button small" href="${cur?.unit.tool || '/practice'}">Practice</a></div>`
       : blocked === 'pro' ? `<button type="button" class="resume-card c-gold pro-card" id="resume-pro"><span class="resume-icon">${g('crown')}</span><span class="resume-copy"><small>Unit ${cur.ui + 1} · ${esc(cur.unit.title)}</small><strong>Unlock the rest of this track with Pro</strong></span><span class="resume-go">${g('next')}</span></button>` : '';
     const resume = paceCard || (cur ? `<a class="resume-card c-${cur.unit.color}" href="/learn/lesson/${cur.id}"><span class="resume-icon">${g('star')}</span><span class="resume-copy"><small>Unit ${cur.ui + 1} · ${esc(cur.unit.title)}</small><strong>${stats.done ? 'Continue' : 'Start'}: ${esc(cur.title)}</strong></span><span class="resume-go">${g('next')}</span></a>` : `<div class="resume-card c-gold"><span class="resume-icon">${g('trophy')}</span><span class="resume-copy"><small>Path complete</small><strong>You finished every lesson. Keep sharp in Practice.</strong></span></div>`);
-    $('#page').innerHTML = `<div class="learn-layout"><div class="path-col"><div class="learn-mobile-stats">${strip}</div>${repairCard(eco)}${trackBar}${resume}<div class="path">${unitHtml}</div></div><aside class="learn-side">${strip}${repairCard(eco)}<div class="side-card"><div class="side-head"><h3>Daily goal</h3><span>${stats.todayXp}/${stats.dailyXp} XP</span></div><div class="goal-bar"><span style="width:${goalPct}%"></span></div><p class="muted">${goalPct >= 100 ? 'Goal reached. Nice work today!' : `${stats.dailyXp - stats.todayXp} XP to go. Lessons and practice both count.`}</p><div class="week" aria-label="XP this week">${stats.week.map(w => `<div class="day ${w.xp ? 'on' : ''}" title="${w.day}: ${w.xp} XP"><span style="height:${Math.max(4, w.xp / maxWeek * 100)}%"></span><small>${new Date(w.day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' })}</small></div>`).join('')}</div></div><div class="side-card"><span class="pill">Level: ${esc(plan.level)}</span><h3 class="plan-title">${esc(plan.headline)}</h3><p class="muted">Finish by ${fmtDate(plan.finish)} at ${plan.minutes} min a day.</p><details><summary>Why this plan</summary><ul class="reasons">${plan.reasons.map(r => `<li>${g('check')}<span>${esc(r)}</span></li>`).join('')}</ul></details><a class="button small" href="/start">Retake placement</a></div>${questsCard(eco)}${leagueCard(league)}</aside></div>`;
+    $('#page').innerHTML = `<div class="learn-layout"><div class="path-col"><div class="learn-mobile-stats">${strip}</div>${repairCard(eco)}${trackBar}${resume}<div class="path">${unitHtml}</div></div><aside class="learn-side">${strip}${repairCard(eco)}<div class="side-card"><div class="side-head"><h3>Daily goal</h3><span>${stats.todayXp}/${stats.dailyXp} XP</span></div><div class="goal-bar"><span style="width:${goalPct}%"></span></div><p class="muted">${goalPct >= 100 ? 'Goal reached. Nice work today!' : `${stats.dailyXp - stats.todayXp} XP to go. Lessons and practice both count.`}</p><div class="week" aria-label="XP this week">${stats.week.map(w => `<div class="day ${w.xp ? 'on' : ''}" title="${w.day}: ${w.xp} XP"><span style="height:${Math.max(4, w.xp / maxWeek * 100)}%"></span><small>${new Date(w.day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' })}</small></div>`).join('')}</div></div><div class="side-card"><span class="pill">Placed as ${esc(plan.level)}</span><h3 class="plan-title">${esc(plan.headline)}</h3><p class="muted">Finish by ${fmtDate(plan.finish)} at ${plan.minutes} min a day.</p><details><summary>Why this plan</summary><ul class="reasons">${plan.reasons.map(r => `<li>${g('check')}<span>${esc(r)}</span></li>`).join('')}</ul></details><a class="button small" href="/start">Retake placement</a></div>${questsCard(eco)}${leagueCard(league)}</aside></div>`;
     wireRepair(ctx, learnPage); celebrateEvents(ctx, eco?.events);
+    if (!localStorage.getItem('ff-tour-v1') && !eco?.events?.length) setTimeout(() => tour(), 500);
     $('#resume-pro')?.addEventListener('click', () => paywall(ctx, 'Card counting and advantage play are part of Pro. You’ve finished the free first unit.'));
 
     $('#change-track')?.addEventListener('click', () => {

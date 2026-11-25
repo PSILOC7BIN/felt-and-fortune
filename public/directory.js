@@ -156,11 +156,18 @@ export function createDirectory(ctx) {
         <p class="muted small">“?” means no current source confirmed it. A 6:5 payout costs about 1.4% more than 3:2.</p>
         <h3>Sources</h3><ul class="dir-sources">${c.sources.map(s => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(new URL(s.url).hostname.replace(/^www\./, ''))}</a>${s.date ? ` <span class="muted">(${esc(s.date)})</span>` : ''}</li>`).join('') || '<li class="muted">No public source; rules unverified.</li>'}</ul>
         ${c.website && !native ? `<p class="muted small">Casino site: ${esc(new URL(c.website).hostname)}</p>` : ''}
-        <a class="button primary" href="/practice/strategy" data-link>Practice basic strategy</a></div>`;
+        <h3>Player reports</h3><div id="player-reports" class="muted small">Loading…</div>
+        <div class="flex"><a class="button" href="/community/reports?new=${encodeURIComponent(c.name)}&city=${encodeURIComponent(c.city + ', ' + c.state)}">Add a player report</a><a class="button primary" href="/practice/strategy" data-link>Practice basic strategy</a></div></div>`;
+      ctx.api('/api/records?kind=casino').then(({ records }) => {
+        const key = s => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        const mine = records.filter(r => { const a = key(r.body.name || ''), b = key(c.name); return a && (a.includes(b) || b.includes(a)); });
+        $('#player-reports').innerHTML = mine.length ? mine.map(r => `<a class="report-row" href="/community/reports?casino=${r.id}"><strong>${esc(r.body.heat || 'Unknown')} heat</strong> · ${esc((r.body.rules || '').slice(0, 90))}<small>${esc(r.username)} · ${new Date(r.updated * 1000).toLocaleDateString()}</small></a>`).join('') : 'No player reports yet. Been here lately? Add what you saw.';
+      }).catch(() => { $('#player-reports').textContent = ''; });
       $('#dir-back').onclick = () => { selected = null; Sound.play('tap'); drawPins(); drawList(); };
     }
     function open(id) {
       selected = id; Sound.play('select');
+      drawList();
       const c = data.casinos.find(x => x.id === id);
       if (c && view.w > 120) setView(fit(c.x - 10, c.y - 6, c.x + 10, c.y + 6, 0)); else { drawPins(); drawList(); }
       $('#dir-list').scrollTop = 0;

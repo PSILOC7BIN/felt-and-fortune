@@ -25,6 +25,15 @@
         "import os,runpy;os.environ['HOST']='0.0.0.0';runpy.run_path('server.py',run_name='__main__')"
       ],
       "port": 8000
+    },
+    {
+      "name": "felt-and-fortune-bundle",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-c",
+        "import os,runpy;os.environ['PORT']='8002';os.environ['FF_BUNDLE']='1';runpy.run_path('server.py',run_name='__main__')"
+      ],
+      "port": 8002
     }
   ]
 }

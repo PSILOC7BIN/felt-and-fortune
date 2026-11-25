@@ -8,6 +8,7 @@ Design (see reports/Gamified app monetization and retention.md):
 """
 import json, math, os, secrets, time
 import quests as Q
+import account as A
 import cosmetics as C
 from datetime import date, timedelta
 
@@ -391,10 +392,14 @@ class EconomyRoutes:
             c.execute('''INSERT INTO entitlements VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET plan=excluded.plan, status=excluded.status,
                          started=excluded.started, trial_ends=COALESCE(excluded.trial_ends, entitlements.trial_ends), renews=excluded.renews, source=excluded.source, updated=excluded.updated''',
                       (uid, plan_id, 'trial' if trial_ends else 'active', now, trial_ends, renews, 'test', now))
+            A.receipt(c, self.user, p, {'trial_ends': trial_ends, 'renews': renews})
+            A.track(c, 'trial_start' if trial_ends else 'purchase', None, uid, {'plan': plan_id}, today)
             return self.send_json(snapshot(c, uid, today, daily_xp))
         if path == '/api/billing/cancel' and method == 'POST':
             ent = entitlement(c, uid); require(ent['pro'], 'You don’t have an active plan.')
             require(ent['plan'] != 'pro-lifetime', 'Lifetime access doesn’t renew, so there’s nothing to cancel.')
+            A.cancellation(c, self.user, {'ended_trial': bool(ent.get('trialEnds')), 'renews': ent.get('renews') or time.time()})
+            A.track(c, 'cancel', None, uid, {'plan': ent['plan'], 'inTrial': bool(ent.get('trialEnds'))}, today)
             if ent.get('trialEnds'):   # canceling during the trial ends it with no charge
                 c.execute("UPDATE entitlements SET status='canceled', renews=NULL, trial_ends=?, updated=? WHERE user_id=?", (time.time() - 1, time.time(), uid))
             else:                      # keep access until the end of the paid period
