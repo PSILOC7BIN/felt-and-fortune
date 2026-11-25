@@ -9,7 +9,7 @@ from datetime import date, timedelta
 from engine import basic, total, hilo, deviation, INDICES, simulate
 import coach
 from practice_api import PracticeRoutes, grade_transcript, record_skills, BadTranscript
-import economy
+import economy, quests
 from economy import EconomyRoutes
 
 # Pacing is teaching, not a paywall: it applies to every learner (tests can relax it).
@@ -54,6 +54,7 @@ def initialize():
         CREATE TABLE IF NOT EXISTS xp_log(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),day TEXT,xp INTEGER,lesson_id TEXT,created REAL);
         ''')
         c.executescript(economy.SCHEMA)
+        c.executescript(quests.SCHEMA)
 
 def password_hash(password,salt=None):
     salt=salt or secrets.token_hex(16)
@@ -509,7 +510,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
         today=self.client_day()
         if lesson.get('checkpoint'):
             passed=accuracy>=coach.CHECKPOINT_PASS
-            if passed: c.execute('INSERT OR IGNORE INTO checkpoint_passes VALUES(?,?,?,?)',(uid,m[1],today,accuracy))
+            if passed: c.execute('INSERT OR IGNORE INTO checkpoint_passes VALUES(?,?,?,?)',(uid,m[1],today,accuracy));quests.record(c,uid,today,'checkpoint',pct=accuracy)
             xp=10 if passed else 5
             c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)',(uid,today,xp,m[1],time.time()))
             stars=economy.add_stars(c,uid,10,'checkpoint',today) if passed else 0
@@ -519,6 +520,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
         xp=(10 if first else 5)+(5 if accuracy==100 else 0)
         c.execute('INSERT INTO lesson_progress VALUES(?,?,?,?,?) ON CONFLICT(user_id,lesson_id) DO UPDATE SET best=MAX(best,excluded.best),completions=completions+1,updated=excluded.updated',(uid,m[1],accuracy,1,time.time()))
         c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)',(uid,today,xp,m[1],time.time()))
+        quests.record(c,uid,today,'lesson',tool=None if first else 'replay',pct=accuracy)
         stars=0
         if first:
             c.execute('INSERT OR IGNORE INTO lesson_first VALUES(?,?,?)',(uid,m[1],today))

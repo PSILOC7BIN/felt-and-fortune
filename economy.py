@@ -7,6 +7,8 @@ Design (see reports/Gamified app monetization and retention.md):
 - Payments run in test mode until real billing (StoreKit / Play Billing / Stripe) is connected.
 """
 import json, math, os, secrets, time
+import quests as Q
+import cosmetics as C
 from datetime import date, timedelta
 
 ENERGY_MAX = 25
@@ -26,24 +28,14 @@ PLANS = {
     'pro-lifetime': {'name': 'Pro Lifetime', 'price': 119.99, 'period': None, 'days': None, 'trial': 0},
 }
 
-SHOP = {
+POWERUPS = {
     'freeze': {'name': 'Streak Freeze', 'stars': 200, 'kind': 'freeze', 'text': 'Protects your streak for one missed day. Hold up to 2.'},
     'refill': {'name': 'Energy Refill', 'stars': 350, 'kind': 'refill', 'text': 'Fills your practice Energy to 25.'},
-    'felt-royal': {'name': 'Royal Blue Felt', 'stars': 300, 'kind': 'felt', 'value': 'royal'},
-    'felt-crimson': {'name': 'Crimson Felt', 'stars': 300, 'kind': 'felt', 'value': 'crimson'},
-    'felt-midnight': {'name': 'Midnight Felt', 'stars': 500, 'kind': 'felt', 'value': 'midnight'},
-    'felt-gold': {'name': 'Gold Leaf Felt', 'stars': 1000, 'kind': 'felt', 'value': 'gold'},
-    'back-neon': {'name': 'Neon Card Back', 'stars': 200, 'kind': 'back', 'value': 'neon'},
-    'back-aurora': {'name': 'Aurora Card Back', 'stars': 400, 'kind': 'back', 'value': 'aurora'},
-    'back-diamond': {'name': 'Diamond Card Back', 'stars': 800, 'kind': 'back', 'value': 'diamond'},
 }
-DEFAULT_LOOK = {'felt': 'emerald', 'back': 'classic'}
+SHOP = {**POWERUPS, **C.CATALOG}
+DEFAULT_LOOK = dict(C.DEFAULTS)
+SET_DISCOUNT = .8
 
-QUESTS = [
-    {'id': 'lesson', 'text': 'Finish a lesson', 'goal': 1, 'stars': 15},
-    {'id': 'accurate', 'text': 'Score 90% or better in 2 practice rounds', 'goal': 2, 'stars': 15},
-    {'id': 'goal', 'text': 'Reach your daily XP goal', 'goal': 1, 'stars': 15},
-]
 
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS wallets(user_id TEXT PRIMARY KEY REFERENCES users(id), stars INTEGER DEFAULT 0, energy INTEGER DEFAULT 25,
@@ -236,22 +228,6 @@ def streak_rewards(c, uid, today):
 # Quests and leagues
 # ---------------------------------------------------------------------------------------------
 
-def quests(c, uid, today, daily_xp):
-    lessons = c.execute("SELECT COUNT(*) FROM xp_log WHERE user_id=? AND day=? AND lesson_id NOT LIKE 'practice:%'", (uid, today)).fetchone()[0]
-    accurate = c.execute('SELECT COUNT(*) FROM practice_log WHERE user_id=? AND day=? AND questions>0 AND correct*10>=questions*9', (uid, today)).fetchone()[0]
-    xp = c.execute('SELECT COALESCE(SUM(xp),0) FROM xp_log WHERE user_id=? AND day=?', (uid, today)).fetchone()[0]
-    progress = {'lesson': lessons, 'accurate': accurate, 'goal': int(xp >= daily_xp)}
-    claimed = {r[0] for r in c.execute('SELECT quest FROM quest_claims WHERE user_id=? AND day=?', (uid, today))}
-    return [{**q, 'progress': min(q['goal'], progress[q['id']]), 'done': progress[q['id']] >= q['goal'], 'claimed': q['id'] in claimed} for q in QUESTS]
-
-
-def claim_quest(c, uid, today, quest_id, daily_xp):
-    q = next((q for q in quests(c, uid, today, daily_xp) if q['id'] == quest_id), None)
-    if not q or not q['done'] or q['claimed']: return 0
-    c.execute('INSERT INTO quest_claims VALUES(?,?,?)', (uid, today, quest_id))
-    return add_stars(c, uid, q['stars'], 'quest-' + quest_id, today)
-
-
 def week_start(day):
     d = date.fromisoformat(day)
     return (d - timedelta(days=d.weekday())).isoformat()
@@ -286,6 +262,38 @@ def league(c, uid, today):
 # Snapshot for the client
 # ---------------------------------------------------------------------------------------------
 
+def set_price(set_id, owned):
+    missing = [v['stars'] for k, v in C.CATALOG.items() if v.get('set') == set_id and k not in owned]
+    return int(round(sum(missing) * SET_DISCOUNT / 10) * 10)
+
+
+def grant(c, uid, item_ids, today, equip=None):
+    """Add items to the collection, equip a single purchase, and pay set-completion bonuses once."""
+    w = wallet(c, uid); owned = json.loads(w['owned'] or '[]')
+    owned += [i for i in item_ids if i not in owned]
+    look = {**DEFAULT_LOOK, **json.loads(w['look'] or '{}')}
+    if equip: look[equip['kind']] = equip['value']
+    c.execute('UPDATE wallets SET owned=?, look=? WHERE user_id=?', (json.dumps(owned), json.dumps(look), uid))
+    for st in C.set_progress(owned):
+        if st['owned'] == st['total'] and c.execute('INSERT OR IGNORE INTO badges VALUES(?,?,?)', (uid, 'set-' + st['id'], today)).rowcount:
+            add_stars(c, uid, st['bonus'], 'set-' + st['id'], today)
+
+
+def quests_ready(c, uid, today, daily_xp):
+    b = Q.board(c, uid, today, daily_xp)
+    return sum(1 for q in b['daily'] + b['weekly'] if q['done'] and not q['claimed']) + (b['allDaily']['ready'] and not b['allDaily']['claimed']) \
+        + sum(1 for t in b['track'] if t['reached'] and not t['claimed'])
+
+
+def wallet_add(c, uid, reward):
+    """Apply non-Star quest rewards: Streak Freezes and Energy (both capped)."""
+    if reward.get('freeze'):
+        c.execute('UPDATE wallets SET freezes=MIN(?, freezes+?) WHERE user_id=?', (FREEZE_MAX, reward['freeze'], uid))
+    if reward.get('energy'):
+        e, _ = energy(c, uid)
+        c.execute('UPDATE wallets SET energy=? WHERE user_id=?', (min(ENERGY_MAX, e + reward['energy']), uid))
+
+
 def snapshot(c, uid, today, daily_xp):
     events = [{'type': 'freeze-used', 'days': used}] if (used := apply_freezes(c, uid, today)) else []
     events += streak_rewards(c, uid, today)
@@ -296,7 +304,7 @@ def snapshot(c, uid, today, daily_xp):
         'energy': None if ent['pro'] else e, 'energyMax': ENERGY_MAX, 'energyNextIn': None if ent['pro'] else next_in,
         'streak': length, 'streakToday': extended, 'repair': repair_offer(c, uid, today),
         'look': {**DEFAULT_LOOK, **json.loads(w['look'] or '{}')}, 'owned': json.loads(w['owned'] or '[]'),
-        'quests': quests(c, uid, today, daily_xp), 'events': events, 'billingMode': BILLING_MODE,
+        'questsReady': quests_ready(c, uid, today, daily_xp), 'events': events, 'billingMode': BILLING_MODE,
     }
 
 
@@ -316,38 +324,61 @@ class EconomyRoutes:
                 e, next_in = energy(c, uid)
                 return self.send_json({'error': 'You’re out of Energy for now.', 'energy': e, 'energyNextIn': next_in, 'outOfEnergy': True}, 402)
             return self.send_json({'round': rid, 'energy': None if is_pro(c, uid) else e})
+        if path == '/api/quests' and method == 'GET':
+            return self.send_json({**Q.board(c, uid, today, daily_xp), 'rerollsAllowed': 2 if is_pro(c, uid) else 1})
         if path == '/api/quests/claim' and method == 'POST':
-            stars = claim_quest(c, uid, today, str(d.get('quest', '')), daily_xp)
-            require(stars, 'That quest isn’t ready to claim.')
-            return self.send_json({'stars': stars, **snapshot(c, uid, today, daily_xp)})
+            reward = Q.claim(c, uid, today, str(d.get('quest', '')), daily_xp,
+                             lambda n, why: add_stars(c, uid, n, why, today), lambda rw: wallet_add(c, uid, rw))
+            require(reward, 'That quest isn’t ready to claim.')
+            return self.send_json({'reward': reward, 'board': Q.board(c, uid, today, daily_xp), **snapshot(c, uid, today, daily_xp)})
+        if path == '/api/quests/reroll' and method == 'POST':
+            pro = is_pro(c, uid)
+            require(Q.reroll(c, uid, today, int(d.get('slot', -1)), 2 if pro else 1), 'You’ve used today’s quest swap' + (' (Pro gets two)' if not pro else 's') + '.')
+            return self.send_json({**Q.board(c, uid, today, daily_xp), 'rerollsAllowed': 2 if pro else 1})
         if path == '/api/streak/repair' and method == 'POST':
             require(repair(c, uid, today), 'There’s no streak to repair right now.')
             return self.send_json(snapshot(c, uid, today, daily_xp))
         if path == '/api/league' and method == 'GET':
             return self.send_json(league(c, uid, today))
         if path == '/api/store' and method == 'GET':
-            return self.send_json({'plans': PLANS, 'shop': SHOP, 'billingMode': BILLING_MODE, **snapshot(c, uid, today, daily_xp)})
+            w = wallet(c, uid); owned = json.loads(w['owned'] or '[]')
+            wk = week_start(today); ends = (date.fromisoformat(wk) + timedelta(days=7)).isoformat()
+            sets = [{**st, 'price': set_price(st['id'], owned)} for st in C.set_progress(owned)]
+            return self.send_json({'plans': PLANS, 'powerups': POWERUPS, 'catalog': C.CATALOG, 'rarity': C.RARITY, 'sets': sets,
+                                   'featured': {'items': C.featured(wk), 'ends': ends}, 'billingMode': BILLING_MODE, **snapshot(c, uid, today, daily_xp)})
         if path == '/api/store/buy' and method == 'POST':
             item_id = str(d.get('item', '')); item = SHOP.get(item_id); require(item, 'Unknown item.')
+            w = wallet(c, uid); owned = json.loads(w['owned'] or '[]'); pro = is_pro(c, uid)
+            if item['kind'] in ('freeze', 'refill'):
+                require(w['stars'] >= item['stars'], 'You need more Stars for that.', 402)
+                if item['kind'] == 'freeze': require(w['freezes'] < FREEZE_MAX, f'You can hold up to {FREEZE_MAX} freezes.')
+                else:
+                    require(not pro, 'Pro already has unlimited Energy.')
+                    require(energy(c, uid)[0] < ENERGY_MAX, 'Your Energy is already full.')
+                add_stars(c, uid, -item['stars'], 'buy-' + item_id, today)
+                if item['kind'] == 'freeze': c.execute('UPDATE wallets SET freezes=freezes+1 WHERE user_id=?', (uid,))
+                else: c.execute('UPDATE wallets SET energy=?, energy_at=? WHERE user_id=?', (ENERGY_MAX, time.time(), uid))
+                return self.send_json(snapshot(c, uid, today, daily_xp))
+            require(item_id not in owned, 'You already own this.')
+            require(not item.get('event'), 'Event items are earned by finishing that month’s event.')
+            if item.get('pro'): require(pro, 'The Pro Gold collection is included with Pro.', 402)
+            else: require(w['stars'] >= item['stars'], 'You need more Stars for that.', 402)
+            if item['stars']: add_stars(c, uid, -item['stars'], 'buy-' + item_id, today)
+            grant(c, uid, [item_id], today, equip=item)
+            return self.send_json(snapshot(c, uid, today, daily_xp))
+        if path == '/api/store/buy-set' and method == 'POST':
+            set_id = str(d.get('set', '')); require(set_id in C.SETS, 'Unknown set.')
             w = wallet(c, uid); owned = json.loads(w['owned'] or '[]')
-            require(w['stars'] >= item['stars'], 'You need more Stars for that.', 402)
-            if item['kind'] == 'freeze': require(w['freezes'] < FREEZE_MAX, f'You can hold up to {FREEZE_MAX} freezes.')
-            elif item['kind'] == 'refill':
-                require(not is_pro(c, uid), 'Pro already has unlimited Energy.')
-                require(energy(c, uid)[0] < ENERGY_MAX, 'Your Energy is already full.')
-            else: require(item_id not in owned, 'You already own this.')
-            add_stars(c, uid, -item['stars'], 'buy-' + item_id, today)
-            if item['kind'] == 'freeze': c.execute('UPDATE wallets SET freezes=freezes+1 WHERE user_id=?', (uid,))
-            elif item['kind'] == 'refill': c.execute('UPDATE wallets SET energy=?, energy_at=? WHERE user_id=?', (ENERGY_MAX, time.time(), uid))
-            else:
-                owned.append(item_id); look = {**DEFAULT_LOOK, **json.loads(w['look'] or '{}'), item['kind']: item['value']}
-                c.execute('UPDATE wallets SET owned=?, look=? WHERE user_id=?', (json.dumps(owned), json.dumps(look), uid))
+            missing = [k for k, v in C.CATALOG.items() if v.get('set') == set_id and k not in owned]
+            require(missing, 'You already own this whole set.')
+            price = set_price(set_id, owned); require(w['stars'] >= price, 'You need more Stars for that.', 402)
+            add_stars(c, uid, -price, 'buy-set-' + set_id, today)
+            grant(c, uid, missing, today)
             return self.send_json(snapshot(c, uid, today, daily_xp))
         if path == '/api/store/equip' and method == 'POST':
             kind = str(d.get('kind', '')); value = str(d.get('value', '')); require(kind in DEFAULT_LOOK, 'Unknown item.')
             w = wallet(c, uid); owned = json.loads(w['owned'] or '[]')
-            ok = value == DEFAULT_LOOK[kind] or any(SHOP[i]['kind'] == kind and SHOP[i]['value'] == value for i in owned if i in SHOP)
-            require(ok, 'Unlock that look first.')
+            require(C.owns(owned, kind, value, is_pro(c, uid)), 'Unlock that look first.')
             look = {**DEFAULT_LOOK, **json.loads(w['look'] or '{}'), kind: value}
             c.execute('UPDATE wallets SET look=? WHERE user_id=?', (json.dumps(look), uid))
             return self.send_json(snapshot(c, uid, today, daily_xp))

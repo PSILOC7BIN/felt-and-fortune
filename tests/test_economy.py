@@ -73,8 +73,24 @@ class EconomyTests(unittest.TestCase):
         self.assertEqual(client.call('/api/store/buy', 'POST', {'item': 'freeze'})[0], 400)          # hold at most 2
         self.assertEqual(client.call('/api/store/equip', 'POST', {'kind': 'felt', 'value': 'royal'})[0], 400)
         eco = client.call('/api/store/buy', 'POST', {'item': 'felt-royal'})[1]
-        self.assertEqual((eco['look']['felt'], eco['stars']), ('royal', 1000 - 400 - 300))
+        self.assertEqual((eco['look']['felt'], eco['stars']), ('royal', 1000 - 400 - 150))
         self.assertEqual(client.call('/api/store/equip', 'POST', {'kind': 'felt', 'value': 'emerald'})[1]['look']['felt'], 'emerald')
+
+    def test_sets_pro_gold_and_event_items(self):
+        client, _, _ = self.signup(NEW); uid = self.uid(client)
+        with server.db() as c: c.execute('UPDATE wallets SET stars=5000 WHERE user_id=?', (uid,))
+        st = client.call('/api/store')[1]
+        vegas = next(x for x in st['sets'] if x['id'] == 'vegas')
+        self.assertEqual(vegas['price'], 1360)                        # (400 + 900 + 400) x 0.8
+        self.assertEqual(len(st['featured']['items']), 3)
+        eco = client.call('/api/store/buy-set', 'POST', {'set': 'vegas'})[1]
+        self.assertEqual(eco['stars'], 5000 - 1360 + 200)             # set bonus paid once
+        self.assertEqual(client.call('/api/store/buy-set', 'POST', {'set': 'vegas'})[0], 400)
+        self.assertEqual(client.call('/api/store/equip', 'POST', {'kind': 'coach', 'value': 'sunglasses'})[1]['look']['coach'], 'sunglasses')
+        self.assertEqual(client.call('/api/store/buy', 'POST', {'item': 'back-event-winter'})[0], 400)
+        self.assertEqual(client.call('/api/store/buy', 'POST', {'item': 'back-pro'})[0], 402)
+        client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
+        self.assertIn('back-pro', client.call('/api/store/buy', 'POST', {'item': 'back-pro'})[1]['owned'])
 
     def test_freezes_cover_missed_days_and_repair_is_monthly(self):
         client, _, _ = self.signup(NEW); uid = self.uid(client)
@@ -105,14 +121,33 @@ class EconomyTests(unittest.TestCase):
         self.assertEqual((eco['stars'], eco['freezes']), (25, 1))
         self.assertEqual(client.call('/api/me/economy')[1]['events'], [])
 
-    def test_quests_claim_once(self):
-        client, _, _ = self.signup(NEW)
-        self.assertEqual(client.call('/api/quests/claim', 'POST', {'quest': 'lesson'})[0], 400)
+    def test_quest_board_claims_rerolls_and_events(self):
+        client, _, _ = self.signup(NEW); uid = self.uid(client)
+        b = client.call('/api/quests')[1]
+        self.assertEqual([q['tier'] for q in b['daily']], ['easy', 'medium', 'hard'])
+        self.assertEqual(len({q['id'] for q in b['weekly']}), 2)
+        self.assertEqual(client.call('/api/quests')[1]['daily'][0]['id'], b['daily'][0]['id'])      # picks are stable
+        with server.db() as c: c.execute("UPDATE quest_picks SET quest='lesson1' WHERE user_id=? AND period=? AND slot=0", (uid, 'd:' + DAY()))
+        self.assertEqual(client.call('/api/quests/claim', 'POST', {'quest': 'd:lesson1'})[0], 400)
         self.finish(client, 'sm1-1')
-        before = client.call('/api/me/economy')[1]['stars']
-        r = client.call('/api/quests/claim', 'POST', {'quest': 'lesson'})[1]
-        self.assertEqual(r['stars'] if 'quests' not in r else r['stars'] - before, 15)
-        self.assertEqual(client.call('/api/quests/claim', 'POST', {'quest': 'lesson'})[0], 400)
+        r = client.call('/api/quests/claim', 'POST', {'quest': 'd:lesson1'})[1]
+        self.assertEqual(r['reward'], {'stars': 5})
+        self.assertEqual(client.call('/api/quests/claim', 'POST', {'quest': 'd:lesson1'})[0], 400)
+        # One free reroll a day, only for unfinished quests.
+        with server.db() as c: c.execute("UPDATE quest_picks SET quest='weak1' WHERE user_id=? AND period=? AND slot=1", (uid, 'd:' + DAY()))
+        before = client.call('/api/quests')[1]['daily'][1]['id']
+        self.assertNotEqual(client.call('/api/quests/reroll', 'POST', {'slot': 1})[1]['daily'][1]['id'], before)
+        self.assertEqual(client.call('/api/quests/reroll', 'POST', {'slot': 2})[0], 400)
+        self.assertEqual(client.call('/api/quests/claim', 'POST', {'quest': 'all-daily'})[0], 400)
+        # Weekly dailies track and the monthly event.
+        with server.db() as c:
+            for i in range(20): c.execute('INSERT INTO quest_done VALUES(?,?,?,?)', (uid, f'd:{DAY()}x{i}', f'q{i}', DAY()))
+        r = client.call('/api/quests/claim', 'POST', {'quest': 'track-10'})[1]
+        self.assertEqual(r['reward'], {'stars': 60, 'freeze': 1})
+        self.assertEqual(r['freezes'], 1)
+        ev = r['board']['event']
+        self.assertTrue(ev['earned'])
+        self.assertIn(ev['reward'], client.call('/api/store')[1]['owned'])
 
     def test_two_new_lessons_a_day(self):
         client, _, _ = self.signup(NEW)

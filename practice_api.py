@@ -1,5 +1,6 @@
 """Practice tools on the server: session logging (with XP) and the server-graded Shoe Challenge."""
 import economy
+import quests
 import json
 import math
 import random
@@ -115,6 +116,7 @@ class PracticeRoutes:
             require(economy.use_round(c, uid, d.get('round'), tool), 'Start a practice round first.', 402)
             record_skills(c, uid, skills)
             day = self.client_day()
+            quests.record(c, uid, day, 'practice', tool, q, round(100 * ok / q) if q else 0, min(streak, ok))
             c.execute('INSERT INTO practice_log(user_id,tool,questions,correct,best_streak,seconds,day,created) VALUES(?,?,?,?,?,?,?,?)', (uid, tool, q, ok, streak, secs, day, time.time()))
             xp = min(XP_CAP, ok)
             if xp: c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)', (uid, day, xp, 'practice:' + tool, time.time()))
@@ -148,6 +150,7 @@ class PracticeRoutes:
             if done:
                 xp = min(XP_CAP, state['score'] // 20)
                 if xp: c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)', (uid, self.client_day(), xp, 'practice:challenge', time.time()))
+                quests.record(c, uid, self.client_day(), 'challenge', 'challenge', state['round'], 0, state['best_streak'])
             return self.send_json({'results': results, 'rc': prior['rc'], 'hearts': state['hearts'], 'score': state['score'], 'streak': state['streak'],
                                    'done': done, 'best': best, 'bestStreak': state['best_streak'],
                                    'round': None if done else public_round(state), 'xp': min(XP_CAP, state['score'] // 20) if done else 0})
