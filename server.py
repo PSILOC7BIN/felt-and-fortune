@@ -390,7 +390,16 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
         week=[{'day':(date.fromisoformat(today)-timedelta(days=i)).isoformat()} for i in range(6,-1,-1)]
         for w in week: w['xp']=by_day.get(w['day'],0)
         finished=sum(1 for l in order if l in done or l in tested)
-        tracks=[{**t,'done':sum(1 for u in coach.TRACKS[t['id']] for l in u['lessons'] if l['id'] in done)} for t in coach.track_summaries()]
+        # Per-track progress counts finished lessons plus the units placement would skip in that track,
+        # the same way the header counts the current track.
+        row=c.execute('SELECT answers FROM plans WHERE user_id=?',(uid,)).fetchone()
+        answers=json.loads(row['answers']) if row and row['answers'] else None
+        def skipped(t):
+            if t==plan['track']: return set(plan['testedOut'])
+            try: return set(coach.build_plan(answers,track=t)['testedOut']) if answers else set()
+            except ValueError: return set()
+        tracks=[{**t,'done':sum(1 for u in coach.TRACKS[t['id']] for l in u['lessons'] if l['id'] in done or u['id'] in skips)}
+                for t in coach.track_summaries() for skips in [skipped(t['id'])]]
         return {'plan':plan,'units':units,'current':current,'tracks':tracks,'stats':{'xp':sum(by_day.values()),'todayXp':by_day.get(today,0),'dailyXp':plan['dailyXp'],'streak':streak,'week':week,'done':finished,'total':len(order)}}
     def path_api(self,path,method):
         c=self.c;uid=self.user['id'];d=self.data

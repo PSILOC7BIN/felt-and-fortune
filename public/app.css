@@ -313,4 +313,4 @@ a.weak-card:active { transform: translateY(4px); box-shadow: none; }
 .track-sheet h2 { text-align: center; }
 [data-theme="dark"] .track-hero, [data-theme="dark"] .track-option.current { background: #1C1C1E; }
 [data-theme="dark"] .track-bar, [data-theme="dark"] .track-option { border-color: #38383A; }
-@media (max-width: 700px) { .track-bar { flex-wrap: wrap; } .track-option { flex-wrap: wrap; } }
+@media (max-width: 700px) { .track-bar { flex-wrap: wrap; } .track-option { flex-wrap: wrap; row-gap: 10px; align-items: flex-start; } .track-option .track-copy { flex-basis: calc(100% - 72px); } .track-option button, .track-option .pill { margin-left: 72px; } }
