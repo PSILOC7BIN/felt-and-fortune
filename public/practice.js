@@ -1,4 +1,5 @@
 // Practice: the tool hub, a focused page for each trainer, and the server-graded Shoe Challenge.
+import { startRound, loadEconomy, setEconomy, chipsHTML, economyState, outOfEnergy, confetti, flyStars, countUp } from './economy.js';
 import * as bj from './bj.js';
 import { esc, $, $$, Sound, ace, g, tableHTML, cardHTML, mountTray, mountStepper, mountNumber } from './ui.js';
 import { TOOLS, createRunner, strategyQ, countQ, decksQ, trueCountQ, indexQ, betQ, chartHTML } from './trainers.js';
@@ -7,6 +8,9 @@ export const SKILL_NAMES = { 'strategy-hard': 'Hard totals', 'strategy-soft': 'S
 const SKILL_MAKERS = { 'strategy-hard': () => strategyQ({ pool: 'hard' }), 'strategy-soft': () => strategyQ({ pool: 'soft' }), 'strategy-pair': () => strategyQ({ pool: 'pair' }), count: () => countQ({ cards: 10, speed: 800 }), decks: () => decksQ({ shoe: 6 }), truecount: () => trueCountQ({ rcMin: -16, rcMax: 22, deckOptions: [.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5] }), index: () => indexQ({ insurance: false }), insurance: () => indexQ({ insurance: true, insuranceOnly: true }), bet: () => betQ() };
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// Questions in one practice round (one round = 1 Energy for free players; Weak Spots is free).
+const ROUND_SIZE = { strategy: 10, count: 3, decks: 5, truecount: 10, index: 10, weak: 10 };
 
 // Each trainer's settings: [key, label, [[value, text], ...]]. The first option is the default.
 const SETTINGS = {
@@ -41,7 +45,8 @@ export function createPractice(ctx) {
       return s?.questions ? `${Math.round(s.correct / s.questions * 100)}% accurate · best streak ${s.best_streak}` : 'Not practiced yet';
     };
     const group = (title, ids) => `<h2 class="hub-group">${title}</h2><div class="tool-cards">${TOOLS.filter(t => ids.includes(t.id)).map(t => `<a class="tool-card c-${t.color}" href="/practice/${t.id}"><span class="tool-icon">${g(t.glyph)}</span><span class="tool-copy"><strong>${t.name}</strong><span>${t.purpose}</span><small>${line(t)}</small></span>${g('next', 'tool-go')}</a>`).join('')}</div>`;
-    $('#page').innerHTML = `<header class="page-hero"><div><h1>Practice</h1><p>Each tool trains one skill. Lessons use the same tools, so practice here whenever a skill feels shaky. Practice earns up to 20 XP a session.</p></div></header>`
+    const eco = await loadEconomy(api, localDate);
+    $('#page').innerHTML = `<header class="page-hero"><div><h1>Practice</h1><p>Each tool trains one skill. Lessons use the same tools, so practice here whenever a skill feels shaky. ${eco?.plan?.pro ? 'Pro: practice as much as you like.' : 'Each round uses 1 Energy (the Shoe Challenge uses 3). Weak Spots is always free.'}</p></div><div data-eco-chips>${chipsHTML(eco)}</div></header>`
       + (weak.length ? `<a class="weak-card" href="/practice/weak"><span class="tool-icon">${g('target')}</span><span class="tool-copy"><strong>Practice your weak spots</strong><span>A mixed session built from the skills you’ve missed most: ${weak.map(w => `${SKILL_NAMES[w.skill]} (${Math.round(w.rate * 100)}% missed)`).join(', ')}.</span></span>${g('next', 'tool-go')}</a>` : `<div class="weak-card empty"><span class="tool-icon">${g('target')}</span><span class="tool-copy"><strong>Weak spots</strong><span>Finish a few lessons or practice sessions and Ace will build a session from the skills you miss most.</span></span></div>`)
       + group('Skill trainers', ['strategy', 'count', 'decks', 'truecount', 'index'])
       + group('Put it all together', ['challenge'])
@@ -55,24 +60,29 @@ export function createPractice(ctx) {
     const meta = tool === 'weak' ? { id: 'weak', name: 'Weak spots', glyph: 'target', color: 'red', purpose: weakSkills.map(k => SKILL_NAMES[k]).join(' · ') } : TOOLS.find(t => t.id === tool), defs = SETTINGS[tool] || [];
     let saved = {}; try { saved = JSON.parse(localStorage.getItem('ff-practice-' + tool) || '{}'); } catch { saved = {}; }
     const s = Object.fromEntries(defs.map(([k, , opts]) => [k, opts.some(o => o[0] === saved[k]) ? saved[k] : opts[0][0]]));
+    const round = await startRound(ctx, tool);
+    if (!round) { if (location.pathname !== '/practice') go('/practice'); return; }
+    const size = ROUND_SIZE[tool] || 10;
     const stats = { questions: 0, correct: 0, streak: 0, best: 0, started: Date.now() }, results = [];
-    let turn = 0;
-    const nextQ = () => tool === 'weak' ? SKILL_MAKERS[weakSkills[turn++ % weakSkills.length]]() : makeQuestion(tool, s);
+    let turn = 0, asked = 0, logged = false;
+    const nextQ = () => { if (asked >= size) return null; asked++; return tool === 'weak' ? SKILL_MAKERS[weakSkills[turn++ % weakSkills.length]]() : makeQuestion(tool, s); };
 
     $('#app').innerHTML = `<main id="main" class="coach-screen practice c-${meta.color}">
       <header class="coach-top practice-top"><button type="button" class="icon-btn" id="pr-end" aria-label="End practice">${g('close')}</button><div class="pr-title"><span class="tool-icon sm">${g(meta.glyph)}</span><div><strong>${meta.name}</strong><small>${meta.purpose}</small></div></div>
-        <div class="pr-stats"><span class="chip streak" title="Current streak">${g('flame')}<b id="pr-streak">0</b></span><span class="chip" title="Correct answers"><b id="pr-score">0/0</b></span></div>
+        <div class="pr-stats"><span class="chip streak" title="Current streak">${g('flame')}<b id="pr-streak">0</b></span><span class="chip" title="Correct answers this round"><b id="pr-score">0/${size}</b></span></div>
         ${tool === 'strategy' ? `<button type="button" class="pill-btn" id="pr-chart">${g('book')} Chart</button>` : ''}${defs.length ? `<button type="button" class="icon-btn" id="pr-gear" aria-expanded="false" aria-controls="pr-settings" aria-label="Settings">${g('gear')}</button>` : ''}${soundButton()}</header>
       <div class="settings-bar" id="pr-settings" hidden>${defs.map(([k, label, opts]) => `<div class="seg-group"><span>${label}</span><div class="segmented" role="radiogroup" aria-label="${label}">${opts.map(([v, t]) => `<button type="button" role="radio" data-k="${k}" data-v="${v}" aria-checked="${s[k] === v}">${t}</button>`).join('')}</div></div>`).join('')}</div>
+      <div class="round-bar" aria-hidden="true"><span id="round-fill"></span></div>
       <section class="coach-body" id="coach-body"></section><footer class="coach-foot" id="coach-foot"></footer>
       <div class="sheet-shade" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title"></div></div></main>`;
     wireSound();
     const body = $('#coach-body'), foot = $('#coach-foot'), shade = $('.sheet-shade'), sheet = $('.sheet');
-    const paintStats = () => { $('#pr-streak').textContent = stats.streak; $('#pr-score').textContent = `${stats.correct}/${stats.questions}`; $('.chip.streak').classList.toggle('lit', stats.streak > 0); };
+    const paintStats = () => { $('#pr-streak').textContent = stats.streak; $('#pr-score').textContent = `${stats.correct}/${size}`; $('.chip.streak').classList.toggle('lit', stats.streak > 0); $('#round-fill').style.width = Math.round(stats.questions / size * 100) + '%'; };
     const runner = createRunner({
       body, foot, next: nextQ,
       onResult: (q, r) => { results.push(r.record); stats.questions++; if (r.ok) { stats.correct++; stats.streak++; stats.best = Math.max(stats.best, stats.streak); } else stats.streak = 0; paintStats(); },
       onKeyExtra: e => { if (e.key === 'Escape' && !shade.hidden) { shade.hidden = true; return true; } return false; },
+      onEmpty: () => endRound(),
     });
     onCleanup(() => runner.destroy());
     runner.start();
@@ -92,18 +102,27 @@ export function createPractice(ctx) {
     });
     shade.onclick = e => { if (e.target === shade) shade.hidden = true; };
 
-    $('#pr-end').onclick = async () => {
-      if (!stats.questions) { go('/practice'); return; }
+    async function endRound() {
+      if (logged) return; logged = true;
       runner.destroy();
-      let xp = 0;
-      try { xp = (await api('/api/practice/log', 'POST', { tool, results, bestStreak: stats.best, seconds: Math.round((Date.now() - stats.started) / 1000), day: localDate() })).xp; } catch { /* still show the summary */ }
-      Sound.play('complete');
+      if (!stats.questions) { go('/practice'); return; }
+      let r = { xp: 0, stars: 0, energyBack: 0 };
+      try { r = await api('/api/practice/log', 'POST', { tool, round, results, bestStreak: stats.best, seconds: Math.round((Date.now() - stats.started) / 1000), day: localDate() }); } catch { /* still show the summary */ }
+      const eco = await loadEconomy(api, localDate);
+      const pct = Math.round(stats.correct / stats.questions * 100);
+      Sound.play(pct >= 90 ? 'complete' : 'reveal'); if (pct >= 90) confetti({ count: 70 });
+      const pro = eco?.plan?.pro, cost = tool === 'weak' ? 0 : 1;
       sheet.className = 'sheet';
-      sheet.innerHTML = `${ace('wow', 'ace-md pop')}<h2 id="sheet-title">Nice session!</h2><div class="plan-grid three"><div class="stat-tile green"><small>Accuracy</small><strong>${Math.round(stats.correct / stats.questions * 100)}%</strong></div><div class="stat-tile orange"><small>Best streak</small><strong>${g('flame')} ${stats.best}</strong></div><div class="stat-tile yellow"><small>XP earned</small><strong>${g('bolt')} +${xp}</strong></div></div><button type="button" class="primary chunky" id="sum-done">Done</button><button type="button" class="ghost" id="sum-more">Keep practicing</button>`;
+      sheet.innerHTML = `${ace(pct >= 90 ? 'wow' : 'happy', 'ace-md pop')}<h2 id="sheet-title">${pct === 100 ? 'Flawless round!' : pct >= 90 ? 'Great round!' : 'Round complete'}</h2><div class="plan-grid four"><div class="stat-tile green"><small>Accuracy</small><strong><span class="count" data-to="${pct}">0</span>%</strong></div><div class="stat-tile orange"><small>Best streak</small><strong>${g('flame')} ${stats.best}</strong></div><div class="stat-tile yellow"><small>XP</small><strong>${g('bolt')} +<span class="count" data-to="${r.xp}">0</span></strong></div><div class="stat-tile purple"><small>Stars</small><strong id="sum-stars">${g('star')} +<span class="count" data-to="${r.stars || 0}">0</span></strong></div></div>${r.energyBack ? `<p class="goal-hit">${g('bolt')} +${r.energyBack} Energy earned back for accuracy</p>` : pct < 90 && !pro ? '<p class="muted small">Score 90% or better to earn Stars. A perfect round earns 1 Energy back.</p>' : ''}
+        <button type="button" class="primary chunky" id="sum-more">${cost && !pro ? `Next round · ${g('bolt')} ${cost}` : 'Next round'}</button><button type="button" class="ghost" id="sum-done">Done</button>`;
       shade.hidden = false;
+      $$('.count', sheet).forEach((el, i) => setTimeout(() => countUp(el, Number(el.dataset.to)), 200 + i * 150));
+      if (r.stars) setTimeout(() => flyStars($('#sum-stars'), 4), 700);
       $('#sum-done').onclick = () => go('/practice');
       $('#sum-more').onclick = () => toolPage(tool);
-    };
+      $('#sum-more').focus();
+    }
+    $('#pr-end').onclick = () => { if (!stats.questions) { go('/practice'); return; } endRound(); };
   }
 
   // ---- Shoe Challenge ----------------------------------------------------------------------------
@@ -127,7 +146,8 @@ export function createPractice(ctx) {
     }
     async function start() {
       keyHandler = null;
-      try { game = await api('/api/challenge/start', 'POST', {}); } catch (e) { ctx.toast(e.message); return; }
+      try { game = await api('/api/challenge/start', 'POST', {}); } catch (e) { if (/Energy/.test(e.message)) { await loadEconomy(api, localDate); outOfEnergy(ctx, economyState(), start); } else ctx.toast(e.message); return; }
+      loadEconomy(api, localDate);
       setHearts(game.hearts); $('#ch-score').textContent = 0;
       playRound(game.round);
     }

@@ -29,6 +29,13 @@ export const Sound = (() => {
     complete: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .11, i === 3 ? .55 : .16, { type: 'triangle', gain: .14 })),
     reveal: () => [659, 988, 1319].forEach((f, i) => tone(f, i * .07, .22, { gain: .07 })),
     tick: () => tone(880, 0, .03, { gain: .04 }),
+    coin: () => { tone(1319, 0, .07, { type: 'square', gain: .05 }); tone(1976, .06, .22, { type: 'square', gain: .05 }); },
+    energy: () => [440, 554, 659, 880].forEach((f, i) => tone(f, i * .05, .14, { type: 'sawtooth', gain: .035, slide: 1.05 })),
+    freeze: () => [1568, 1319, 1760, 2093].forEach((f, i) => tone(f, i * .06, .3, { gain: .05 })),
+    unlock: () => { tone(392, 0, .1, { type: 'triangle', gain: .12 }); tone(784, .08, .3, { type: 'triangle', gain: .12, slide: 1.5 }); },
+    levelup: () => [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => tone(f, i * .08, i === 5 ? .7 : .18, { type: 'triangle', gain: .12 })),
+    whoosh: () => tone(200, 0, .25, { type: 'sawtooth', gain: .03, slide: 4 }),
+    pop: () => tone(600, 0, .06, { gain: .1, slide: 2 }),
   };
   return {
     play(name) { window.ffHaptic?.(name); if (on && fx[name]) { try { fx[name](); } catch { /* audio unavailable */ } } },

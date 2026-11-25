@@ -70,7 +70,7 @@ BILLING_MODE = os.environ.get('BILLING_MODE', 'test')   # 'test' until real stor
 def wallet(c, uid):
     row = c.execute('SELECT * FROM wallets WHERE user_id=?', (uid,)).fetchone()
     if not row:
-        c.execute('INSERT INTO wallets(user_id, energy, energy_at) VALUES(?,?,?)', (uid, ENERGY_MAX, time.time()))
+        c.execute('INSERT OR IGNORE INTO wallets(user_id, energy, energy_at) VALUES(?,?,?)', (uid, ENERGY_MAX, time.time()))
         row = c.execute('SELECT * FROM wallets WHERE user_id=?', (uid,)).fetchone()
     return dict(row)
 

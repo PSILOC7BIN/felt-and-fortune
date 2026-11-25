@@ -6,12 +6,12 @@
   window.ffHaptic = function () {};
   if (!native) return;
   var P = cap.Plugins || {};
-  var feel = { tap: 'Light', select: 'Light', tick: 'Light', deal: 'Light', correct: 'Medium', reveal: 'Medium', complete: 'Heavy' };
+  var feel = { tap: 'Light', select: 'Light', tick: 'Light', deal: 'Light', pop: 'Light', coin: 'Light', correct: 'Medium', reveal: 'Medium', energy: 'Medium', freeze: 'Medium', unlock: 'Medium', complete: 'Heavy' };
   window.ffHaptic = function (name) {
     try {
       if (!P.Haptics) return;
       if (name === 'wrong') P.Haptics.notification({ type: 'ERROR' });
-      else if (name === 'complete') P.Haptics.notification({ type: 'SUCCESS' });
+      else if (name === 'complete' || name === 'levelup') P.Haptics.notification({ type: 'SUCCESS' });
       else if (feel[name]) P.Haptics.impact({ style: feel[name] });
     } catch (e) { /* haptics unavailable */ }
   };
