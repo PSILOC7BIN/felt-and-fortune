@@ -422,99 +422,86 @@ def _flags(a):
     return exp, hard_ok, soft_ok, count_ok, tc_ok, proven
 
 
+GOAL_PATH = {'understand': 'smart', 'smarter': 'strategy', 'count': 'counter', 'pro': 'pro'}
+PHASE = {'smart': 'Foundations', 'strategy': 'Perfect strategy', 'counter': 'Card counting', 'pro': 'Advantage play'}
+
+
+def path_order(goal):
+    """Every learner covers every unit. The goal only changes the order: what you care about comes sooner,
+    and prerequisites always come first (strategy before counting, counting before advantage play)."""
+    S, ST, C, P = ([u['id'] for u in TRACKS[t]] for t in TRACK_ORDER)
+    core_s, rest_s = S[:3], S[3:]          # rules + simple strategy first, then money, myths, casino skills
+    core_st, rest_st = ST[:4], ST[4:]      # hard, soft, pairs, surrender/insurance first, then rule sets and drills
+    if goal == 'understand': return S + ST + C + P
+    if goal == 'smarter': return core_s + ST + rest_s + C + P
+    if goal == 'count': return core_s + core_st + C + rest_st + rest_s + P
+    return core_s + core_st + C + P + rest_st + rest_s       # 'pro'
+
+
 def choose_track(a):
-    """Pick the best-fit track from goal, experience, checks, and game type. Returns (track, reason)."""
-    exp, hard_ok, soft_ok, count_ok, tc_ok, proven = _flags(a)
-    goal, online = a['goal'], a['game'] == 'online'
-    if goal == 'understand':
-        return 'smart', 'You want to understand the game, so you’re on the Smart Player track: rules, a simple strategy, payouts, money management, and casino know-how.'
-    if goal == 'smarter':
-        if proven['strategy']:
-            return 'strategy', 'You want to play smarter and you already know the basics, so you’re on Strategy Master: perfect play for every hand and every rule set.'
-        return 'smart', 'You want to play smarter, so you’re on the Smart Player track: the strategy, money habits, and table know-how that cut your losses the most.'
-    if goal == 'count':
-        if online:
-            return 'counter', 'You want to learn to count, so you’re on Card Counter. Most online games reshuffle every hand, so you’ll use these skills at live tables.'
-        return 'counter', 'You want to learn to count, so you’re on the Card Counter track: Hi‑Lo, true count, bet sizing, and index plays.'
-    # goal == 'pro'
-    if proven['tc']:
-        return 'pro', 'You want a real edge and your counting checks were right, so you’re on Advantage Pro: full index sets, back-counting, Kelly betting, and team play.'
-    if proven['strategy']:
-        return 'counter', 'You want a real edge. Your strategy is solid but counting isn’t proven yet, so you start on Card Counter, then move to Advantage Pro.'
-    return 'strategy', 'You want a real edge, which starts with perfect basic strategy, so you start on Strategy Master. Card Counter and Advantage Pro come next.'
-
-
-NEXT_TRACK = {'smart': 'strategy', 'strategy': 'counter', 'counter': 'pro', 'pro': None}
+    """The path's name and why it's ordered the way it is. Returns (path key, reason)."""
+    key = GOAL_PATH[a['goal']]
+    why = {
+        'understand': 'You want to understand the game, so your path starts with the rules, a simple strategy, and the money side, then builds all the way to counting and advantage play.',
+        'smarter': 'You want to play smarter, so your path gets you to perfect basic strategy quickly, then covers money, casino skills, counting, and advantage play.',
+        'count': 'You want to learn to count, so after the basics and core strategy your path goes straight into counting. The remaining strategy and casino lessons come after.',
+        'pro': 'You want a real edge, so your path runs from core strategy through counting and advantage play first. The rule-set drills and casino lessons come last.',
+    }[a['goal']]
+    return key, why
 
 
 def build_plan(answers, today=None, track=None):
     a = validate_answers(answers)
     today = today or date.today()
     exp, hard_ok, soft_ok, count_ok, tc_ok, proven = _flags(a)
-    reasons = []
-    if track is None:
-        track, why = choose_track(a)
-    else:
-        if track not in TRACKS: raise ValueError('Unknown track.')
-        why = f'You chose the {TRACK_META[track]["title"]} track. Your placement answers still set where you start in it.'
-    reasons.append(why)
-    units = TRACKS[track]
+    key, why = choose_track(a)
+    order = path_order(a['goal'])
+    units = [UNIT_BY_ID[u] for u in order]
+    reasons = [why, f'Every path covers all {len(units)} units and {sum(len(u["lessons"]) for u in units)} lessons, so you finish knowing everything from table basics to team play. Nothing is skipped.']
 
-    # Placement: test out of a unit only when its check is proven AND every earlier unit was tested out too.
-    start_i = 0
-    while start_i < len(units) - 1 and units[start_i]['test'] and proven[units[start_i]['test']]:
-        start_i += 1
-    tested = [u['id'] for u in units[:start_i]]
-    proof = {'rules': 'you already know the rules', 'strategy': 'you got both strategy checks right',
-             'count': 'your running count was right', 'tc': 'your true count was right'}
-    if start_i:
-        last = units[start_i - 1]
-        reasons.append(f'Because {proof[last["test"]]}, you test out of {start_i} unit{"s" if start_i > 1 else ""} and start at {units[start_i]["title"]}. You can review the earlier units any time.')
-    else:
-        reasons.append(f'You start at the beginning of the track: {units[0]["title"]}.')
-
-    # Focus areas: one review lesson in the first unit (from your start) that trains each weak skill.
+    # Focus areas: an extra review lesson in the first unit that trains each skill you missed or find hardest.
     weak = set()
     if not (hard_ok and soft_ok): weak.add('strategy')
-    if not count_ok and exp >= 3: weak.add('counting')
-    if not tc_ok and exp >= 3: weak.add('truecount')
+    if not count_ok: weak.add('counting')
+    if not tc_ok: weak.add('truecount')
     weak |= {'chart': {'strategy'}, 'speed': {'counting', 'truecount'}, 'betting': {'betting', 'bankroll'}, 'discipline': {'bankroll'}}.get(a['challenge'], set())
     focus = []
     for skill in sorted(weak):
-        u = next((u for u in units[start_i:] if u['skill'] == skill), None)
+        u = next((u for u in units if u['skill'] == skill), None)
         if u and skill in REVIEW_POOLS: focus.append(u['id'])
     if focus:
-        names = ', '.join(UNIT_BY_ID[f]['title'] for f in focus)
-        reasons.append(f'From your answers and the skill you find hardest, these units get an extra review lesson: {names}.')
+        reasons.append('From your answers and the skill you find hardest, these units get an extra review lesson: ' + ', '.join(UNIT_BY_ID[f]['title'] for f in focus) + '.')
+    if proven['strategy']:
+        reasons.append('You already know a lot of basic strategy, so the early lessons will feel quick. They still count: they lock in the details most players miss.')
 
-    # Pace.
     minutes = int(a['time']); per = {5: 1, 10: 2, 15: 3, 20: 4}[minutes]
-    remaining = sum(len(u['lessons']) + (u['id'] in focus) for u in units[start_i:])
+    remaining = sum(len(u['lessons']) + (u['id'] in focus) for u in units)
     days = math.ceil(remaining / per)
-    reasons.append(f'At {minutes} minutes a day (about {per} lesson{"s" if per > 1 else ""}), you’ll finish this track in about {days} days.')
+    reasons.append(f'At {minutes} minutes a day (about {per} lesson{"s" if per > 1 else ""}), the whole course takes about {days} days. Real skill takes repetition.')
 
-    # Game notes.
     notes = {}
-    first = lambda skill: next((u['id'] for u in units[start_i:] if u['skill'] == skill), None)
+    first = lambda skill: next((u['id'] for u in units if u['skill'] == skill), None)
     if a['game'] == 'pitch' and first('betting'): notes[first('betting')] = 'Pitch games are often beaten with smaller spreads, like 1–4 or 1–8, because the count swings faster.'
     if a['game'] == 'shoe' and first('betting'): notes[first('betting')] = 'Shoe games usually need a bigger spread, such as 1–12, or back-counting.'
     if a['game'] == 'online' and first('counting'): notes[first('counting')] = 'Most online blackjack reshuffles every hand, so counting won’t help there. Learn it for live games.'
     for f in focus: notes.setdefault(f, 'This is one of your focus areas, so you’ll get an extra review lesson here.')
 
     level = LEVELS[4 if proven['tc'] else 3 if proven['count'] else 2 if proven['strategy'] else 1 if (exp >= 1 or hard_ok or soft_ok) else 0]
-    meta = TRACK_META[track]; weeks = max(1, round(days / 7))
-    nxt = NEXT_TRACK[track]
-    milestone = f'Finish {meta["title"]}' + (f', then move on to {TRACK_META[nxt]["title"]}.' if nxt else ' and play like a professional.')
+    meta = TRACK_META[key]; months = max(1, round(days / 30))
     goal_names = {'understand': 'Understand the Game', 'smarter': 'Play Smarter', 'count': 'Learn to Count', 'pro': 'Play with an Edge'}
     return {
-        'version': 2, 'track': track, 'trackName': meta['title'], 'tagline': meta['tagline'], 'nextTrack': nxt,
+        'version': 3, 'track': key, 'trackName': meta['title'], 'tagline': meta['tagline'], 'nextTrack': None, 'order': order,
         'level': level, 'goal': a['goal'], 'goalName': goal_names[a['goal']],
-        'headline': f'{meta["title"]}: about {weeks} week{"s" if weeks != 1 else ""} to finish',
-        'startUnit': units[start_i]['id'], 'testedOut': tested, 'focus': focus,
-        'milestone': {'unit': units[-1]['id'], 'text': milestone}, 'notes': notes, 'style': a['style'],
-        'minutes': minutes, 'lessonsPerDay': per, 'dailyXp': per * 15, 'remainingLessons': remaining,
-        'days': days, 'finish': (today + timedelta(days=days)).isoformat(), 'reasons': reasons,
+        'headline': f'Your {meta["title"]} path: about {months} month{"s" if months != 1 else ""} to master everything',
+        'startUnit': order[0], 'testedOut': [], 'focus': focus,
+        'milestone': {'unit': order[-1], 'text': 'Finish every unit and you’ll know blackjack inside out, from basic strategy to advantage play.'},
+        'notes': notes, 'style': a['style'], 'minutes': minutes, 'lessonsPerDay': per, 'dailyXp': per * 15,
+        'remainingLessons': remaining, 'days': days, 'finish': (today + timedelta(days=days)).isoformat(), 'reasons': reasons,
     }
+
+
+def plan_units(plan):
+    return [UNIT_BY_ID[u] for u in plan['order']] if plan.get('order') else TRACKS[plan['track']]
 
 
 # ---------------------------------------------------------------------------
@@ -552,9 +539,9 @@ CHECKPOINTS = {u['id'] + '-checkpoint': checkpoint(u) for u in UNITS}
 
 
 def lesson_order(plan):
-    """All lesson ids in the plan's track, in order, including focus-area reviews and unit checkpoints."""
+    """All lesson ids on the plan's path, in order, including focus-area reviews and unit checkpoints."""
     out = []
-    for u in TRACKS[plan['track']]:
+    for u in plan_units(plan):
         out += [l['id'] for l in u['lessons']]
         if u['id'] in plan.get('focus', []): out.append(u['id'] + '-review')
         out.append(u['id'] + '-checkpoint')
@@ -563,12 +550,12 @@ def lesson_order(plan):
 
 def path_units(plan):
     units = []
-    for u in TRACKS[plan['track']]:
+    for u in plan_units(plan):
         lessons = [{'id': l['id'], 'title': l['title']} for l in u['lessons']]
         if u['id'] in plan.get('focus', []): lessons.append({'id': u['id'] + '-review', 'title': 'Focus review', 'review': True})
         lessons.append({'id': u['id'] + '-checkpoint', 'title': 'Checkpoint', 'checkpoint': True})
         units.append({'id': u['id'], 'title': u['title'], 'summary': u['summary'], 'color': u['color'], 'tool': u['tool'],
-                      'note': plan.get('notes', {}).get(u['id']), 'pro': u['id'] in PRO_UNITS, 'lessons': lessons})
+                      'note': plan.get('notes', {}).get(u['id']), 'pro': u['id'] in PRO_UNITS, 'phase': PHASE[TRACK_OF_UNIT[u['id']]], 'lessons': lessons})
     return units
 
 

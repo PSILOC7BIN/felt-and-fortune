@@ -10,46 +10,6 @@ EXPERT = {'experience': 'pro', 'goal': 'pro', 'quiz_hard': 'hit', 'quiz_soft': '
 
 
 class PlannerTests(unittest.TestCase):
-    def test_beginner_gets_smart_player_from_the_start(self):
-        plan = coach.build_plan(NEW, today=date(2026, 1, 1))
-        self.assertEqual((plan['track'], plan['startUnit'], plan['testedOut']), ('smart', 'sm1', []))
-        self.assertEqual(plan['level'], 'Rookie')
-        self.assertEqual(plan['dailyXp'], 15)
-        self.assertEqual(plan['milestone']['unit'], 'sm8')
-        self.assertEqual(plan['focus'], ['sm2'])
-        self.assertIn('Smart Player', plan['reasons'][0])
-
-    def test_expert_gets_advantage_pro_and_tests_out(self):
-        plan = coach.build_plan(EXPERT)
-        self.assertEqual((plan['track'], plan['startUnit'], plan['testedOut']), ('pro', 'ap2', ['ap1']))
-        self.assertEqual(set(plan['focus']), {'ap3', 'ap5'})
-        self.assertIn('ap3', plan['notes'])
-        self.assertEqual(plan['level'], 'Advantage Player')
-
-    def test_self_reported_skill_needs_correct_checks(self):
-        plan = coach.build_plan({**EXPERT, 'quiz_tc': 'unsure'})
-        self.assertEqual((plan['track'], plan['startUnit']), ('counter', 'cc3'))
-        plan = coach.build_plan({**EXPERT, 'quiz_tc': 'unsure', 'quiz_soft': 'unsure'})
-        self.assertEqual((plan['track'], plan['startUnit']), ('strategy', 'ms1'))
-        self.assertIn('ms1', plan['focus'])
-
-    def test_each_goal_maps_to_a_track(self):
-        base = {**NEW, 'experience': 'strategy', 'quiz_hard': 'hit', 'quiz_soft': 'hit'}
-        self.assertEqual(coach.build_plan({**base, 'goal': 'understand'})['track'], 'smart')
-        self.assertEqual(coach.build_plan({**base, 'goal': 'smarter'})['track'], 'strategy')
-        self.assertEqual(coach.build_plan({**NEW, 'goal': 'smarter'})['track'], 'smart')
-        self.assertEqual(coach.build_plan({**base, 'goal': 'count'})['track'], 'counter')
-        self.assertEqual(coach.build_plan({**base, 'goal': 'pro'})['track'], 'counter')
-        self.assertEqual(coach.build_plan({**NEW, 'goal': 'pro'})['track'], 'strategy')
-        counted = coach.build_plan({**base, 'goal': 'count', 'quiz_count': '1'})
-        self.assertEqual((counted['track'], counted['startUnit']), ('counter', 'cc3'))
-
-    def test_chosen_track_keeps_placement(self):
-        plan = coach.build_plan(EXPERT, track='strategy')
-        self.assertEqual(plan['track'], 'strategy')
-        self.assertEqual(plan['startUnit'], 'ms3')
-        with self.assertRaises(ValueError): coach.build_plan(EXPERT, track='nope')
-
     def test_tracks_are_equal_and_large(self):
         sizes = {t: [coach.expected_questions(l['steps']) for u in coach.TRACKS[t] for l in u['lessons']] for t in coach.TRACK_ORDER}
         for t, qs in sizes.items():
@@ -86,6 +46,35 @@ class PlannerTests(unittest.TestCase):
             step = coach._strategy_step(rng, 'any')
             expected = coach.ACTIONS[coach.basic(step['cards'], step['dealer'])]
             self.assertEqual(step['options'][step['answer']], expected)
+
+
+    def test_everyone_gets_the_whole_course(self):
+        everything = {u['id'] for u in coach.UNITS}
+        for answers in (NEW, EXPERT):
+            plan = coach.build_plan(answers, today=date(2026, 1, 1))
+            self.assertEqual(plan['testedOut'], [])
+            self.assertEqual((len(plan['order']), set(plan['order'])), (40, everything))
+            self.assertEqual(plan['version'], 3)
+        self.assertEqual(coach.build_plan(NEW)['startUnit'], 'sm1')
+        self.assertEqual(coach.build_plan(EXPERT)['startUnit'], 'sm1')        # proven skill no longer skips lessons
+
+    def test_goal_sets_the_order_with_prerequisites_first(self):
+        order = lambda goal: coach.build_plan({**NEW, 'goal': goal})['order']
+        self.assertEqual(order('understand')[3], 'sm4')
+        self.assertEqual(order('smarter')[3], 'ms1')
+        cnt = order('count')
+        self.assertLess(cnt.index('ms1'), cnt.index('cc1')); self.assertLess(cnt.index('cc1'), cnt.index('sm4'))
+        pro = order('pro')
+        self.assertLess(pro.index('cc8'), pro.index('ap1')); self.assertLess(pro.index('ap8'), pro.index('ms5'))
+        self.assertEqual(coach.build_plan({**NEW, 'goal': 'count'})['track'], 'counter')
+
+    def test_focus_comes_from_misses_and_struggles(self):
+        plan = coach.build_plan({**NEW, 'goal': 'count'})
+        self.assertIn('sm2', plan['focus'])                              # missed strategy checks
+        self.assertTrue({'cc2', 'cc3'} <= set(plan['focus']))            # missed count and true-count checks
+        expert = coach.build_plan(EXPERT)
+        self.assertTrue({'cc4', 'cc6'} <= set(expert['focus']))          # finds betting hardest
+        self.assertNotIn('sm2', expert['focus'])
 
 
 class CoachApiTests(unittest.TestCase):
@@ -174,38 +163,33 @@ class CoachApiTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertLess(res['accuracy'], 100)
 
-    def test_tested_out_lessons_are_open_and_retake_keeps_progress(self):
-        client, _, _ = self.signup(EXPERT)
-        state = client.call('/api/path')[1]
-        self.assertEqual(state['current'], 'ap2-1')
-        self.assertEqual(client.call('/api/path/lesson/ap2-1')[0], 402)   # Advantage Pro beyond unit 1 is Pro
-        client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-annual'})
-        self.assertEqual(client.call('/api/path/lesson/ap1-2')[0], 200)
-        self.assertEqual(client.call('/api/path/lesson/ap3-1')[0], 403)
-        self.assertEqual(self.finish(client, 'ap2-1')[0], 200)
-        status, state = client.call('/api/path/plan', 'POST', {'answers': NEW})
-        self.assertEqual(status, 200)
-        self.assertEqual(state['current'], 'sm1-1')
-        self.assertEqual(state['stats']['xp'], 15)
 
-    def test_switching_tracks_keeps_xp_and_progress(self):
+    def test_paths_cannot_be_switched_and_retake_locks_after_starting(self):
         client, _, _ = self.signup(NEW)
+        self.assertEqual(client.call('/api/path/track', 'POST', {'track': 'counter'})[0], 410)
+        self.assertEqual(client.call('/api/path/plan', 'POST', {'answers': {**NEW, 'goal': 'count'}})[0], 200)   # not started yet
         self.assertEqual(self.finish(client, 'sm1-1')[0], 200)
-        status, st = client.call('/api/path/track', 'POST', {'track': 'counter'})
-        self.assertEqual((status, st['plan']['track'], st['current']), (200, 'counter', 'cc1-1'))
-        self.assertEqual(st['stats']['xp'], 15)
-        self.assertEqual({t['id']: t['done'] for t in st['tracks']}['smart'], 1)
-        self.assertEqual(client.call('/api/path/lesson/sm1-2')[0], 404)
-        status, st = client.call('/api/path/track', 'POST', {'track': 'smart'})
-        self.assertEqual(st['current'], 'sm1-2')
-        self.assertEqual(client.call('/api/path/track', 'POST', {'track': 'nope'})[0], 400)
+        self.assertEqual(client.call('/api/path/plan', 'POST', {'answers': NEW})[0], 409)
 
-    def test_old_single_path_plans_are_upgraded(self):
+    def test_older_plans_are_upgraded_and_keep_progress(self):
         client, _, result = self.signup(NEW)
+        self.finish(client, 'sm1-1')
         uid = result['user']['id']
-        with server.db() as c: c.execute("UPDATE plans SET plan=? WHERE user_id=?", ('{"version": 1, "startUnit": "u1", "testedOut": [], "focus": []}', uid))
+        with server.db() as c: c.execute("UPDATE plans SET plan=? WHERE user_id=?", ('{"version": 2, "track": "smart", "testedOut": ["sm1"], "focus": []}', uid))
         st = client.call('/api/path')[1]
-        self.assertEqual((st['plan']['version'], st['plan']['track']), (2, 'smart'))
+        self.assertEqual((st['plan']['version'], st['plan']['testedOut']), (3, []))
+        self.assertEqual(st['units'][0]['lessons'][0]['status'], 'done')
+        self.assertEqual(st['current'], 'sm1-2')
+
+    def test_free_learners_skip_pro_units(self):
+        client, _, _ = self.signup({**NEW, 'goal': 'count'})
+        st = client.call('/api/path')[1]
+        cc2 = next(u for u in st['units'] if u['id'] == 'cc2')
+        self.assertTrue(cc2['pro']); self.assertEqual({l['status'] for l in cc2['lessons']}, {'pro'})
+        self.assertEqual(client.call('/api/path/lesson/cc2-1')[0], 402)
+        client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
+        st = client.call('/api/path')[1]
+        self.assertEqual({l['status'] for l in next(u for u in st['units'] if u['id'] == 'cc2')['lessons']}, {'locked'})
 
     def test_daily_goal_can_change(self):
         client, _, _ = self.signup(NEW)

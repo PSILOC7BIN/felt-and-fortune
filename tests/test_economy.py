@@ -149,18 +149,6 @@ class EconomyTests(unittest.TestCase):
         self.assertTrue(ev['earned'])
         self.assertIn(ev['reward'], client.call('/api/store')[1]['owned'])
 
-    def test_two_new_lessons_a_day(self):
-        client, _, _ = self.signup(NEW)
-        self.assertEqual(self.finish(client, 'sm1-1')[0], 200)
-        self.assertEqual(self.finish(client, 'sm1-2')[0], 200)
-        status, body = client.call('/api/path/lesson/sm1-3')
-        self.assertEqual(status, 423)
-        self.assertIn('tomorrow', body['error'])
-        state = client.call('/api/path')[1]
-        self.assertEqual(state['pacing']['blocked'], 'daily-cap')
-        self.assertEqual(client.call('/api/path/lesson/sm1-1')[0], 200)                 # replays stay open
-        self.assertEqual(client.call(f'/api/path/lesson/sm1-3?day={DAY(1)}')[0], 200)   # opens the next day
-
     def test_checkpoint_needs_two_days(self):
         server.PACING['daily_new'] = 99
         try:
@@ -182,7 +170,7 @@ class EconomyTests(unittest.TestCase):
     def test_pro_units_and_trial(self):
         client, _, _ = self.signup({**NEW, 'goal': 'count'})
         state = client.call('/api/path')[1]
-        self.assertFalse(state['units'][0]['pro']); self.assertTrue(state['units'][1]['pro'])
+        self.assertFalse(state['units'][0]['pro']); self.assertTrue(next(u for u in state['units'] if u['id'] == 'cc2')['pro'])
         eco = client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-annual'})[1]
         self.assertEqual((eco['plan']['pro'], eco['plan']['status'], eco['energy']), (True, 'trial', None))
         self.assertIsNotNone(eco['plan']['trialEnds'])

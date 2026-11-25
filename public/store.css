@@ -214,3 +214,9 @@
 .friend-board .who { display: grid; min-width: 0; } .friend-board .who small { color: var(--muted); display: inline-flex; align-items: center; gap: 4px; } .friend-board .who .glyph { width: 13px; height: 13px; color: #FF9500; }
 .friend-board .xp { font-family: var(--round); }
 .small-link { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 14px; text-decoration: none; } .small-link .glyph { width: 16px; height: 16px; }
+
+/* One path: progress ring and phase dividers */
+.path-progress { width: 56px; height: 56px; flex: none; display: grid; place-items: center; border-radius: 50%; background: conic-gradient(var(--c, #0A84FF) var(--pct, 0%), var(--panel2) 0); }
+.path-progress b { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--panel); font: 900 13px var(--round); }
+.phase-divider { display: flex; align-items: center; gap: 12px; max-width: 600px; margin: 28px auto 10px; font: 900 13px var(--round); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.phase-divider::before, .phase-divider::after { content: ""; flex: 1; height: 2px; background: var(--border); border-radius: 2px; }

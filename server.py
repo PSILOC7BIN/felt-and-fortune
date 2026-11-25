@@ -434,8 +434,8 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
         row=self.c.execute('SELECT plan,answers FROM plans WHERE user_id=?',(self.user['id'],)).fetchone()
         if not row: return None
         plan=json.loads(row['plan'])
-        if plan.get('version',1)<2 or plan.get('track') not in coach.TRACKS:
-            # Plans from before tracks existed: rebuild from the saved survey answers (XP is kept).
+        if plan.get('version',1)<3 or plan.get('track') not in coach.TRACKS:
+            # Older plans (single track, test-outs): rebuild as one full path. Lesson ids are unchanged, so progress is kept.
             plan=coach.build_plan(json.loads(row['answers']))
             self.c.execute('UPDATE plans SET plan=?,updated=? WHERE user_id=?',(json.dumps(plan),time.time(),self.user['id']))
         return plan
@@ -460,10 +460,12 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
                 if len(ds)>=coach.CHECKPOINT_DAYS: done.setdefault(cp,100)
         else:
             done.update({l:100 for l in order if l.endswith('-checkpoint') and l not in done})
-        current=next((l for l in order if l not in done and l not in tested),None)
-        cur_i=order.index(current) if current else len(order)
         units=coach.path_units(plan)
         pro=economy.is_pro(c,uid)
+        # Free learners skip past Pro units and keep going through the free ones.
+        pro_lessons=set() if pro else {l['id'] for u in units if u['pro'] for l in u['lessons']}
+        current=next((l for l in order if l not in done and l not in tested and l not in pro_lessons),None)
+        cur_i=order.index(current) if current else len(order)
         firsts={r['lesson_id']:r['day'] for r in c.execute('SELECT lesson_id,day FROM lesson_first WHERE user_id=?',(uid,))}
         new_today=sum(1 for l,day in firsts.items() if day==today and not l.endswith(('-review','-checkpoint')))
         pacing={'newToday':new_today,'dailyNew':PACING['daily_new']}
@@ -471,34 +473,25 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             for l in u['lessons']:
                 if l['id'] in done: l['status']='done';l['best']=done[l['id']]
                 elif l['id'] in tested: l['status']='tested'
+                elif l['id'] in pro_lessons: l['status']='pro'
                 elif l['id']==current: l['status']='current'
                 else: l['status']='locked' if order.index(l['id'])>cur_i else 'open'
                 if l.get('checkpoint'):
                     l['passes']=sorted(passes.get(l['id'],()))[-coach.CHECKPOINT_DAYS:]
                 if l['status']=='current':
-                    if u['pro'] and not pro: l['status']='pro';pacing['blocked']='pro'
-                    elif l.get('checkpoint'):
+                    if l.get('checkpoint'):
                         unit_days=[firsts.get(x['id']) for x in u['lessons'] if not x.get('checkpoint') and not x.get('review')]
                         ready=max([d for d in unit_days if d] or [''])
                         if today in passes.get(l['id'],()): l['status']='rest';l['opens']='tomorrow';pacing['blocked']='checkpoint-again'
                         elif ready==today: l['status']='rest';l['opens']='tomorrow';pacing['blocked']='checkpoint-wait'
-                    elif not l.get('review') and new_today>=PACING['daily_new']: l['status']='rest';l['opens']='tomorrow';pacing['blocked']='daily-cap'
         economy.apply_freezes(c,uid,today)
         streak=economy.streak_info(c,uid,today)[0]
         by_day=dict(c.execute('SELECT day,SUM(xp) FROM xp_log WHERE user_id=? GROUP BY day',(uid,)).fetchall())
         week=[{'day':(date.fromisoformat(today)-timedelta(days=i)).isoformat()} for i in range(6,-1,-1)]
         for w in week: w['xp']=by_day.get(w['day'],0)
         finished=sum(1 for l in order if l in done or l in tested)
-        # Per-track progress counts finished lessons plus the units placement would skip in that track,
-        # the same way the header counts the current track.
-        row=c.execute('SELECT answers FROM plans WHERE user_id=?',(uid,)).fetchone()
-        answers=json.loads(row['answers']) if row and row['answers'] else None
-        def skipped(t):
-            if t==plan['track']: return set(plan['testedOut'])
-            try: return set(coach.build_plan(answers,track=t)['testedOut']) if answers else set()
-            except ValueError: return set()
-        tracks=[{**t,'done':sum(1 for u in coach.TRACKS[t['id']] for l in u['lessons'] if l['id'] in done or u['id'] in skips)}
-                for t in coach.track_summaries() for skips in [skipped(t['id'])]]
+        tracks=[]
+        if not current and pro_lessons: pacing['blocked']='pro'
         return {'plan':plan,'units':units,'current':current,'tracks':tracks,'pacing':pacing,'pro':pro,'stats':{'xp':sum(by_day.values()),'todayXp':by_day.get(today,0),'dailyXp':plan['dailyXp'],'streak':streak,'week':week,'done':finished,'total':len(order)}}
     def path_api(self,path,method):
         c=self.c;uid=self.user['id'];d=self.data
@@ -509,16 +502,12 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             self.throttle('plan',30)
             try: answers=coach.validate_answers(d.get('answers'));plan=coach.build_plan(answers)
             except ValueError as e: raise ApiError(str(e))
+            require(not c.execute('SELECT 1 FROM lesson_progress WHERE user_id=? LIMIT 1',(uid,)).fetchone(),'Your path is set once you start learning. It already covers the whole course.',409)
             now=time.time()
             c.execute('INSERT INTO plans VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET answers=excluded.answers,plan=excluded.plan,updated=excluded.updated',(uid,json.dumps(answers),json.dumps(plan),now,now))
             return self.send_json(self.path_state(plan))
         if path=='/api/path/track' and method=='POST':
-            self.throttle('plan',30)
-            row=c.execute('SELECT answers FROM plans WHERE user_id=?',(uid,)).fetchone();require(row,'Build your plan first.',409)
-            track=str(d.get('track',''));require(track in coach.TRACKS,'Choose a track.')
-            plan=coach.build_plan(json.loads(row['answers']),track=track)
-            c.execute('UPDATE plans SET plan=?,updated=? WHERE user_id=?',(json.dumps(plan),time.time(),uid))
-            return self.send_json(self.path_state(plan))
+            raise ApiError('Paths can’t be switched. Every path covers the whole course; yours is ordered for your goals.',410)
         if path=='/api/path/goal' and method=='POST':
             plan=self.load_plan();require(plan,'Build your plan first.',409)
             minutes=int(num(d,'minutes',5,20));require(minutes in (5,10,15,20),'Choose 5, 10, 15, or 20 minutes.')
