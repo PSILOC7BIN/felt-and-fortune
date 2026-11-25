@@ -1,0 +1,62 @@
+# Builds an unsigned iPhone app (.ipa) on a GitHub-hosted Mac, for sideloading with Sideloadly or AltStore,
+# which sign it with your own Apple ID. Run it from the Actions tab: "Build iOS .ipa" → Run workflow.
+name: Build iOS .ipa
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base:
+        description: "Server the app talks to (https:// for a hosted server, or http://<your-PC-ip>:8000 for testing on your Wi-Fi)"
+        required: true
+        default: "http://192.168.0.168:8000"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install packages
+        run: npm ci
+
+      - name: Build the app's web bundle
+        env:
+          FF_API_BASE: ${{ inputs.api_base }}
+        run: |
+          case "$FF_API_BASE" in
+            https://*) python scripts/build_native.py ;;
+            *) python scripts/build_native.py --dev ;;
+          esac
+          npx cap sync ios
+
+      - name: Compile (unsigned)
+        run: |
+          xcodebuild -project ios/App/App.xcodeproj -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+
+      - name: Package .ipa
+        run: |
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qry FeltAndFortune.ipa Payload
+          ls -lh FeltAndFortune.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: FeltAndFortune-ipa
+          path: FeltAndFortune.ipa
+          retention-days: 14
