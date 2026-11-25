@@ -1,8 +1,10 @@
 # Builds an unsigned iPhone app (.ipa) on a GitHub-hosted Mac, for sideloading with Sideloadly or AltStore,
-# which sign it with your own Apple ID. Run it from the Actions tab: "Build iOS .ipa" → Run workflow.
+# which sign it with your own Apple ID. Runs on every push to app-v2 (and by hand once this file is on main).
 name: Build iOS .ipa
 
 on:
+  push:
+    branches: [app-v2]
   workflow_dispatch:
     inputs:
       api_base:
@@ -34,7 +36,7 @@ jobs:
 
       - name: Build the app's web bundle
         env:
-          FF_API_BASE: ${{ inputs.api_base }}
+          FF_API_BASE: ${{ inputs.api_base || 'http://192.168.0.168:8000' }}
         run: |
           case "$FF_API_BASE" in
             https://*) python scripts/build_native.py ;;
