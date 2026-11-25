@@ -7,7 +7,7 @@
     var dark = pref === 'dark' || (pref === 'auto' && media && media.matches);
     document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute('content', dark ? '#000000' : '#F2F2F7');
+    if (meta) meta.setAttribute('content', dark ? '#0B1022' : '#F5F6FB');
   }
   window.ffSetTheme = function (value) { pref = value; try { localStorage.setItem('ff-theme', value); } catch (e) { /* ignore */ } apply(); };
   window.ffTheme = function () { return pref; };

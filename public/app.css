@@ -104,7 +104,7 @@ a.tool-card:active { transform: translateY(4px); box-shadow: none; }
 .hand { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .hand-label { font: 800 12px var(--round); letter-spacing: .08em; text-transform: uppercase; color: #E3F6E8; min-height: 14px; }
 .hand .cards { display: flex; gap: 8px; flex-wrap: nowrap; }
-.pc { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 90px; flex-shrink: 0; border-radius: 10px; background: #fff; color: #1C1C1E; border: 1px solid #D1D1D6; box-shadow: 0 3px 0 #0000001f, 0 6px 14px #00000018; font: 700 34px/1 var(--round); }
+.pc { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 90px; flex-shrink: 0; border-radius: 10px; background: #fff; color: #141B33; border: 1px solid #D1D1D6; box-shadow: 0 3px 0 #0000001f, 0 6px 14px #00000018; font: 700 34px/1 var(--round); }
 .pc.red { color: #E0261B; }
 .pc b { position: absolute; top: 6px; left: 7px; display: flex; flex-direction: column; align-items: center; font: 800 15px/1 var(--round); }
 .pc b i { font-style: normal; font-size: 12px; }
@@ -165,7 +165,7 @@ a.tool-card:active { transform: translateY(4px); box-shadow: none; }
 .strat-chart td { width: 34px; height: 26px; text-align: center; border-radius: 6px; padding: 0; border: 0; }
 .ch-H { background: #FFE8E6; color: #B5170D; } .ch-S { background: #E3F6E8; color: #1E7B34; } .ch-D { background: #E8F1FF; color: #0062CC; } .ch-P { background: #F3E8FA; color: #8944AB; } .ch-R { background: #EDEDF0; color: #48484A; }
 .strat-chart tr.hl-row th { color: var(--text); }
-.strat-chart td.hl { outline: 3px solid #1C1C1E; outline-offset: -1px; }
+.strat-chart td.hl { outline: 3px solid #141B33; outline-offset: -1px; }
 .chart-key { display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: center; align-items: center; font-size: 13px; color: var(--muted); margin: 10px 0 0; }
 .chart-key span { display: inline-block; min-width: 24px; padding: 2px 4px; border-radius: 6px; text-align: center; font-weight: 800; }
 
@@ -311,6 +311,6 @@ a.weak-card:active { transform: translateY(4px); box-shadow: none; }
 .track-option button, .track-option .pill { width: auto; flex: none; }
 .track-sheet { text-align: left; align-items: stretch; }
 .track-sheet h2 { text-align: center; }
-[data-theme="dark"] .track-hero, [data-theme="dark"] .track-option.current { background: #1C1C1E; }
-[data-theme="dark"] .track-bar, [data-theme="dark"] .track-option { border-color: #38383A; }
+[data-theme="dark"] .track-hero, [data-theme="dark"] .track-option.current { background: #141B33; }
+[data-theme="dark"] .track-bar, [data-theme="dark"] .track-option { border-color: #2A3456; }
 @media (max-width: 700px) { .track-bar { flex-wrap: wrap; } .track-option { flex-wrap: wrap; row-gap: 10px; align-items: flex-start; } .track-option .track-copy { flex-basis: calc(100% - 72px); } .track-option button, .track-option .pill { margin-left: 72px; } }

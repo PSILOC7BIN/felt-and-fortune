@@ -1,0 +1,60 @@
+/* Felt & Fortune themes: "Daylight" (light) and "Midnight Felt" (dark).
+   Loaded last, so it layers atmosphere over the base styles without restating them. */
+
+:root {
+  --suits: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='%23283A8C' fill-opacity='.045' font-family='Arial' font-size='22'%3E%3Ctext x='8' y='30'%3E%E2%99%A0%3C/text%3E%3Ctext x='68' y='30'%3E%E2%99%A5%3C/text%3E%3Ctext x='38' y='90'%3E%E2%99%A3%3C/text%3E%3Ctext x='98' y='90'%3E%E2%99%A6%3C/text%3E%3C/g%3E%3C/svg%3E");
+  --glow-a: rgba(52, 199, 89, .16);
+  --glow-b: rgba(0, 122, 255, .13);
+  --glow-c: rgba(255, 149, 0, .12);
+  --glow-d: rgba(175, 82, 222, .10);
+  --sheen: linear-gradient(180deg, rgba(255, 255, 255, .9), rgba(255, 255, 255, .7));
+  --card-glow: 0 1px 2px rgba(30, 40, 80, .05), 0 10px 30px rgba(60, 80, 160, .08);
+  --bg: #F5F6FB;
+}
+
+/* One painted backdrop for the whole app; shells let it show through. */
+html { background: var(--bg); }
+body {
+  background:
+    radial-gradient(900px 520px at -5% -8%, var(--glow-a), transparent 62%),
+    radial-gradient(820px 480px at 105% 0%, var(--glow-b), transparent 60%),
+    radial-gradient(760px 520px at 85% 105%, var(--glow-c), transparent 62%),
+    radial-gradient(700px 480px at 0% 100%, var(--glow-d), transparent 60%),
+    var(--suits) 0 0 / 120px 120px repeat,
+    var(--bg) !important;
+  background-attachment: fixed !important;
+  min-height: 100vh;
+}
+.app-shell, .learn-shell, .landing, .shell, .coach-screen { background: transparent !important; }
+.coach-foot:not(.ok):not(.bad) { background: rgba(255, 255, 255, .82); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+
+/* Cards: soft colored lift instead of flat grey shadows. */
+.panel, .tool-card, .side-card, .sim-card, .stat-tile, .big-tile, .track-bar, .track-option, .weak-card, .price-card, .auth-box {
+  box-shadow: var(--card-glow);
+}
+.learn-rail { background: rgba(255, 255, 255, .7); -webkit-backdrop-filter: saturate(180%) blur(22px); backdrop-filter: saturate(180%) blur(22px); }
+.track-bar { background: rgba(255, 255, 255, .78); -webkit-backdrop-filter: blur(16px); backdrop-filter: blur(16px); }
+
+/* ---------- Midnight Felt ---------- */
+:root[data-theme="dark"] {
+  --bg: #0B1022;
+  --panel: #141B33; --panel2: #1B2442; --text: #EEF1FF; --muted: #A3ABCB; --border: #2A3456;
+  --glow-a: rgba(48, 209, 88, .16);
+  --glow-b: rgba(94, 92, 230, .22);
+  --glow-c: rgba(10, 132, 255, .14);
+  --glow-d: rgba(191, 90, 242, .12);
+  --suits: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='%23B8C4FF' fill-opacity='.05' font-family='Arial' font-size='22'%3E%3Ctext x='8' y='30'%3E%E2%99%A0%3C/text%3E%3Ctext x='68' y='30'%3E%E2%99%A5%3C/text%3E%3Ctext x='38' y='90'%3E%E2%99%A3%3C/text%3E%3Ctext x='98' y='90'%3E%E2%99%A6%3C/text%3E%3C/g%3E%3C/svg%3E");
+  --card-glow: 0 1px 0 rgba(255, 255, 255, .04) inset, 0 12px 32px rgba(0, 0, 0, .35);
+}
+[data-theme="dark"] .coach-foot:not(.ok):not(.bad) { background: rgba(11, 16, 34, .82); }
+[data-theme="dark"] .learn-rail { background: rgba(13, 18, 38, .72); }
+[data-theme="dark"] .track-bar { background: rgba(20, 27, 51, .72); }
+[data-theme="dark"] .panel, [data-theme="dark"] .tool-card, [data-theme="dark"] .side-card, [data-theme="dark"] .stat-tile, [data-theme="dark"] .track-option, [data-theme="dark"] .sheet, [data-theme="dark"] .choice-tile {
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, .035), rgba(255, 255, 255, 0));
+}
+[data-theme="dark"] .primary:not(:disabled) { box-shadow: 0 4px 0 #0A4FA8, 0 8px 24px rgba(10, 132, 255, .35); }
+[data-theme="dark"] .node.current, [data-theme="dark"] .node.next { filter: drop-shadow(0 0 14px rgba(120, 160, 255, .45)); }
+
+@media (prefers-reduced-motion: no-preference) {
+  body { transition: background-color .3s ease; }
+}
