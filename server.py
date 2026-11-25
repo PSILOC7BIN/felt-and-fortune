@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from datetime import date, timedelta
 from engine import basic, total, hilo, deviation, INDICES, simulate
 import coach
+mimetypes.add_type('application/manifest+json', '.webmanifest')
 from practice_api import PracticeRoutes, grade_transcript, record_skills, BadTranscript
 import economy, quests
 from economy import EconomyRoutes

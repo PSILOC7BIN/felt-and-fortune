@@ -3,10 +3,20 @@
   "appName": "Felt & Fortune",
   "webDir": "native-www",
   "backgroundColor": "#0B1022",
-  "ios": { "contentInset": "never" },
-  "android": { "allowMixedContent": false },
+  "ios": {
+    "contentInset": "always"
+  },
+  "android": {
+    "allowMixedContent": false
+  },
   "plugins": {
-    "SplashScreen": { "launchShowDuration": 600, "backgroundColor": "#0B1022", "showSpinner": false },
-    "LocalNotifications": { "iconColor": "#34C759" }
+    "SplashScreen": {
+      "launchShowDuration": 600,
+      "backgroundColor": "#0B1022",
+      "showSpinner": false
+    },
+    "LocalNotifications": {
+      "iconColor": "#34C759"
+    }
   }
 }

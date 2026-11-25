@@ -4,14 +4,27 @@
     {
       "name": "felt-and-fortune",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["server.py"],
+      "runtimeArgs": [
+        "server.py"
+      ],
       "port": 8000
     },
     {
       "name": "felt-and-fortune-qa",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["scripts/qa_server.py"],
+      "runtimeArgs": [
+        "scripts/qa_server.py"
+      ],
       "port": 8001
+    },
+    {
+      "name": "felt-and-fortune-phone",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-c",
+        "import os,runpy;os.environ['HOST']='0.0.0.0';runpy.run_path('server.py',run_name='__main__')"
+      ],
+      "port": 8000
     }
   ]
 }

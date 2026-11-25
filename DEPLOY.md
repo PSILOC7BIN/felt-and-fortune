@@ -84,3 +84,20 @@ python scripts/build_casinos.py      # geocodes new casinos with OpenStreetMap (
 node scripts/build_us_map.mjs        # US state outlines (US Census, via us-atlas) and pin positions
 ```
 Every casino shows the date of its newest source and a warning when sources disagree. Re-check rules regularly; they change often.
+
+## Testing on your iPhone
+
+**Option A: home-screen app (works today, from Windows).** Start the server for your network (the `felt-and-fortune-phone` launch config, or `$env:HOST='0.0.0.0'; python server.py`), open `http://<your-computer-ip>:8000` in Safari on the iPhone (same Wi-Fi), tap Share → **Add to Home Screen**. It opens full screen from its own icon, with no browser bar. It still needs the server running.
+
+**Option B: the real native app (needs a Mac).** Apple only builds iPhone apps with Xcode, which runs on macOS.
+1. On a Mac, install Xcode (free, Mac App Store) and Node.js, clone the repo, `git checkout app-v2`, `npm install`.
+2. Point the app at a server:
+   - Testing against your PC on the same Wi-Fi: `FF_API_BASE=http://<pc-ip>:8000 python3 scripts/build_native.py --dev && npx cap sync ios`
+   - Or a hosted server: `FF_API_BASE=https://your-app.fly.dev python3 scripts/build_native.py && npx cap sync ios`
+3. `npx cap open ios`. In Xcode, select the **App** target → Signing & Capabilities → Team: add your Apple ID (a free account works for your own phone).
+4. Plug in the iPhone, trust the computer, turn on **Settings → Privacy & Security → Developer Mode**, pick the phone as the run destination, and press Run.
+5. First launch: **Settings → General → VPN & Device Management** → trust your developer certificate. Allow the "local network" prompt.
+
+With a free Apple ID the install expires after 7 days (just press Run again). For longer-lived installs and sharing with testers, join the Apple Developer Program ($99/year) and use **TestFlight**; a cloud Mac service (Codemagic, GitHub Actions macOS runners) can then build and upload without owning a Mac.
+
+Regenerate icons after changing the logo: `node scripts/build_icons.mjs`.

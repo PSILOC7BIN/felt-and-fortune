@@ -6,6 +6,13 @@
 	<string>$(CAPACITOR_DEBUG)</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Felt &amp; Fortune connects to your test server on this network.</string>
 	<key>CFBundleDisplayName</key>
         <string>Felt &amp; Fortune</string>
 	<key>CFBundleExecutable</key>
