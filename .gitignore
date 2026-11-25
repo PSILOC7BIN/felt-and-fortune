@@ -9,3 +9,7 @@ presentation/.build/*
 !presentation/.build/render-final.mjs
 # Word lock files
 ~$*
+node_modules/
+native-www/
+android/app/build/
+ios/App/build/

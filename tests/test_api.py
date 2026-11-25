@@ -37,6 +37,26 @@ class ApiTests(unittest.TestCase):
     def session(self,client=None):
         return self.record(client or self.a,'session',{'date':'2026-09-14','game':'Blackjack','hours':2,'profit':100,'ev':25,'fields':{'table':'A'}},self.bank)
     def member(self,role='viewer',share=20): return self.a.call('/api/members','POST',{'bankroll':self.bank,'username':self.b.username,'role':role,'share':share})
+    def test_native_app_uses_bearer_token(self):
+        app='capacitor://localhost'
+        def call(path,method='GET',body=None,token=None):
+            headers={'Content-Type':'application/json','Origin':app}
+            if token: headers['Authorization']='Bearer '+token
+            req=urllib.request.Request(self.base+path,data=json.dumps(body or {}).encode() if method!='GET' else None,headers=headers,method=method)
+            try:
+                with urllib.request.urlopen(req) as res: return res.status,json.load(res),res.headers
+            except urllib.error.HTTPError as e: return e.code,json.load(e),e.headers
+        status,body,headers=call('/api/login','POST',{'email':self.a.username+'@example.test','password':'Test-password-only-42'})
+        self.assertEqual(status,200);token=body['token']
+        self.assertIsNone(headers.get('Set-Cookie'));self.assertEqual(headers.get('Access-Control-Allow-Origin'),app)
+        self.assertEqual(call('/api/me',token=token)[1]['user']['username'],self.a.username)
+        self.assertIsNone(call('/api/me')[1]['user'])
+        self.assertEqual(call('/api/logout','POST',token=token)[0],200)
+        self.assertIsNone(call('/api/me',token=token)[1]['user'])
+        # The website never receives a token in the response body.
+        self.assertNotIn('token',self.a.call('/api/login','POST',{'email':self.a.username+'@example.test','password':'Test-password-only-42'})[1])
+        req=urllib.request.Request(self.base+'/api/me',method='OPTIONS',headers={'Origin':'https://evil.example'})
+        with self.assertRaises(urllib.error.HTTPError): urllib.request.urlopen(req)
     def test_auth_cookie_and_logout(self):
         self.assertTrue(any(c.name=='ap_session' and c.has_nonstandard_attr('HttpOnly') for c in self.a.jar))
         self.assertEqual(self.a.call('/api/logout','POST')[0],200)

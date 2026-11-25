@@ -4,6 +4,24 @@
   "scripts": {
     "start": "python server.py",
     "test": "python -m unittest discover -s tests -v",
-    "check": "node --check public/app.js && python -m compileall -q server.py engine.py"
+    "check": "node --check public/app.js && python -m compileall -q server.py engine.py",
+    "native:build": "python scripts/build_native.py",
+    "native:sync": "python scripts/build_native.py && npx cap sync",
+    "native:android": "npx cap open android",
+    "native:ios": "npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.2",
+    "@capacitor/haptics": "^8.0.2",
+    "@capacitor/ios": "^8.6.2",
+    "@capacitor/local-notifications": "^8.3.1",
+    "@capacitor/preferences": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.4"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.2"
   }
 }

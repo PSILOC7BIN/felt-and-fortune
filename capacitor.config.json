@@ -1,0 +1,12 @@
+{
+  "appId": "com.feltandfortune.app",
+  "appName": "Felt & Fortune",
+  "webDir": "native-www",
+  "backgroundColor": "#0B1022",
+  "ios": { "contentInset": "never" },
+  "android": { "allowMixedContent": false },
+  "plugins": {
+    "SplashScreen": { "launchShowDuration": 600, "backgroundColor": "#0B1022", "showSpinner": false },
+    "LocalNotifications": { "iconColor": "#34C759" }
+  }
+}

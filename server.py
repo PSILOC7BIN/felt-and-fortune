@@ -68,6 +68,10 @@ def num(data,key,minimum=-1e9,maximum=1e9,default=0):
     require(math.isfinite(val) and minimum<=val<=maximum,f'Invalid {key}.')
     return val
 
+# The iOS and Android apps (Capacitor) load the interface from inside the app and call the API from these origins.
+# They authenticate with a bearer token instead of a cookie, so cross-site request forgery does not apply.
+NATIVE_ORIGINS={'capacitor://localhost','https://localhost','ionic://localhost'}
+
 class Handler(BaseHTTPRequestHandler, PracticeRoutes):
     server_version='FeltAndFortune/1.0'
     def log_message(self,fmt,*args):
@@ -76,11 +80,21 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
     def send_json(self,data,status=200,cookie=None):
         raw=json.dumps(data,allow_nan=False).encode()
         self.send_response(status);self.send_header('Content-Type','application/json; charset=utf-8');self.send_header('Cache-Control','no-store')
-        if cookie: self.send_header('Set-Cookie',cookie)
+        if cookie and not self.native(): self.send_header('Set-Cookie',cookie)
+        self.cors_headers()
         self.security_headers();self.send_header('Content-Length',str(len(raw)));self.end_headers();self.wfile.write(raw)
     def security_headers(self):
         self.send_header('X-Content-Type-Options','nosniff');self.send_header('Referrer-Policy','same-origin');self.send_header('X-Frame-Options','DENY')
         self.send_header('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src https://www.youtube-nocookie.com; connect-src 'self'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+    def native(self): return self.headers.get('Origin') in NATIVE_ORIGINS
+    def cors_headers(self):
+        if self.native():
+            self.send_header('Access-Control-Allow-Origin',self.headers['Origin']);self.send_header('Vary','Origin')
+            self.send_header('Access-Control-Allow-Headers','Content-Type, Authorization');self.send_header('Access-Control-Allow-Methods','GET, POST, PATCH, DELETE')
+            self.send_header('Access-Control-Max-Age','600')
+    def do_OPTIONS(self):
+        # CORS preflight for the native apps only.
+        self.send_response(204 if self.native() else 403);self.cors_headers();self.send_header('Content-Length','0');self.end_headers()
     def do_GET(self): self.dispatch()
     def do_POST(self): self.dispatch()
     def do_PATCH(self): self.dispatch()
@@ -96,17 +110,16 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
                     host=self.headers.get('Host','')
                     allowed={f'http://{host}',f'https://{host}'}
                     if os.environ.get('PUBLIC_ORIGIN'): allowed={os.environ['PUBLIC_ORIGIN'].rstrip('/')}
-                    require(not origin or origin in allowed,'Origin not allowed.',403)
+                    require(not origin or origin in allowed or origin in NATIVE_ORIGINS,'Origin not allowed.',403)
                     require(self.headers.get('Content-Type','').startswith('application/json'),'JSON required.',415)
                     length=int(self.headers.get('Content-Length','0'));require(0<length<=2000000,'Request too large.',413)
                     self.data=json.loads(self.rfile.read(length))
                     require(isinstance(self.data,dict),'Invalid JSON object.')
                 with db() as c:
                     self.c=c;self.user=None
-                    cookie=self.headers.get('Cookie','')
-                    match=re.search(r'(?:^|;\s*)ap_session=([a-f0-9]{64})(?:;|$)',cookie)
-                    if match:
-                        self.user=c.execute('SELECT users.* FROM sessions JOIN users ON users.id=sessions.user_id WHERE token=? AND expires>?',(hashlib.sha256(match[1].encode()).hexdigest(),time.time())).fetchone()
+                    token=self.session_token()
+                    if token:
+                        self.user=c.execute('SELECT users.* FROM sessions JOIN users ON users.id=sessions.user_id WHERE token=? AND expires>?',(hashlib.sha256(token.encode()).hexdigest(),time.time())).fetchone()
                     return self.api(path)
             require(self.command=='GET','Method not allowed.',405)
             rel=path.lstrip('/')
@@ -125,6 +138,13 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
         except (BrokenPipeError,ConnectionResetError): pass
         except Exception as e:
             print(type(e).__name__,str(e));self.send_json({'error':'The request could not be completed.'},500)
+    def session_token(self):
+        # Native apps send a bearer token (and never cookies); the website uses the HttpOnly cookie.
+        if self.native():
+            m=re.fullmatch(r'Bearer ([a-f0-9]{64})',self.headers.get('Authorization',''))
+        else:
+            m=re.search(r'(?:^|;\s*)ap_session=([a-f0-9]{64})(?:;|$)',self.headers.get('Cookie',''))
+        return m[1] if m else None
     def auth(self): require(self.user is not None,'Please sign in to continue.',401)
     def throttle(self,bucket,limit=15):
         key=(self.client_address[0],bucket);now=time.time()
@@ -137,7 +157,9 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
         self.c.execute('INSERT INTO sessions VALUES(?,?,?)',(hashlib.sha256(token.encode()).hexdigest(),user['id'],time.time()+86400*14))
         self.c.commit()
         secure='; Secure' if os.environ.get('COOKIE_SECURE')=='1' else ''
-        self.send_json({'user':public_user(user)},cookie=f'ap_session={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=1209600{secure}')
+        body={'user':public_user(user)}
+        if self.native(): body['token']=token
+        self.send_json(body,cookie=f'ap_session={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=1209600{secure}')
     def record(self,id):
         row=self.c.execute('SELECT * FROM records WHERE id=?',(id,)).fetchone();require(row,'Record not found.',404);return row
     def role(self,bankroll):
@@ -195,8 +217,8 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
             require(row and hmac.compare_digest(candidate,row['password']),'Email or password is incorrect.',401)
             return self.session(row)
         if path=='/api/logout' and method=='POST':
-            token=re.search(r'ap_session=([a-f0-9]{64})',self.headers.get('Cookie',''))
-            if token: c.execute('DELETE FROM sessions WHERE token=?',(hashlib.sha256(token[1].encode()).hexdigest(),))
+            token=self.session_token()
+            if token: c.execute('DELETE FROM sessions WHERE token=?',(hashlib.sha256(token.encode()).hexdigest(),))
             return self.send_json({'ok':True},cookie='ap_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0')
         if path=='/api/forgot-password' and method=='POST':
             self.throttle('reset',5)

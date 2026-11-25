@@ -16,7 +16,9 @@ const brand=()=>`<a href="/" class="brand"><img src="/logo.svg" alt="">Felt & Fo
 const link=(key,label,cls='')=>`<a class="${cls}" href="${paths[key]}">${label||names[key]}</a>`;
 let requestController=new AbortController();
 let user=null,configInfo={},routeVersion=0,cleanup=()=>{},cleanupNav=()=>{},activeBankroll=localStorage.getItem('activeBankroll')||'',toastTimer;
-async function api(path,method='GET',data){const res=await fetch(path,{method,signal:requestController.signal,headers:method==='GET'?{}:{'Content-Type':'application/json'},body:method==='GET'?undefined:JSON.stringify(data||{})});const body=await res.json();if(res.status===401&&user){user=null;go('/auth/login');}if(!res.ok)throw new Error(body.error||'Request failed.');return body;}
+// In the iOS/Android apps the API lives on the hosted server (FF_API_BASE from config.js) and uses a bearer token.
+const API_BASE=window.FF_API_BASE||'';
+async function api(path,method='GET',data){const headers=method==='GET'?{}:{'Content-Type':'application/json'};const token=API_BASE&&localStorage.getItem('ff-token');if(token)headers.Authorization='Bearer '+token;const res=await fetch(API_BASE+path,{method,signal:requestController.signal,headers,body:method==='GET'?undefined:JSON.stringify(data||{})});const body=await res.json();if(API_BASE&&body&&body.token)localStorage.setItem('ff-token',body.token);if(API_BASE&&path==='/api/logout')localStorage.removeItem('ff-token');if(res.status===401&&user){user=null;go('/auth/login');}if(!res.ok)throw new Error(body.error||'Request failed.');return body;}
 function toast(message){$('#toast').textContent=message;$('#toast').style.display='block';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').style.display='none',4500);}
 const money=(n,currency='USD')=>new Intl.NumberFormat('en-US',{style:'currency',currency,maximumFractionDigits:2}).format(Number(n)||0);
 const number=(n,d=1)=>new Intl.NumberFormat('en-US',{maximumFractionDigits:d}).format(n);

@@ -31,7 +31,7 @@ export const Sound = (() => {
     tick: () => tone(880, 0, .03, { gain: .04 }),
   };
   return {
-    play(name) { if (on && fx[name]) { try { fx[name](); } catch { /* audio unavailable */ } } },
+    play(name) { window.ffHaptic?.(name); if (on && fx[name]) { try { fx[name](); } catch { /* audio unavailable */ } } },
     get on() { return on; },
     toggle() { on = !on; localStorage.setItem('ff-sound', on ? 'on' : 'off'); if (on) fx.tap(); return on; },
   };
