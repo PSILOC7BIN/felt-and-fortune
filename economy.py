@@ -13,7 +13,8 @@ import cosmetics as C
 from datetime import date, timedelta
 
 ENERGY_MAX = 25
-ENERGY_REFILL_SECONDS = 20 * 60          # +1 every 20 minutes: full again in about 8 hours
+ENERGY_REFILL_SECONDS = 30 * 60          # +1 every 30 minutes: full from empty in about half a day
+ENERGY_CLAIM = (5, 3600)                 # a free +5 to claim once an hour (like Duolingo's battery panel)
 STREAK_BONUS = (3, 2)                     # every 3 correct answers in a row gives +2 Energy
 ENERGY_EARN_CAP = 10                      # (legacy) daily cap on earned-back Energy
 ROUND_COST = {'challenge': 3}             # the Shoe Challenge costs 3 up front; every other answer costs 1
@@ -26,9 +27,9 @@ LEAGUES = ['Bronze', 'Silver', 'Gold', 'Sapphire', 'Ruby', 'Emerald', 'Diamond']
 
 PLANS = {
     'pro-monthly': {'name': 'Pro Monthly', 'price': 9.99, 'period': 'month', 'days': 30, 'trial': 0},
-    'pro-annual': {'name': 'Pro Annual', 'price': 49.99, 'period': 'year', 'days': 365, 'trial': 14, 'perMonth': 4.17},
-    'pro-lifetime': {'name': 'Pro Lifetime', 'price': 119.99, 'period': None, 'days': None, 'trial': 0},
+    'pro-annual': {'name': 'Pro Yearly', 'price': 79.99, 'period': 'year', 'days': 365, 'trial': 14, 'perMonth': 6.67, 'save': 33},
 }
+# No lifetime plan is sold any more; 'pro-lifetime' entitlements bought earlier stay valid (see entitlement()).
 
 # Chip packs (real money, test mode). Chips buy cosmetics and power-ups only: never wagers, no cash value.
 CHIP_PACKS = {
@@ -59,6 +60,7 @@ CREATE TABLE IF NOT EXISTS rounds(id TEXT PRIMARY KEY, user_id TEXT REFERENCES u
 CREATE TABLE IF NOT EXISTS lesson_first(user_id TEXT REFERENCES users(id), lesson_id TEXT, day TEXT, PRIMARY KEY(user_id, lesson_id));
 CREATE TABLE IF NOT EXISTS checkpoint_passes(user_id TEXT REFERENCES users(id), lesson_id TEXT, day TEXT, accuracy INTEGER, PRIMARY KEY(user_id, lesson_id, day));
 CREATE TABLE IF NOT EXISTS quest_claims(user_id TEXT REFERENCES users(id), day TEXT, quest TEXT, PRIMARY KEY(user_id, day, quest));
+CREATE TABLE IF NOT EXISTS energy_claims(user_id TEXT PRIMARY KEY REFERENCES users(id), at REAL);
 CREATE TABLE IF NOT EXISTS milestone_claims(user_id TEXT REFERENCES users(id), streak_start TEXT, days INTEGER, PRIMARY KEY(user_id, streak_start, days));
 '''
 
@@ -145,6 +147,29 @@ def settle(c, uid, items):
     if at: c.execute('UPDATE wallets SET energy=?, energy_at=? WHERE user_id=?', (e, at, uid))
     else: c.execute('UPDATE wallets SET energy=? WHERE user_id=?', (e, uid))
     return {'energy': e, 'spent': spent, 'bonus': bonus}
+
+
+def claim_in(c, uid, now=None):
+    """Seconds until the free hourly +5 can be claimed (0 = ready)."""
+    now = now or time.time()
+    row = c.execute('SELECT at FROM energy_claims WHERE user_id=?', (uid,)).fetchone()
+    return 0 if not row else max(0, int(row['at'] + ENERGY_CLAIM[1] - now))
+
+
+def claim_energy(c, uid, now=None):
+    """Add the free hourly +5. Returns the amount added, or 0 if not ready, full, or Pro."""
+    now = now or time.time()
+    if is_pro(c, uid) or claim_in(c, uid, now): return 0
+    e, _ = energy(c, uid, now)
+    if e >= ENERGY_MAX: return 0
+    add = min(ENERGY_CLAIM[0], ENERGY_MAX - e)
+    c.execute('UPDATE wallets SET energy=?, energy_at=CASE WHEN ?>=? THEN ? ELSE energy_at END WHERE user_id=?', (e + add, e + add, ENERGY_MAX, now, uid))
+    c.execute('INSERT INTO energy_claims VALUES(?,?) ON CONFLICT(user_id) DO UPDATE SET at=excluded.at', (uid, now))
+    return add
+
+
+def full_in(e, next_in):
+    return None if e is None or e >= ENERGY_MAX else (next_in or 0) + (ENERGY_MAX - e - 1) * ENERGY_REFILL_SECONDS
 
 
 def has_energy(c, uid):
@@ -332,6 +357,8 @@ def snapshot(c, uid, today, daily_xp):
     return {
         'plan': ent, 'stars': w['stars'], 'freezes': w['freezes'], 'freezeMax': FREEZE_MAX,
         'energy': None if ent['pro'] else e, 'energyMax': ENERGY_MAX, 'energyNextIn': None if ent['pro'] else next_in,
+        'energyFullIn': None if ent['pro'] else full_in(e, next_in), 'energyClaimIn': None if ent['pro'] else claim_in(c, uid),
+        'energyClaim': ENERGY_CLAIM[0], 'energyRefillMinutes': ENERGY_REFILL_SECONDS // 60,
         'streak': length, 'streakToday': extended, 'repair': repair_offer(c, uid, today),
         'look': {**DEFAULT_LOOK, **json.loads(w['look'] or '{}')}, 'owned': json.loads(w['owned'] or '[]'),
         'questsReady': quests_ready(c, uid, today, daily_xp), 'events': events, 'billingMode': BILLING_MODE,
@@ -354,6 +381,12 @@ class EconomyRoutes:
                 e, next_in = energy(c, uid)
                 return self.send_json({'error': 'You’re out of Energy for now.', 'energy': e, 'energyNextIn': next_in, 'outOfEnergy': True}, 402)
             return self.send_json({'round': rid, 'energy': None if is_pro(c, uid) else e})
+        if path == '/api/energy/claim' and method == 'POST':
+            require(not is_pro(c, uid), 'Pro already has unlimited Energy.')
+            require(energy(c, uid)[0] < ENERGY_MAX, 'Your Energy is already full.')
+            wait = claim_in(c, uid); require(not wait, f'Your next free Energy is ready in {max(1, round(wait / 60))} min.', 429)
+            added = claim_energy(c, uid)
+            return self.send_json({'added': added, **snapshot(c, uid, today, daily_xp)})
         if path == '/api/quests' and method == 'GET':
             return self.send_json({**Q.board(c, uid, today, daily_xp), 'rerollsAllowed': 2 if is_pro(c, uid) else 1})
         if path == '/api/quests/claim' and method == 'POST':
@@ -374,7 +407,10 @@ class EconomyRoutes:
             w = wallet(c, uid); owned = json.loads(w['owned'] or '[]')
             wk = week_start(today); ends = (date.fromisoformat(wk) + timedelta(days=7)).isoformat()
             sets = [{**st, 'price': set_price(st['id'], owned)} for st in C.set_progress(owned)]
-            return self.send_json({'plans': PLANS, 'chipPacks': CHIP_PACKS, 'powerups': POWERUPS, 'catalog': C.CATALOG, 'rarity': C.RARITY, 'sets': sets,
+            import coach
+            pro_units = [u for u in coach.UNITS if u['id'] in coach.PRO_UNITS]
+            pro_content = {'units': len(pro_units), 'lessons': sum(len(u['lessons']) for u in pro_units)}
+            return self.send_json({'proContent': pro_content, 'plans': PLANS, 'chipPacks': CHIP_PACKS, 'powerups': POWERUPS, 'catalog': C.CATALOG, 'rarity': C.RARITY, 'sets': sets,
                                    'featured': {'items': C.featured(wk), 'ends': ends}, 'billingMode': BILLING_MODE, **snapshot(c, uid, today, daily_xp)})
         if path == '/api/store/buy' and method == 'POST':
             item_id = str(d.get('item', '')); item = SHOP.get(item_id); require(item, 'Unknown item.')

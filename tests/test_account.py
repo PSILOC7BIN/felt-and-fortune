@@ -44,7 +44,7 @@ class AccountTests(unittest.TestCase):
             kinds = [r['kind'] for r in c.execute('SELECT kind FROM outbox WHERE user_id=? ORDER BY id', (uid,))]
             body = c.execute("SELECT body FROM outbox WHERE user_id=? AND kind='receipt'", (uid,)).fetchone()['body']
         self.assertEqual(kinds, ['receipt', 'cancel'])
-        self.assertIn('$49.99', body); self.assertIn('Trial ends', body)
+        self.assertIn('$79.99', body); self.assertIn('Trial ends', body)
 
     def test_trial_reminder_sent_once(self):
         client, _, _ = self.signup(NEW); uid = self.uid(client)

@@ -55,14 +55,15 @@ export function createLearn(ctx) {
       const body = $('#coach-body'), foot = $('#coach-foot');
       foot.className = 'coach-foot';
       if (phase === 'intro') {
-        body.innerHTML = `<div class="coach-intro">${ace('happy', 'ace-xl bob')}<h1>Hi, I’m Ace.</h1><p>Answer ${questions.length} quick questions, a few of them real blackjack checks. I’ll build a plan that takes you from where you are now to playing like a pro.</p></div>`;
+        body.innerHTML = `<div class="coach-intro">${ace('happy', 'ace-xl bob')}<h1>Hi, I’m Ace.</h1><p>A few questions about you, then a placement check that gets harder as you go. It stops as soon as I know your level, so you start at the right place, not at square one.</p></div>`;
         foot.innerHTML = `<a class="button ghost" href="/auth/login">I already have an account</a><button type="button" class="primary chunky" id="coach-next">Let’s go</button>`;
         $('#coach-next').onclick = () => { Sound.play('select'); phase = 'question'; window.ffTrack?.('survey_start'); paint(); };
         return;
       }
       if (phase === 'question') {
         const q = questions[state.i], selected = q.options.findIndex(o => o[0] === state.answers[q.id]);
-        body.innerHTML = `<div class="coach-q">${q.kind === 'placement' ? '<span class="pill">Quick check</span>' : `<span class="pill quiet">Question ${state.i + 1} of ${questions.length}</span>`}<div class="speech">${ace(q.kind === 'placement' ? 'think' : 'happy', 'ace-sm')}<div class="bubble"><h1>${esc(q.prompt)}</h1></div></div>${table(q)}${choiceTiles(q.options.map(o => o[1]), selected)}</div>`;
+        const stageNote = q.kind === 'placement' && state.passed?.[q.stage - 1] && questions[state.i - 1]?.stage !== q.stage ? `<p class="stage-note">${g('check')} ${esc(STAGE_NAMES[q.stage - 1])} passed. Harder questions now.</p>` : '';
+        body.innerHTML = `<div class="coach-q">${stageNote}${q.kind === 'placement' ? `<span class="pill">Placement · Level ${q.stage} of 5 · ${esc(STAGE_NAMES[q.stage])}</span>` : `<span class="pill quiet">Question ${state.i + 1} of ${questions.length}</span>`}<div class="speech">${ace(q.kind === 'placement' ? 'think' : 'happy', 'ace-sm')}<div class="bubble"><h1>${esc(q.prompt)}</h1></div></div>${table(q)}${choiceTiles(q.options.map(o => o[1]), selected)}</div>`;
         foot.innerHTML = `<button type="button" class="ghost" id="coach-back" ${state.i === 0 ? 'disabled' : ''}>${g('back')} Back</button><button type="button" class="primary chunky" id="coach-next" ${selected < 0 ? 'disabled' : ''}>${state.i === questions.length - 1 ? 'Build my plan' : 'Continue'}</button>`;
         const choose = i => {
           state.answers[q.id] = q.options[i][0]; persist(); Sound.play('select');
@@ -70,13 +71,39 @@ export function createLearn(ctx) {
           $('#coach-next').disabled = false;
         };
         $$('.choice-tile').forEach(b => b.onclick = () => choose(Number(b.dataset.i)));
-        $('#coach-back').onclick = () => { state.i = Math.max(0, state.i - 1); persist(); paint(); };
-        $('#coach-next').onclick = () => {
+        $('#coach-back').onclick = () => {
+          let j = state.i - 1; while (j > 0 && state.answers[questions[j].id] === 'skip') j--;
+          state.i = Math.max(0, j); persist(); paint();
+        };
+        $('#coach-next').onclick = async () => {
           if (!state.answers[q.id]) return;
+          const nq = questions[state.i + 1];
+          if (q.kind === 'placement' && (!nq || nq.stage !== q.stage)) {
+            // End of a placement stage: the server grades it (answers never reach the browser).
+            $('#coach-next').disabled = true;
+            let r; try { r = await api('/api/placement/check', 'POST', { stage: q.stage, answers: state.answers }); } catch { r = { passed: false }; }
+            state.passed = state.passed || []; state.passed[q.stage] = r.passed;
+            if (!r.passed || r.last) {
+              questions.forEach(x => { if (x.kind === 'placement' && x.stage > q.stage) state.answers[x.id] = 'skip'; });
+              state.level = r.passed ? q.stage : q.stage - 1;
+              state.i = questions.findIndex((x, j) => j > state.i && x.kind !== 'placement');
+              persist(); Sound.play(r.passed ? 'reveal' : 'tap'); phase = 'placed'; paint(); return;
+            }
+          }
           state.i++; persist(); Sound.play('tap');
           phase = state.i >= questions.length ? 'building' : 'question'; paint();
         };
         keyChoose = choose; keyCount = q.options.length;
+        return;
+      }
+      if (phase === 'placed') {
+        const lv = state.level || 0;
+        const msg = lv >= 5 ? 'You aced every level, all the way to advantage play. Your path starts in the Expert Lab material, with nothing you already know.'
+          : lv === 0 ? 'No problem. You’ll start with the essentials and build up from there. Everyone’s path ends in the same place.'
+          : `You know ${esc(STAGE_NAMES.slice(1, lv + 1).join(', ').toLowerCase())}. Your path skips that and starts where things get new for you.`;
+        body.innerHTML = `<div class="coach-intro placed-intro">${ace(lv >= 3 ? 'wow' : 'happy', 'ace-lg pop')}<span class="pill">Placement done · Level ${lv} of 5</span><h1>${lv ? 'Got it. I know where to start you.' : 'Got it. We’ll start at the beginning.'}</h1><p>${msg}</p><div class="level-steps">${STAGE_NAMES.slice(1).map((n, k) => `<span class="${k < lv ? 'on' : ''}">${k < lv ? g('check') : ''}${esc(n)}</span>`).join('')}</div><p class="muted">A few last questions about how you like to practice.</p></div>`;
+        foot.innerHTML = `<span></span><button type="button" class="primary chunky" id="coach-next">Continue</button>`;
+        $('#coach-next').onclick = () => { Sound.play('tap'); phase = 'question'; paint(); };
         return;
       }
       if (phase === 'building') {
@@ -99,7 +126,7 @@ export function createLearn(ctx) {
         body.innerHTML = planReveal(plan);
         const user = ctx.getUser();
         foot.innerHTML = `<button type="button" class="ghost" id="coach-redo">Retake</button><button type="button" class="primary chunky" id="coach-save">${user ? 'Save my plan' : 'Create my free account'}</button>`;
-        $('#coach-redo').onclick = () => { state.i = 0; state.answers = {}; persist(); phase = 'question'; paint(); };
+        $('#coach-redo').onclick = () => { state.i = 0; state.answers = {}; state.passed = []; persist(); phase = 'question'; paint(); };
         $('#coach-save').onclick = async e => {
           if (!user) { phase = 'signup'; paint(); return; }
           e.currentTarget.disabled = true;
@@ -133,8 +160,10 @@ export function createLearn(ctx) {
     paint();
   }
 
+  const STAGE_NAMES = ['Getting started', 'Table basics', 'Core strategy', 'The full chart', 'Card counting', 'Advantage play'];
+
   function planReveal(plan) {
-    return `<div class="plan-reveal">${ace('wow', 'ace-md pop')}<span class="pill">Your plan is ready</span><div class="track-hero c-${TRACK_COLOR[plan.track] || 'blue'}"><span class="tool-icon">${g(TRACK_GLYPH[plan.track] || 'star')}</span><div><small>Your track</small><strong>${esc(plan.trackName || '')}</strong><span>${esc(plan.tagline || '')}</span></div></div><h1>${esc(plan.headline)}</h1><div class="plan-grid"><div class="stat-tile blue"><small>Level</small><strong>${esc(plan.level)}</strong></div><div class="stat-tile green"><small>Daily goal</small><strong>${plan.dailyXp} XP</strong><span>${plan.minutes} min · ${plan.lessonsPerDay} lesson${plan.lessonsPerDay > 1 ? 's' : ''}</span></div><div class="stat-tile orange"><small>Finish by</small><strong>${fmtDate(plan.finish)}</strong><span>${plan.remainingLessons} lessons</span></div><div class="stat-tile purple"><small>Goal</small><strong>${esc(plan.goalName)}</strong></div></div><div class="glass-card"><h2>Why this plan</h2><ul class="reasons">${plan.reasons.map(r => `<li>${g('check')}<span>${esc(r)}</span></li>`).join('')}</ul><p class="milestone">${g('trophy')}<span>${esc(plan.milestone.text)}</span></p></div></div>`;
+    return `<div class="plan-reveal">${ace('wow', 'ace-md pop')}<span class="pill">Your plan is ready</span><div class="track-hero c-${TRACK_COLOR[plan.track] || 'blue'}"><span class="tool-icon">${g(TRACK_GLYPH[plan.track] || 'star')}</span><div><small>Your track</small><strong>${esc(plan.trackName || '')}</strong><span>${esc(plan.tagline || '')}</span></div></div><h1>${esc(plan.headline)}</h1>${plan.startTitle ? `<div class="start-at"><span class="tool-icon">${g('path')}</span><span><small>Your Unit 1</small><strong>${esc(plan.startTitle)}</strong>${plan.placed?.length ? `<em>${plan.placed.length} units you already know are skipped</em>` : '<em>Starting from the essentials</em>'}</span></div>` : ''}<div class="plan-grid"><div class="stat-tile blue"><small>Level</small><strong>${esc(plan.level)}</strong></div><div class="stat-tile green"><small>Daily goal</small><strong>${plan.dailyXp} XP</strong><span>${plan.minutes} min · ${plan.lessonsPerDay} lesson${plan.lessonsPerDay > 1 ? 's' : ''}</span></div><div class="stat-tile orange"><small>Finish by</small><strong>${fmtDate(plan.finish)}</strong><span>${plan.remainingLessons} lessons</span></div><div class="stat-tile purple"><small>Goal</small><strong>${esc(plan.goalName)}</strong></div></div><div class="glass-card"><h2>Why this plan</h2><ul class="reasons">${plan.reasons.map(r => `<li>${g('check')}<span>${esc(r)}</span></li>`).join('')}</ul><p class="milestone">${g('trophy')}<span>${esc(plan.milestone.text)}</span></p></div></div>`;
   }
 
 
@@ -146,8 +175,8 @@ export function createLearn(ctx) {
   // First-run tour: four short cards that explain the tabs.
   function tour() {
     const steps = [
-      ['path', 'Your path', 'Lessons unlock in order. You can learn 2 new lessons a day, and each unit ends with a checkpoint you pass on two different days. That spacing is what makes it stick.'],
-      ['dumbbell', 'Practice', 'Seven trainers, one skill each. Free practice rounds use Energy, which refills over the day. Lessons and Weak Spots never cost Energy.'],
+      ['path', 'Your path', 'Lessons unlock in order. Each unit ends with a checkpoint that opens once your skill rating is high enough. Practice raises your rating.'],
+      ['dumbbell', 'Practice', 'Trainers for every skill, plus a free-play table. Each answer uses 1 Energy and 3 right in a row gives 2 back. Tap the Energy chip to claim free Energy every hour.'],
       ['target', 'Quests', 'Three daily quests and weekly goals reward careful play with chips, freezes, and a monthly event card back.'],
       ['gem', 'Store', 'Spend chips on card backs, table mats, and coach styles. Earn them by learning or buy a pack. Pro unlocks the counting courses.'],
     ];
@@ -163,6 +192,13 @@ export function createLearn(ctx) {
     paint();
   }
 
+  function stickySide(side) {
+    if (!side) return;
+    const fit = () => { side.style.top = Math.min(24, innerHeight - side.offsetHeight - 24) + 'px'; };
+    const ro = new ResizeObserver(fit); ro.observe(side); addEventListener('resize', fit); fit();
+    ctx.onCleanup(() => { ro.disconnect(); removeEventListener('resize', fit); });
+  }
+
   async function learnPage() {
     const [state, eco, league, skillSum] = await Promise.all([api('/api/path?day=' + localDate()), loadEconomy(api, localDate), api('/api/league?day=' + localDate()).catch(() => null), api('/api/skills?day=' + localDate()).catch(() => null)]);
     if (!state.plan) {
@@ -171,16 +207,19 @@ export function createLearn(ctx) {
     }
     const { plan, units, stats, current } = state;
     const milestone = plan.milestone.unit;
-    const byId = {}; units.forEach((u, ui) => u.lessons.forEach(l => byId[l.id] = { ...l, unit: u, ui }));
+    const placedUnits = units.filter(u => u.placed), pathUnits = units.filter(u => !u.placed);
+    const byId = {}; pathUnits.forEach((u, ui) => u.lessons.forEach(l => byId[l.id] = { ...l, unit: u, ui })); placedUnits.forEach(u => u.lessons.forEach(l => byId[l.id] = { ...l, unit: u, ui: -1 }));
     const cur = current ? byId[current] : null;
     let n = 0;
-    const unitHtml = units.map((u, ui) => {
-      const tested = plan.testedOut.includes(u.id);
+    const gateHTML = gate => `<ul class="gate-list">${(gate || []).map(x => `<li class="${x.met ? 'met' : ''}"><span class="gate-name">${esc(x.name)}</span><span class="gate-bar"><i style="width:${Math.min(100, Math.max(5, (x.rating - 900) / (x.target - 900) * 100))}%"></i></span><b>${x.rating}<small>/${x.target}</small></b>${x.met ? `<span class="gate-ok">${g('check')}</span>` : `<a class="button small" href="${x.tool}">Practice</a>`}</li>`).join('')}</ul>`;
+    const placedHtml = placedUnits.length ? `<details class="placed-card"><summary><span class="tool-icon">${g('check')}</span><span class="placed-copy"><strong>${placedUnits.length} units placed out</strong><small>Your placement check showed you know these. Open any lesson for a refresher; they’re not required.</small></span><span class="placed-more">Show</span></summary><ul>${placedUnits.map(u => `<li><span>${esc(u.title)}</span><span class="placed-links">${u.lessons.filter(l => !l.checkpoint && !l.review).map((l, i) => `<a href="/learn/lesson/${l.id}" title="${esc(l.title)}" class="${l.status === 'done' ? 'done' : ''}">${i + 1}</a>`).join('')}</span></li>`).join('')}</ul></details>` : '';
+    const unitHtml = pathUnits.map((u, ui, units) => {
+      const tested = false;
       const nodes = u.lessons.map((l, li) => {
         const off = OFFSETS[(n++) % OFFSETS.length];
         const ic = l.status === 'done' ? 'check' : l.status === 'pro' ? 'crown' : l.status === 'rest' ? 'snow' : l.status === 'locked' ? 'lock' : l.checkpoint ? 'shield' : l.review ? 'dumbbell' : 'star';
-        const label = `${l.title}: ${{ done: 'completed', tested: 'tested out', current: 'start here', open: 'available', locked: 'locked', pro: 'part of Pro', rest: 'opens tomorrow' }[l.status]}`;
-        return `<div class="node-row" style="--x:${off}px">${l.id === current ? `<span class="start-bubble" aria-hidden="true">${stats.done ? 'Next' : 'Start'}</span>` : ''}<button type="button" class="node ${l.status} ${l.review ? 'review' : ''} ${l.checkpoint ? 'checkpoint' : ''}" data-lesson="${l.id}" aria-label="${esc(label)}">${g(ic)}${l.status === 'current' ? '<span class="ring"></span>' : ''}${l.checkpoint && l.status !== 'done' && l.status !== 'tested' ? `<span class="cp-pips">${[0, 1].map(i => `<i class="${(l.passes || []).length > i ? 'on' : ''}"></i>`).join('')}</span>` : ''}</button>${l.id === current ? `<div class="node-ace" style="--side:${off > 0 ? -1 : 1}">${ace('happy', 'ace-sm bob')}</div>` : ''}</div>`;
+        const label = `${l.title}: ${{ done: 'completed', tested: 'placed out', current: 'start here', open: 'available', locked: 'locked', pro: 'part of Pro', rest: 'opens tomorrow', gated: 'raise your skill rating to open' }[l.status]}`;
+        return `<div class="node-row" style="--x:${off}px">${l.id === current ? `<span class="start-bubble" aria-hidden="true">${stats.done ? 'Next' : 'Start'}</span>` : ''}<button type="button" class="node ${l.status} ${l.review ? 'review' : ''} ${l.checkpoint ? 'checkpoint' : ''}" data-lesson="${l.id}" aria-label="${esc(label)}">${g(ic)}${l.status === 'current' ? '<span class="ring"></span>' : ''}${l.status === 'gated' ? `<span class="cp-gate">${Math.round(100 * (l.gate || []).filter(x => x.met).length / Math.max(1, (l.gate || []).length))}%</span>` : ''}</button>${l.id === current ? `<div class="node-ace" style="--side:${off > 0 ? -1 : 1}">${ace('happy', 'ace-sm bob')}</div>` : ''}</div>`;
       }).join('');
       const goal = u.id === milestone ? `<div class="goal-flag">${g('trophy')}<span>${esc(plan.goalName)} goal</span></div>` : '';
       const phaseHead = u.phase && (ui === 0 || units[ui - 1].phase !== u.phase) ? `<div class="phase-divider"><span>${esc(u.phase)}</span></div>` : '';
@@ -192,12 +231,15 @@ export function createLearn(ctx) {
     const meta = { smart: ['green', 'star'], strategy: ['blue', 'cards'], counter: ['orange', 'count'], pro: ['purple', 'trophy'] }[plan.track] || ['blue', 'star'];
     const trackBar = `<div class="track-bar c-${meta[0]}"><span class="tool-icon">${g(meta[1])}</span><div class="track-copy"><small>Your path · ${stats.done}/${stats.total} lessons</small><strong>${esc(plan.trackName)} path</strong><span>Covers the whole course, from table basics to advantage play, ordered for your goals.</span></div><div class="path-progress" style="--pct:${Math.round(stats.done / stats.total * 100)}%" aria-label="${Math.round(stats.done / stats.total * 100)}% complete"><b>${Math.round(stats.done / stats.total * 100)}%</b></div></div>`;
     const blocked = state.pacing?.blocked;
-    const paceCard = blocked === 'daily-cap' ? `<div class="resume-card c-indigo rest-card"><span class="resume-icon">${g('snow')}</span><span class="resume-copy"><small>${state.pacing.newToday} new lessons today · next one opens tomorrow</small><strong>Let it sink in. Review or practice now.</strong></span><a class="button small" href="/practice">Practice</a></div>`
+    const unmet = (state.pacing?.gate || []).filter(x => !x.met);
+    const paceCard = blocked === 'checkpoint-gate' && cur ? `<div class="resume-card c-${cur.unit.color} gate-card"><span class="resume-icon">${g('shield')}</span><span class="resume-copy"><small>Unit ${cur.ui + 1} checkpoint · almost there</small><strong>Raise ${unmet.map(x => `${esc(x.name)} to ${x.target}`).join(' and ')} to open it</strong>${gateHTML(state.pacing.gate)}</span></div>`
+      : blocked === 'daily-cap' ? `<div class="resume-card c-indigo rest-card"><span class="resume-icon">${g('snow')}</span><span class="resume-copy"><small>${state.pacing.newToday} new lessons today · next one opens tomorrow</small><strong>Let it sink in. Review or practice now.</strong></span><a class="button small" href="/practice">Practice</a></div>`
       : blocked === 'checkpoint-wait' ? `<div class="resume-card c-indigo rest-card"><span class="resume-icon">${g('shield')}</span><span class="resume-copy"><small>Checkpoint opens tomorrow</small><strong>Unit finished! Tomorrow, show what you remember.</strong></span><a class="button small" href="${cur?.unit.tool || '/practice'}">Practice</a></div>`
       : blocked === 'checkpoint-again' ? `<div class="resume-card c-indigo rest-card"><span class="resume-icon">${g('shield')}</span><span class="resume-copy"><small>Checkpoint 1 of 2 passed</small><strong>Pass it once more on another day to unlock the next unit.</strong></span><a class="button small" href="${cur?.unit.tool || '/practice'}">Practice</a></div>`
       : blocked === 'pro' ? `<button type="button" class="resume-card c-gold pro-card" id="resume-pro"><span class="resume-icon">${g('crown')}</span><span class="resume-copy"><small>Unit ${cur.ui + 1} · ${esc(cur.unit.title)}</small><strong>Unlock the rest of this track with Pro</strong></span><span class="resume-go">${g('next')}</span></button>` : '';
     const resume = paceCard || (cur ? `<a class="resume-card c-${cur.unit.color}" href="/learn/lesson/${cur.id}"><span class="resume-icon">${g('star')}</span><span class="resume-copy"><small>Unit ${cur.ui + 1} · ${esc(cur.unit.title)}</small><strong>${stats.done ? 'Continue' : 'Start'}: ${esc(cur.title)}</strong></span><span class="resume-go">${g('next')}</span></a>` : `<div class="resume-card c-gold"><span class="resume-icon">${g('trophy')}</span><span class="resume-copy"><small>Path complete</small><strong>You finished every lesson. Keep sharp in Practice.</strong></span></div>`);
-    $('#page').innerHTML = `<div class="learn-layout"><div class="path-col"><div class="learn-mobile-stats">${strip}</div>${repairCard(eco)}${trackBar}${resume}<div class="path">${unitHtml}</div></div><aside class="learn-side">${strip}${repairCard(eco)}<div class="side-card"><div class="side-head"><h3>Daily goal</h3><span>${stats.todayXp}/${stats.dailyXp} XP</span></div><div class="goal-bar"><span style="width:${goalPct}%"></span></div><p class="muted">${goalPct >= 100 ? 'Goal reached. Nice work today!' : `${stats.dailyXp - stats.todayXp} XP to go. Lessons and practice both count.`}</p><div class="week" aria-label="XP this week">${stats.week.map(w => `<div class="day ${w.xp ? 'on' : ''}" title="${w.day}: ${w.xp} XP"><span style="height:${Math.max(4, w.xp / maxWeek * 100)}%"></span><small>${new Date(w.day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' })}</small></div>`).join('')}</div></div><div class="side-card"><span class="pill">Placed as ${esc(plan.level)}</span><h3 class="plan-title">${esc(plan.headline)}</h3><p class="muted">Finish by ${fmtDate(plan.finish)} at ${plan.minutes} min a day.</p><details><summary>Why this plan</summary><ul class="reasons">${plan.reasons.map(r => `<li>${g('check')}<span>${esc(r)}</span></li>`).join('')}</ul></details>${stats.done ? '' : '<a class="button small" href="/start">Retake placement</a>'}</div>${skillsCard(skillSum)}${questsCard(eco)}${leagueCard(league)}</aside></div>`;
+    $('#page').innerHTML = `<div class="learn-layout"><div class="path-col"><div class="learn-mobile-stats">${strip}</div>${repairCard(eco)}${trackBar}${resume}${placedHtml}<div class="path">${unitHtml}</div></div><aside class="learn-side">${strip}${repairCard(eco)}<div class="side-card"><div class="side-head"><h3>Daily goal</h3><span>${stats.todayXp}/${stats.dailyXp} XP</span></div><div class="goal-bar"><span style="width:${goalPct}%"></span></div><p class="muted">${goalPct >= 100 ? 'Goal reached. Nice work today!' : `${stats.dailyXp - stats.todayXp} XP to go. Lessons and practice both count.`}</p><div class="week" aria-label="XP this week">${stats.week.map(w => `<div class="day ${w.xp ? 'on' : ''}" title="${w.day}: ${w.xp} XP"><span style="height:${Math.max(4, w.xp / maxWeek * 100)}%"></span><small>${new Date(w.day + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'narrow' })}</small></div>`).join('')}</div></div><div class="side-card"><span class="pill">Placed as ${esc(plan.level)}</span><h3 class="plan-title">${esc(plan.headline)}</h3><p class="muted">Finish by ${fmtDate(plan.finish)} at ${plan.minutes} min a day.</p><details><summary>Why this plan</summary><ul class="reasons">${plan.reasons.map(r => `<li>${g('check')}<span>${esc(r)}</span></li>`).join('')}</ul></details>${stats.done ? '' : '<a class="button small" href="/start">Retake placement</a>'}</div>${skillsCard(skillSum)}${questsCard(eco)}${leagueCard(league)}</aside></div>`;
+    stickySide($('.learn-side'));
     wireRepair(ctx, learnPage); celebrateEvents(ctx, eco?.events);
     if (!localStorage.getItem('ff-tour-v1') && !eco?.events?.length) setTimeout(() => tour(), 500);
     $('#resume-pro')?.addEventListener('click', () => paywall(ctx, 'Card counting and advantage play are part of Pro. You’ve finished the free first unit.'));
@@ -218,10 +260,11 @@ export function createLearn(ctx) {
       const open = b.parentElement.querySelector('.node-pop'); closePop(); if (open) return;
       const l = byId[b.dataset.lesson]; Sound.play('tap');
       if (l.status === 'pro') { closePop(); paywall(ctx, `${l.unit.title} is part of Pro.`); return; }
-      const text = l.checkpoint && !['done', 'tested', 'locked'].includes(l.status) ? `Score 90% or better on 2 different days to unlock the next unit. Passed ${(l.passes || []).length} of 2.${l.status === 'rest' ? ' Next try opens tomorrow.' : ''}`
-        : { done: `Best score ${l.best}%. Practice again for +5 XP.`, tested: 'You tested out of this. Review it any time.', current: 'Your next lesson. +10 XP and 10 chips', open: 'Ready when you are. +10 XP', locked: 'Finish the lessons before this one to unlock it.', rest: 'You’ve learned enough new material for today. This lesson opens tomorrow, and reviews and practice are open now.' }[l.status];
-      const action = l.status === 'locked' ? '<button type="button" disabled>Locked</button>' : l.status === 'rest' ? `<a class="button chunky" href="${l.unit.tool || '/practice'}">Practice instead</a>` : `<a class="button primary chunky" href="/learn/lesson/${l.id}">${l.status === 'done' || l.status === 'tested' ? 'Practice' : 'Start'}</a>`;
-      b.insertAdjacentHTML('afterend', `<div class="node-pop c-${l.unit.color} ${l.status}" role="dialog" aria-label="${esc(l.title)}"><small>Unit ${l.ui + 1} · ${esc(l.unit.title)}</small><h3>${esc(l.title)}</h3><p>${text}</p>${action}</div>`);
+      const text = l.checkpoint && !['done', 'tested', 'locked'].includes(l.status) ? (l.status === 'gated' ? 'Opens when your skill ratings reach these targets. Practice or replay this unit’s lessons to raise them.' : 'Score 90% or better to unlock the next unit. It’s harder than the lessons: faster drills, mixed house rules, and questions from the whole unit.') + gateHTML(l.gate)
+        : l.checkpoint && l.status === 'locked' ? 'Finish this unit’s lessons first. Then raise these skill ratings to open the checkpoint.' + gateHTML(l.gate)
+        : { done: `Best score ${l.best}%. Practice again for +5 XP.`, tested: 'You placed out of this. Review it any time.', current: 'Your next lesson. +10 XP and 10 chips', open: 'Ready when you are. +10 XP', locked: 'Finish the lessons before this one to unlock it.', rest: 'You’ve learned enough new material for today. This lesson opens tomorrow, and reviews and practice are open now.' }[l.status];
+      const action = l.status === 'locked' ? '<button type="button" disabled>Locked</button>' : l.status === 'gated' ? `<a class="button chunky" href="${(l.gate || []).find(x => !x.met)?.tool || '/practice'}">${g('dumbbell')} Practice to unlock</a>` : l.status === 'rest' ? `<a class="button chunky" href="${l.unit.tool || '/practice'}">Practice instead</a>` : `<a class="button primary chunky" href="/learn/lesson/${l.id}">${l.status === 'done' || l.status === 'tested' ? 'Practice' : 'Start'}</a>`;
+      b.insertAdjacentHTML('afterend', `<div class="node-pop c-${l.unit.color} ${l.status}" role="dialog" aria-label="${esc(l.title)}"><small>${l.ui < 0 ? 'Placed out' : `Unit ${l.ui + 1}`} · ${esc(l.unit.title)}</small><h3>${esc(l.title)}</h3><div class="pop-text">${text}</div>${action}</div>`);
     });
     const outside = e => { if (!e.target.closest('.node-pop')) closePop(); };
     document.addEventListener('click', outside);
@@ -301,7 +344,7 @@ export function createLearn(ctx) {
         Sound.play(cp && !cp.passed ? 'wrong' : 'complete');
         if (!cp || cp.passed) confetti({ count: r.accuracy === 100 ? 160 : 90 });
         const title = cp ? (cp.passed ? 'Checkpoint passed!' : 'Not quite yet') : r.accuracy === 100 ? 'Perfect lesson!' : 'Lesson complete!';
-        const cpLine = cp ? `<p class="muted">${cp.passed ? 'Pass it once more on a different day to unlock the next unit.' : `You need ${cp.need}% to pass. Practice the skill and try again tomorrow.`}</p>` : '';
+        const cpLine = cp ? `<p class="muted">${cp.passed ? 'The next unit is unlocked.' : `You need ${cp.need}% to pass. Practice the skill and try again whenever you’re ready.`}</p>` : '';
         body.innerHTML = `<div class="lesson-done">${ace(cp && !cp.passed ? 'oops' : 'wow', 'ace-xl pop')}<h1>${title}</h1>${cpLine}${goalHit ? `<p class="goal-hit">${g('flame')} Daily goal reached!</p>` : ''}<div class="plan-grid four"><div class="stat-tile yellow"><small>XP earned</small><strong>${g('bolt')} +<span class="count" data-to="${r.xp}">0</span></strong></div><div class="stat-tile purple"><small>Chips</small><strong id="done-stars">${g('chip')} +<span class="count" data-to="${r.stars || 0}">0</span></strong></div><div class="stat-tile green"><small>Accuracy</small><strong><span class="count" data-to="${r.accuracy}">0</span>%</strong></div><div class="stat-tile orange"><small>Streak</small><strong>${g('flame')} ${r.stats.streak}</strong></div></div><p class="muted">${firstTry} of ${questions} right on the first try.</p><div class="rate-lesson" id="rate-lesson"><span>How was this lesson?</span><div class="rate-stars">${[1, 2, 3, 4, 5].map(n => `<button type="button" class="rate-star" data-n="${n}" aria-label="${n} out of 5">${g('star')}</button>`).join('')}</div></div></div>`;
         $$('.rate-star', body).forEach(b => b.onclick = async () => { const n = Number(b.dataset.n); $$('.rate-star', body).forEach(x => x.classList.toggle('on', Number(x.dataset.n) <= n)); try { await api('/api/feedback', 'POST', { rating: n, area: 'lesson', page: lesson.id }); $('#rate-lesson span').textContent = 'Thanks for the rating!'; } catch { /* optional */ } });
         $$('.count', body).forEach((el, i) => setTimeout(() => countUp(el, Number(el.dataset.to)), 250 + i * 180));

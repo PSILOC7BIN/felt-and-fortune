@@ -122,7 +122,7 @@ def run_reminders(c, now=None):
             ref = str(int(r['renews']))
             if c.execute('INSERT OR IGNORE INTO reminders VALUES(?,?,?,?)', (r['id'], 'renewal', ref, now)).rowcount:
                 send(c, r, 'Your Felt & Fortune Pro renews soon',
-                     f"Your yearly Pro plan renews on {fmt_date(r['renews'])} for $49.99.\nNo action needed to keep it. To cancel: {origin()}/store#pro",
+                     f"Your yearly Pro plan renews on {fmt_date(r['renews'])} for $79.99.\nNo action needed to keep it. To cancel: {origin()}/store#pro",
                      'renewal-reminder'); sent += 1
     return sent + streak_nudges(c, now)
 

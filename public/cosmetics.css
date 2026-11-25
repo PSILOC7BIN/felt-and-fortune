@@ -141,3 +141,20 @@
   .fp-table .cards .pc + .pc { margin-left: -26px; }
 }
 .fp-table::before { content: none !important; }
+/* Free Play: readable coach notes in both themes, and a table that never changes size. */
+.fp-tip { background: var(--panel) !important; color: var(--text) !important; border-color: var(--border); }
+.fp-tip b, .fp-tip strong, .fp-tip span { color: inherit; }
+.fp-tip.bad { background: color-mix(in srgb, #FF3B30 9%, var(--panel)) !important; }
+.fp-tip.ok { background: color-mix(in srgb, #34C759 9%, var(--panel)) !important; }
+.fp-table { height: 400px; min-height: 0 !important; overflow: hidden; }
+.fp-hands { flex-wrap: nowrap; }
+.fp-table .cards:has(.pc:nth-child(4)) .pc + .pc { margin-left: -46px; }
+.fp-table .cards:has(.pc:nth-child(6)) .pc + .pc { margin-left: -62px; }
+.fp-hands:has(.fp-hand:nth-child(2)) .fp-hand { zoom: .85; }
+.fp-hands:has(.fp-hand:nth-child(3)) .fp-hand { zoom: .7; }
+@media (max-width: 700px) {
+  .fp-table { height: 340px; }
+  .fp-table .cards:has(.pc:nth-child(4)) .pc + .pc { margin-left: -50px; }
+  .fp-hands:has(.fp-hand:nth-child(2)) .fp-hand { zoom: .72; }
+  .fp-hands:has(.fp-hand:nth-child(3)) .fp-hand { zoom: .58; }
+}

@@ -3,11 +3,12 @@
 import { esc, $, $$, Sound, g, ace } from './ui.js';
 import { react } from './reactions.js';
 
-let cache = null;
+let cache = null, apiRef = null;
 export const economyState = () => cache;
 export const setEconomy = eco => { if (eco && 'stars' in eco) { cache = eco; applyLook(eco.look); paintChips(); } return cache; };
 
 export async function loadEconomy(api, localDate) {
+  apiRef = api;
   try { setEconomy(await api('/api/me/economy?day=' + localDate())); } catch { /* signed out or offline */ }
   return cache;
 }
@@ -27,7 +28,7 @@ export function chipsHTML(eco, streakOverride) {
   const streak = streakOverride ?? eco.streak;
   const energy = eco.plan.pro
     ? `<a class="chip pro-chip" href="/store" title="Pro: unlimited Energy">${g('crown')}<b>Pro</b></a>`
-    : `<a class="chip energy-chip ${eco.energy <= 5 ? 'low' : ''}" href="/store" title="Practice Energy${eco.energyNextIn ? `: +1 in ${mins(eco.energyNextIn)}` : ''}">${g('bolt')}<b data-energy>${eco.energy}</b><span class="sr">Energy</span></a>`;
+    : `<button type="button" class="chip energy-chip ${eco.energy <= 5 ? 'low' : ''} ${eco.energyClaimIn === 0 && eco.energy < eco.energyMax ? 'claimable' : ''}" data-energy-open title="Energy: ${eco.energy}/${eco.energyMax}">${g('bolt')}<b data-energy>${eco.energy}</b><span class="sr">Energy, open the Energy panel</span></button>`;
   return `<div class="eco-chips">
     <span class="chip streak ${eco.streakToday ? 'lit' : ''}" title="Day streak${eco.freezes ? ` · ${eco.freezes} freeze${eco.freezes > 1 ? 's' : ''} ready` : ''}">${g('flame')}<b>${streak}</b>${eco.freezes ? `<i class="freeze-dot" aria-label="${eco.freezes} streak freezes">${g('snow')}${eco.freezes > 1 ? eco.freezes : ''}</i>` : ''}<span class="sr">day streak</span></span>
     <a class="chip stars-chip" href="/store" title="Chips">${g('chip')}<b data-stars>${eco.stars}</b><span class="sr">chips</span></a>
@@ -53,9 +54,10 @@ export function openSheet(html, { wide = false, onClose } = {}) {
 }
 
 const PRO_PERKS = [
-  ['cards', 'All of Card Counter and Advantage Pro', 'Hi‑Lo at a full table, true count, bet ramps, index plays, Kelly betting, and team play.'],
-  ['bolt', 'Unlimited practice Energy', 'Drill any tool as long as you like.'],
-  ['shield', 'Cancel any time', 'Pro stays on until the end of the period you paid for.'],
+  ['cards', 'Card counting, advantage play, and the Expert Lab', 'Hi‑Lo at a full table, index plays, bet ramps, Kelly, and 13 expert units past the Illustrious 18.'],
+  ['bolt', 'Unlimited Energy', 'Practice and play Free Play as long as you like.'],
+  ['chart', 'Bankroll Simulator and Casino Map', 'Plan a game, a spread, and a trip before you risk a dollar.'],
+  ['shield', '14-day free trial, cancel any time', 'We email you 3 days before the trial ends.'],
 ];
 
 export function paywall(ctx, reason = '') {
@@ -64,22 +66,74 @@ export function paywall(ctx, reason = '') {
     <p class="muted">${esc(reason || 'Go from playing smart to playing with an edge.')}</p>
     <ul class="perks">${PRO_PERKS.map(([ic, t, d]) => `<li><span class="tool-icon sm">${g(ic)}</span><span><strong>${t}</strong><small>${d}</small></span></li>`).join('')}</ul>
     <p class="muted small">Basic strategy, money management, and responsible-gambling lessons stay free forever.</p>
-    <a class="button primary chunky" href="/store#plans" data-close>See plans</a><button type="button" class="ghost" data-close>Not now</button></div>`);
+    <a class="button primary chunky" href="/store#pro" data-close>Try Pro free for 14 days</a><p class="muted small">Then $79.99 a year ($6.67/month), or $9.99 month to month.</p><button type="button" class="ghost" data-close>Not now</button></div>`);
   return close;
 }
 
+// ---- Energy panel: tap the Energy chip. Shows x/25, time until full, and the free hourly +5. ----------
+const clock = t => t >= 3600 ? `${Math.floor(t / 3600)}h ${String(Math.floor(t % 3600 / 60)).padStart(2, '0')}m` : t >= 60 ? `${Math.floor(t / 60)}m ${String(t % 60).padStart(2, '0')}s` : `${t}s`;
+
+export function energyPanel(ctx, { title = 'Energy', mood = null, after = null, onGain = null, quitHref = null, quitLabel = 'Quit' } = {}) {
+  const api = ctx?.api || apiRef; if (!cache) return;
+  let t0 = Date.now(), timer = null;
+  const { host, close } = openSheet('<div class="energy-panel" id="energy-panel"></div>', { onClose: () => clearInterval(timer) });
+  const left = v => v == null ? null : Math.max(0, v - Math.floor((Date.now() - t0) / 1000));
+  const gain = (added, full) => {
+    onGain?.(added, full);
+    const box = $('.battery', host); if (box) { const f = document.createElement('span'); f.className = 'energy-float in-panel'; f.innerHTML = `+${added} ${g('bolt')}`; box.append(f); setTimeout(() => f.remove(), 1300); }
+  };
+  const paint = () => {
+    const el = $('#energy-panel', host); if (!el) return;
+    const eco = cache;
+    if (eco.plan?.pro) {
+      el.innerHTML = `<h2>${g('crown')} Unlimited Energy</h2><p class="muted">Pro never runs out. Practice as long as you like.</p><button type="button" class="primary chunky" data-close>Nice</button>`; return;
+    }
+    const max = eco.energyMax || 25, e = eco.energy ?? max, claimIn = left(eco.energyClaimIn || 0), fullIn = left(eco.energyFullIn), nextIn = left(eco.energyNextIn);
+    const cells = Array.from({ length: 5 }, (_, i) => `<i class="${e >= (i + 1) * max / 5 ? 'on' : e > i * max / 5 ? 'part' : ''}"></i>`).join('');
+    el.innerHTML = `${mood ? ace(mood, 'ace-md') : ''}<h2>${esc(title)}</h2>
+      <div class="battery ${e <= 5 ? 'low' : ''}" role="img" aria-label="${e} of ${max} Energy"><div class="battery-body"><span class="battery-fill" style="width:${e / max * 100}%"></span><span class="battery-cells">${cells}</span><b class="battery-num">${g('bolt')} ${e}<small>/${max}</small></b></div><i class="battery-cap"></i></div>
+      <p class="energy-when">${e >= max ? '<strong>Full!</strong> Each answer uses 1 Energy.' : `<strong>Full in <span data-left="full">${clock(fullIn)}</span></strong> · +1 every ${eco.energyRefillMinutes || 30} min`}</p>
+      <div class="refill-list">
+        <div class="refill-row free ${claimIn ? '' : 'ready'}"><span class="refill-ic">${g('gift')}</span><span class="refill-copy"><strong>Free Energy</strong><small>+${eco.energyClaim || 5} every hour, on the house</small></span>${claimIn ? `<span class="refill-wait">${g('rotr')} <span data-left="claim">${clock(claimIn)}</span></span>` : `<button type="button" class="primary small" id="ep-claim" ${e >= max ? 'disabled' : ''}>Claim +${eco.energyClaim || 5}</button>`}</div>
+        <div class="refill-row"><span class="refill-ic chips">${g('chip')}</span><span class="refill-copy"><strong>Full refill</strong><small>Top up to ${max} right now</small></span><button type="button" class="small" id="ep-refill" ${eco.stars < 350 || e >= max ? 'disabled' : ''}>${g('chip')} 350</button></div>
+        <a class="refill-row pro" href="/store#pro" data-close><span class="refill-ic crown">${g('crown')}</span><span class="refill-copy"><strong>Unlimited with Pro</strong><small>Never wait. Plus every counting course.</small></span><span class="refill-go">${g('next')}</span></a>
+      </div>
+      <p class="energy-tip">${g('flame')} Get 3 right in a row for +2 Energy. Reviewing mistakes is free.</p>
+      ${after && e > 0 ? '<button type="button" class="primary chunky" id="ep-go">Keep going</button>' : ''}
+      ${quitHref ? `<a class="button ghost" href="${quitHref}" data-close>${esc(quitLabel)}</a>` : `<button type="button" class="ghost" data-close>${after ? 'Not now' : 'Close'}</button>`}`;
+    $('#ep-claim', el)?.addEventListener('click', async ev => {
+      ev.currentTarget.disabled = true;
+      try { const r = await api('/api/energy/claim', 'POST', {}); setEconomy(r); t0 = Date.now(); Sound.play('energy'); paint(); gain(r.added, false); }
+      catch (err) { ctx?.toast?.(err.message); paint(); }
+    });
+    $('#ep-refill', el)?.addEventListener('click', async ev => {
+      ev.currentTarget.disabled = true;
+      try { const before = cache.energy; setEconomy(await api('/api/store/buy', 'POST', { item: 'refill' })); t0 = Date.now(); Sound.play('energy'); paint(); gain((cache.energy || 0) - before, true); }
+      catch (err) { ctx?.toast?.(err.message); paint(); }
+    });
+    $('#ep-go', el)?.addEventListener('click', () => { close(); after(); });
+  };
+  paint();
+  timer = setInterval(() => {
+    const eco = cache; if (!eco || eco.plan?.pro) return;
+    const claim = left(eco.energyClaimIn || 0), full = left(eco.energyFullIn), next = left(eco.energyNextIn);
+    if ((eco.energyClaimIn && !claim) || (eco.energyNextIn && !next)) { if (apiRef) loadEconomy(apiRef, () => new Date().toLocaleDateString('en-CA')).then(() => { t0 = Date.now(); paint(); }); else paint(); return; }
+    $$('[data-left="claim"]', host).forEach(x => x.textContent = clock(claim));
+    $$('[data-left="full"]', host).forEach(x => x.textContent = clock(full));
+  }, 1000);
+  return close;
+}
+
+document.addEventListener('click', e => {
+  const b = e.target.closest?.('[data-energy-open]'); if (!b || !cache) return;
+  e.preventDefault(); Sound.play('tap'); energyPanel(null);
+});
+
 export function outOfEnergy(ctx, eco, after) {
   Sound.play('wrong');
-  const canRefill = eco && eco.stars >= 350;
-  const { close } = openSheet(`<div class="paywall">${ace('oops', 'ace-md')}<h2>Out of Energy</h2>
-    <p class="muted">Practice rounds use Energy. You get 1 back about every hour${eco?.energyNextIn ? `, the next in ${mins(eco.energyNextIn)}` : ''}. Lessons, checkpoints, and Weak Spots never cost Energy.</p>
-    <div class="energy-meter big"><span style="width:${Math.round((eco?.energy || 0) / 25 * 100)}%"></span></div>
-    <button type="button" class="primary chunky" id="oe-refill" ${canRefill ? '' : 'disabled'}>${g('chip')} Refill for 350 chips</button>
-    <a class="button chunky pro-button" href="/store#plans" data-close>${g('crown')} Unlimited with Pro</a>
-    <a class="button ghost" href="/learn" data-close>Do a lesson instead</a></div>`);
-  $('#oe-refill')?.addEventListener('click', async () => {
-    try { setEconomy(await ctx.api('/api/store/buy', 'POST', { item: 'refill' })); Sound.play('energy'); close(); ctx.toast('Energy refilled.'); after?.(); } catch (e) { ctx.toast(e.message); }
-  });
+  if (eco) setEconomy(eco);
+  if (!cache) { loadEconomy(ctx.api, ctx.localDate).then(() => energyPanel(ctx, { title: 'Out of Energy', mood: 'oops', after })); return; }
+  energyPanel(ctx, { title: 'Out of Energy', mood: 'oops', after });
 }
 
 /** Start a standalone practice round. Returns the round id, or null if the player is out of Energy. */
@@ -176,8 +230,10 @@ export function leagueCard(lg) {
 }
 
 // ---- store --------------------------------------------------------------------------------------
-const RARITY_LABEL = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary' };
-const TABS = [['featured', 'star', 'Featured'], ['back', 'cards', 'Card backs'], ['felt', 'stack', 'Table mats'], ['coach', 'person', 'Coach'], ['sets', 'gift', 'Sets'], ['chips', 'chip', 'Chips'], ['powerups', 'bolt', 'Power-ups'], ['pro', 'crown', 'Pro']];
+const RARITY_LABEL = { common: 'Common', rare: 'Rare', epic: 'Epic', legendary: 'Legendary', mythic: 'Event exclusive' };
+const TABS = [['shop', 'star', 'Shop'], ['looks', 'cards', 'Looks'], ['chips', 'chip', 'Get chips'], ['pro', 'crown', 'Pro']];
+const LOOKS = [['back', 'Card backs'], ['felt', 'Table mats'], ['coach', 'Coach outfits'], ['sets', 'Sets'], ['events', 'Event exclusives']];
+const OLD_TAB = { featured: ['shop'], powerups: ['shop'], plans: ['pro'], back: ['looks', 'back'], felt: ['looks', 'felt'], coach: ['looks', 'coach'], sets: ['looks', 'sets'], events: ['looks', 'events'] };
 const DEFAULT_ITEMS = { back: ['classic', 'Classic Red', 'The original back.'], felt: ['emerald', 'Emerald', 'The classic table.'], coach: ['none', 'Just Ace', 'No accessories.'] };
 
 export function artHTML(kind, value) {
@@ -192,12 +248,13 @@ function previewHTML(look) {
   return `<div class="try-table mt-${esc(look.felt)}"><div class="try-cards"><span class="pc try-face"><b>A</b>♠</span><span class="pc back bk-${esc(look.back)}"></span></div><div class="try-coach">${ace('happy', 'ace-md', look.coach)}</div></div>`;
 }
 
-export async function storePage(ctx, startTab = location.hash.slice(1) || 'featured') {
+export async function storePage(ctx, startTab = location.hash.slice(1) || 'shop') {
   const { api } = ctx;
   let st = await api('/api/store?day=' + ctx.localDate()); setEconomy(st);
   window.ffTrack?.('store_view', { tab: startTab });
   const test = st.billingMode === 'test';
-  const S = { tab: TABS.some(t => t[0] === startTab) ? startTab : 'featured', filter: 'all', selected: null, arming: null, preview: { ...st.look } };
+  const [tab0, look0] = OLD_TAB[startTab] || [startTab];
+  const S = { tab: TABS.some(t => t[0] === tab0) ? tab0 : 'shop', look: look0 || 'back', filter: 'all', selected: null, arming: null, preview: { ...st.look }, plan: 'pro-annual' };
   const fmtDate = ts => new Date(ts * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
   const day = iso => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
   const owned = () => new Set(st.owned);
@@ -228,7 +285,13 @@ export async function storePage(ctx, startTab = location.hash.slice(1) || 'featu
       <div class="seg-mini" role="radiogroup" aria-label="Filter">${[['all', 'All'], ['owned', 'Owned'], ['afford', 'Can afford']].map(([k, t]) => `<button type="button" role="radio" aria-checked="${S.filter === k}" data-filter="${k}">${t}</button>`).join('')}</div></div>
       <div class="item-grid">${S.filter !== 'afford' ? defaultCard(kind) : ''}${shown.map(([id, it]) => itemCard(id, it)).join('')}</div>
       ${shown.length || S.filter !== 'afford' ? '' : `<p class="muted">Nothing you can afford yet. <a href="/quests">Earn chips</a> or <button type="button" class="linklike" data-tab="chips">get a pack</button>.</p>`}
-      ${shownEv.length ? `<h3 class="sub-head">${g('trophy')} Event card backs <small>Earned by finishing a monthly event. Never sold.</small></h3><div class="item-grid">${shownEv.map(([id, it]) => itemCard(id, it)).join('')}</div>` : ''}`;
+`;
+  };
+  const eventsGrid = () => {
+    const ev = Object.entries(st.catalog).filter(([, it]) => it.event);
+    const mine = ev.filter(([id]) => owned().has(id)).length;
+    return `<div class="event-hero">${g('trophy')}<div><strong>Event exclusives</strong><span>Each one is earned once, by finishing that month’s event. They are never sold, never come back, and put a badge on your profile.</span></div><b>${mine}/${ev.length}</b></div>
+      <div class="item-grid events">${ev.map(([id, it]) => itemCard(id, it)).join('')}</div>`;
   };
   const setCard = s => {
     const done = s.owned === s.total;
@@ -236,23 +299,40 @@ export async function storePage(ctx, startTab = location.hash.slice(1) || 'featu
       <div class="set-bar"><span style="width:${Math.round(s.owned / s.total * 100)}%"></span></div><small>${s.owned} of ${s.total} collected · finish it for ${g('chip')} ${s.bonus} bonus chips</small></div>
       ${done ? `<span class="own-tag on">${g('check')} Complete</span>` : `<button type="button" class="${S.arming === 'set:' + s.id ? 'danger' : 'primary'}" data-set="${s.id}" ${st.stars >= s.price ? '' : 'disabled'}>${S.arming === 'set:' + s.id ? 'Tap to confirm' : `${g('chip')} ${s.price.toLocaleString()}`}<small>${S.arming === 'set:' + s.id ? `${s.price.toLocaleString()} chips` : 'the rest, 20% off'}</small></button>`}</div>`;
   };
-  const planCard = (id, p, best) => {
-    const total = `$${p.price.toFixed(2)}`, per = p.period ? `${total} per ${p.period}` : `${total} once`;
-    return `<div class="plan-card ${best ? 'best' : ''}">${best ? '<span class="plan-flag">Best value</span>' : ''}<h3>${esc(p.name)}</h3><p class="plan-price"><b>${total}</b>${p.period ? `<span>/${p.period}</span>` : ''}</p>${p.perMonth ? `<p class="muted small">Just $${p.perMonth}/month</p>` : '<p class="muted small">&nbsp;</p>'}<p class="plan-terms">${p.trial ? `${p.trial}-day free trial, then ${per}.` : p.period ? `${per}, renews automatically.` : 'One payment. Pro forever.'}${p.period ? ' Cancel any time here; Pro stays on until the period ends.' : ''}</p><button type="button" class="${best ? 'primary' : ''} chunky" data-plan="${id}" ${st.plan.pro ? 'disabled' : ''}>${p.trial ? 'Start free trial' : p.period ? 'Subscribe' : 'Buy lifetime'}</button></div>`;
+  const pc = st.proContent || { units: 0, lessons: 0 };
+  const COMPARE = [['Basic strategy, money management, and casino skills', true, true], ['Practice trainers and Free Play table', 'Energy', 'Unlimited'],
+    [`Card counting, advantage play, and the Expert Lab (${pc.lessons} lessons)`, 'First unit', true], ['Hand Review history', 'Last 3 misses', 'Everything'],
+    ['Bankroll Simulator', false, true], ['Casino Map', false, true], ['Pro Gold collection', false, true], ['Quest swaps a day', '1', '2']];
+  const cell = v => v === true ? `<span class="yes">${g('check')}</span>` : v === false ? '<span class="no">—</span>' : `<span>${esc(v)}</span>`;
+  const planPick = (id, p) => {
+    const on = S.plan === id, yr = p.period === 'year';
+    return `<button type="button" class="plan-pick ${on ? 'on' : ''}" data-pick="${id}" role="radio" aria-checked="${on}">${yr ? `<span class="plan-flag">Save ${p.save || 33}%</span>` : ''}<span class="pp-radio"></span><span class="pp-copy"><strong>${yr ? 'Yearly' : 'Monthly'}</strong><small>${yr ? `$${p.price.toFixed(2)} a year · ${p.trial}-day free trial` : 'Billed every month · cancel any time'}</small></span><span class="pp-price"><b>$${(yr ? p.perMonth : p.price).toFixed(2)}</b><small>/month</small></span></button>`;
   };
+  const proPitch = () => {
+    const p = st.plans[S.plan];
+    return `<section class="pro-hero"><div class="pro-hero-copy">${ace('cheer', 'ace-lg')}<div><span class="pro-kicker">${g('crown')} Felt & Fortune Pro</span><h2>Go from playing smart to playing with an edge.</h2><p>Every counting and advantage-play lesson, the Expert Lab, unlimited practice, and the tools pros use to plan a trip.</p></div></div>
+      <div class="pro-stats"><div><b>${pc.units}</b><span>Pro units</span></div><div><b>${pc.lessons}</b><span>Pro lessons</span></div><div><b>∞</b><span>Energy</span></div></div></section>
+      <div class="pro-buy"><div class="plan-picks" role="radiogroup" aria-label="Choose a plan">${planPick('pro-annual', st.plans['pro-annual'])}${planPick('pro-monthly', st.plans['pro-monthly'])}</div>
+      <button type="button" class="chunky pro-cta" data-plan="${S.plan}">${p.trial ? `Start your ${p.trial}-day free trial` : `Get Pro for $${p.price.toFixed(2)}/month`}</button>
+      <p class="muted small pro-fine">${p.trial ? `Free for ${p.trial} days, then $${p.price.toFixed(2)} a year. We email you 3 days before the trial ends. Cancel in one tap.` : `$${p.price.toFixed(2)} every month until you cancel. Pro stays on until the period ends.`}</p></div>
+      <div class="compare"><div class="compare-row head"><span></span><span>Free</span><span class="pro-col">${g('crown')} Pro</span></div>${COMPARE.map(([t, f, pr]) => `<div class="compare-row"><span>${esc(t)}</span>${cell(f)}<span class="pro-col">${cell(pr)}</span></div>`).join('')}</div>`;
+  };
+  const powerRow = () => `<div class="shop-grid">${Object.entries(st.powerups).map(([id, it]) => `<div class="shop-item">${artHTML(it.kind)}<div class="shop-copy"><strong>${esc(it.name)}</strong><small>${esc(it.text)}</small></div><button type="button" class="small ${S.arming === 'power:' + id ? 'danger' : st.stars >= it.stars ? 'primary' : ''}" data-power="${id}" ${st.stars >= it.stars ? '' : 'disabled'}>${S.arming === 'power:' + id ? 'Tap to confirm' : `${g('chip')} ${it.stars}`}</button></div>`).join('')}</div>`;
   const panes = {
-    featured: () => {
-      const set = st.sets.find(s => s.owned < s.total) || st.sets[0];
-      return `<div class="featured-hero">${setCard(set)}</div><h3 class="sub-head">${g('star')} This week’s picks <small>New picks ${day(st.featured.ends)}</small></h3><div class="item-grid">${st.featured.items.map(id => itemCard(id, st.catalog[id])).join('')}</div>
-        ${st.plan.pro ? '' : `<button type="button" class="pro-banner" data-tab="pro">${g('crown')}<span><strong>Pro Gold collection</strong><small>A black-and-gold back, mat, and coach style, free with Pro.</small></span>${g('next')}</button>`}`;
+    shop: () => {
+      const set = st.sets.find(x => x.owned < x.total) || st.sets[0];
+      return `${st.plan.pro ? '' : `<button type="button" class="pro-banner big" data-tab="pro">${ace('wink', 'ace-sm')}<span><strong>Try Pro free for 14 days</strong><small>Counting, the Expert Lab, unlimited Energy, and more. From $${st.plans['pro-annual'].perMonth.toFixed(2)}/month.</small></span><span class="pro-banner-go">See Pro ${g('next')}</span></button>`}
+        <h3 class="sub-head">${g('bolt')} Power-ups <small>Keep your streak and your practice going</small></h3>${powerRow()}
+        <h3 class="sub-head">${g('star')} This week’s picks <small>New picks ${day(st.featured.ends)}</small></h3><div class="item-grid">${st.featured.items.map(id => itemCard(id, st.catalog[id])).join('')}</div>
+        <h3 class="sub-head">${g('gift')} Set of the week <small>Finish a set for bonus chips</small></h3>${setCard(set)}
+        <button type="button" class="see-all" data-tab="looks">Browse every look ${g('next')}</button>`;
     },
-    back: () => kindGrid('back'), felt: () => kindGrid('felt'), coach: () => kindGrid('coach'),
-    sets: () => `<p class="muted">Each set has a card back, a table mat, and a coach style. Buying the rest of a set costs 20% less, and finishing one pays a one-time bonus.</p><div class="set-list">${st.sets.map(setCard).join('')}</div>`,
-    chips: () => `<p class="muted">Chips buy card backs, table mats, coach styles, freezes, and refills. They have no cash value and can never be used to bet. You also earn them from lessons, quests, and streaks.</p>
+    looks: () => `<div class="look-tabs" role="tablist" aria-label="Looks">${LOOKS.map(([k, t]) => `<button type="button" role="tab" aria-selected="${S.look === k}" data-look="${k}">${t}</button>`).join('')}</div>
+      ${S.look === 'sets' ? `<p class="muted">Each set has a card back, a table mat, and a coach outfit. Buying the rest of a set costs 20% less, and finishing one pays a one-time bonus.</p><div class="set-list">${st.sets.map(setCard).join('')}</div>`
+        : S.look === 'events' ? eventsGrid() : kindGrid(S.look)}`,
+    chips: () => `<p class="muted">Chips buy card backs, table mats, coach outfits, freezes, and refills. They have no cash value and can never be used to bet. You also earn them from lessons, quests, and streaks.</p>
       <div class="pack-grid">${Object.entries(st.chipPacks).map(([id, p], i) => `<button type="button" class="pack-card ${i === 2 ? 'best' : ''}" data-pack="${id}">${i === 2 ? '<span class="plan-flag">Best value</span>' : ''}<span class="pack-art">${Array.from({ length: Math.min(4, i + 1) }, () => g('chip')).join('')}</span><strong>${p.chips.toLocaleString()} chips</strong><small>${esc(p.name)}</small>${p.bonus ? `<span class="pack-bonus">${esc(p.bonus)}</span>` : '<span class="pack-bonus">&nbsp;</span>'}<span class="pack-price">$${p.price.toFixed(2)}</span></button>`).join('')}</div>`,
-    powerups: () => `<div class="shop-grid">${Object.entries(st.powerups).map(([id, it]) => `<div class="shop-item">${artHTML(it.kind)}<div class="shop-copy"><strong>${esc(it.name)}</strong><small>${esc(it.text)}</small></div><button type="button" class="small ${S.arming === 'power:' + id ? 'danger' : st.stars >= it.stars ? 'primary' : ''}" data-power="${id}" ${st.stars >= it.stars ? '' : 'disabled'}>${S.arming === 'power:' + id ? 'Tap to confirm' : `${g('chip')} ${it.stars}`}</button></div>`).join('')}</div>`,
-    pro: () => `${st.plan.pro ? `<div class="plan-status"><strong>You have ${esc(st.plans[st.plan.plan]?.name || 'Pro')}</strong><span class="muted">${st.plan.trialEnds ? `Free trial ends ${fmtDate(st.plan.trialEnds)}. We’ll email you 3 days before.` : st.plan.status === 'canceled' ? `Canceled. Pro stays on until ${fmtDate(st.plan.renews)}.` : st.plan.renews ? `Renews ${fmtDate(st.plan.renews)}.` : 'Lifetime access.'}</span>${st.plan.plan !== 'pro-lifetime' && st.plan.status !== 'canceled' ? '<button type="button" class="small" id="cancel-plan">Cancel subscription</button>' : ''}</div>`
-      : `<ul class="perks inline">${PRO_PERKS.map(([ic, t]) => `<li>${g(ic)} ${t}</li>`).join('')}<li>${g('gift')} Pro Gold collection</li><li>${g('target')} 2 quest swaps a day</li></ul><div class="plan-cards">${planCard('pro-monthly', st.plans['pro-monthly'])}${planCard('pro-annual', st.plans['pro-annual'], true)}${planCard('pro-lifetime', st.plans['pro-lifetime'])}</div>`}
+    pro: () => `${st.plan.pro ? `<div class="plan-status"><strong>${g('crown')} You have ${esc(st.plans[st.plan.plan]?.name || 'Pro')}</strong><span class="muted">${st.plan.trialEnds ? `Free trial ends ${fmtDate(st.plan.trialEnds)}. We’ll email you 3 days before.` : st.plan.status === 'canceled' ? `Canceled. Pro stays on until ${fmtDate(st.plan.renews)}.` : st.plan.renews ? `Renews ${fmtDate(st.plan.renews)}.` : 'Lifetime access.'}</span>${st.plan.plan !== 'pro-lifetime' && st.plan.status !== 'canceled' ? '<button type="button" class="small" id="cancel-plan">Cancel subscription</button>' : ''}</div>` : proPitch()}
       <h3 class="sub-head">${g('crown')} Pro Gold collection <small>${st.plan.pro ? 'Claim each piece; it stays yours even if Pro ends.' : 'Included with Pro.'}</small></h3><div class="item-grid">${Object.entries(st.catalog).filter(([, it]) => it.pro).map(([id, it]) => itemCard(id, it)).join('')}</div>
       <p class="muted small"><button type="button" class="linklike" id="restore">Restore purchases</button> · <a href="/terms">Billing, cancellation, and refund terms</a></p>`,
   };
@@ -282,10 +362,11 @@ export async function storePage(ctx, startTab = location.hash.slice(1) || 'featu
   const wallet = () => `<div class="wallet-bar"><span class="chip stars-chip">${g('chip')}<b data-stars>${st.stars.toLocaleString()}</b><span>chips</span></span><span class="chip" title="Streak freezes">${g('snow')}<b>${st.freezes}/${st.freezeMax}</b></span>${st.plan.pro ? `<span class="chip pro-chip">${g('crown')}<b>Pro</b></span>` : `<span class="chip energy-chip">${g('bolt')}<b>${st.energy}</b></span>`}<button type="button" class="chip get-chips" data-tab="chips">Get chips</button></div>`;
   function render(keepScroll = true) {
     const y = window.scrollY;
-    page.innerHTML = `<div class="store2 store3"><header class="store-top"><div><h1>Store</h1><p class="muted">Looks for your table and power-ups for your streak.</p></div>${wallet()}</header>
-      ${test ? '<p class="test-banner">Test mode: purchases are simulated and nothing is charged.</p>' : ''}
-      <nav class="store-tabs" role="tablist" aria-label="Store sections">${TABS.map(([k, ic, label]) => `<button type="button" role="tab" aria-selected="${k === S.tab}" data-tab="${k}">${g(ic)}<span>${label}</span></button>`).join('')}</nav>
-      <div class="store-body"><section class="store-pane" role="tabpanel">${panes[S.tab]()}</section><aside class="store-preview" id="store-preview" aria-label="Preview">${detailHTML()}</aside></div></div>`;
+    const side = S.tab === 'shop' || S.tab === 'looks';
+    page.innerHTML = `<div class="store2 store3 store4 tab-${S.tab}"><header class="store-top"><div><h1>Store</h1><p class="muted">${{ shop: 'Power-ups, this week’s picks, and the set of the week.', looks: 'Dress your table and your coach. Tap anything to try it on.', chips: 'Top up your chips. No cash value, never used to bet.', pro: 'Everything in Felt & Fortune, with no limits.' }[S.tab]}</p></div>${wallet()}</header>
+      <nav class="store-tabs" role="tablist" aria-label="Store sections">${TABS.map(([k, ic, label]) => `<button type="button" role="tab" aria-selected="${k === S.tab}" data-tab="${k}" class="${k === 'pro' && !st.plan.pro ? 'pro-tab' : ''}">${g(ic)}<span>${label}</span></button>`).join('')}</nav>
+      <div class="store-body ${side ? '' : 'solo'}"><section class="store-pane" role="tabpanel">${panes[S.tab]()}</section>${side ? `<aside class="store-preview" id="store-preview" aria-label="Preview">${detailHTML()}</aside>` : ''}</div>
+      ${test ? '<p class="test-banner small">Test mode: purchases are simulated and nothing is charged.</p>' : ''}</div>`;
     if (keepScroll) window.scrollTo(0, y);
   }
   const paintDetail = () => { const el = $('#store-preview'); if (el) el.innerHTML = detailHTML(); };
@@ -293,11 +374,14 @@ export async function storePage(ctx, startTab = location.hash.slice(1) || 'featu
   const celebrate = (msg, big) => { Sound.play(big ? 'levelup' : 'unlock'); confetti({ count: big ? 120 : 60 }); ctx.toast(msg); };
 
   page.onclick = async e => {
-    const t = e.target.closest('[data-tab],[data-filter],[data-item],[data-act],[data-set],[data-power],[data-pack],[data-plan],#cancel-plan,#restore');
+    const t = e.target.closest('[data-tab],[data-look],[data-pick],[data-filter],[data-item],[data-act],[data-set],[data-power],[data-pack],[data-plan],#cancel-plan,#restore');
     if (!t) return;
-    if (t.dataset.tab) { S.tab = t.dataset.tab; S.arming = null; history.replaceState(null, '', '/store#' + S.tab); Sound.play('tap'); render(false); window.scrollTo({ top: 0 }); return; }
+    if (t.dataset.tab) { const [tb, lk] = OLD_TAB[t.dataset.tab] || [t.dataset.tab]; S.tab = tb; if (lk) S.look = lk; S.arming = null; history.replaceState(null, '', '/store#' + S.tab); Sound.play('tap'); render(false); window.scrollTo({ top: 0 }); return; }
+    if (t.dataset.look) { S.look = t.dataset.look; S.filter = 'all'; S.arming = null; Sound.play('tick'); render(); return; }
+    if (t.dataset.pick) { S.plan = t.dataset.pick; Sound.play('tick'); render(); return; }
     if (t.dataset.filter) { S.filter = t.dataset.filter; Sound.play('tick'); render(); return; }
     if (t.dataset.item) {
+      if (!$('#store-preview')) { S.tab = 'looks'; S.look = st.catalog[t.dataset.item]?.kind || 'back'; render(false); }
       const id = t.dataset.item; S.selected = id; S.arming = null;
       const kind = id.startsWith('default-') ? id.slice(8) : st.catalog[id].kind, value = id.startsWith('default-') ? DEFAULT_ITEMS[kind][0] : st.catalog[id].value;
       S.preview = { ...st.look, [kind]: value }; Sound.play('pop');
@@ -378,7 +462,7 @@ export async function questsPage(ctx) {
   ctx.$('#page').innerHTML = `<div class="quests-page">
     <header class="page-hero"><div><h1>Quests</h1><p class="muted">Quests reward careful practice, not just time spent. Finish them for chips, freezes, and event rewards.</p></div><div data-eco-chips>${chipsHTML(cache)}</div></header>
     <section class="event-banner">
-      <div class="event-art">${artHTML('back', ev.reward.replace('back-', ''))}${ev.earned ? `<span class="event-badge">${g('check')}</span>` : ''}</div>
+      <div class="event-art">${artHTML('back', ev.reward.replace('back-', ''))}${ev.outfit ? artHTML('coach', ev.outfit.replace('coach-', '')) : ''}${ev.earned ? `<span class="event-badge">${g('check')}</span>` : ''}</div>
       <div class="event-copy"><small>Monthly event · ${ev.daysLeft} day${ev.daysLeft === 1 ? '' : 's'} left</small><h2>${esc(ev.name)}</h2><p>${ev.earned ? `You earned the <b>${esc(ev.rewardName)}</b> card back and this month’s badge!` : `Finish ${ev.goal} quests this month to earn the <b>${esc(ev.rewardName)}</b> card back and a badge. Event items are never sold.`}</p>
         <div class="event-bar"><span style="width:${evPct}%"></span></div><small>${ev.progress} / ${ev.goal} quests</small></div>
     </section>
@@ -416,7 +500,7 @@ export async function questsPage(ctx) {
 export function energyMeter(host) {
   const eco = cache, pro = !!eco?.plan?.pro, max = eco?.energyMax || 25;
   let e = pro ? null : (eco?.energy ?? max), run = 0;
-  const paint = () => { if (!host) return; host.innerHTML = pro ? `<span class="chip pro-chip energy-live" title="Pro: unlimited Energy">${g('crown')}<b>∞</b></span>` : `<span class="chip energy-live ${e <= 3 ? 'low' : ''}" title="Energy">${g('bolt')}<b>${e}</b></span>`; };
+  const paint = () => { if (!host) return; host.innerHTML = pro ? `<span class="chip pro-chip energy-live" title="Pro: unlimited Energy">${g('crown')}<b>∞</b></span>` : `<button type="button" class="chip energy-live ${e <= 3 ? 'low' : ''}" title="Energy" data-energy-open>${g('bolt')}<b>${e}</b></button>`; };
   const bonus = () => {
     const pill = host?.querySelector('.energy-live'); if (!pill) return;
     const r = pill.getBoundingClientRect(), f = document.createElement('span');
@@ -449,16 +533,8 @@ export function guardContinue(ctx, meter, foot, { quitHref = '/learn', quitLabel
   const go = btn.onclick;
   btn.onclick = () => {
     Sound.play('wrong');
-    const canRefill = (cache?.stars || 0) >= 350;
-    const { close } = openSheet(`<div class="paywall">${ace('oops', 'ace-md')}<h2>Out of Energy</h2>
-      <p class="muted">Every answer uses 1 Energy, and 3 right in a row earns 2 back. Energy refills over time, about 1 every 20 minutes.</p>
-      <div class="energy-meter big"><span style="width:0%"></span></div>
-      <button type="button" class="primary chunky" id="oe-refill" ${canRefill ? '' : 'disabled'}>${g('chip')} Refill for 350 chips</button>
-      <a class="button chunky pro-button" href="/store#pro" data-close>${g('crown')} Unlimited with Pro</a>
-      <a class="button ghost" href="${quitHref}" data-close>${quitLabel}</a></div>`);
-    $('#oe-refill')?.addEventListener('click', async () => {
-      try { setEconomy(await ctx.api('/api/store/buy', 'POST', { item: 'refill' })); meter.refill(); Sound.play('energy'); close(); btn.onclick = go; go?.(); }
-      catch (e) { ctx.toast(e.message); }
-    });
+    energyPanel(ctx, { title: 'Out of Energy', mood: 'oops', quitHref, quitLabel,
+      onGain: (added, full) => { if (full) meter.refill(); else meter.sync((meter.value || 0) + added); },
+      after: () => { btn.onclick = go; go?.(); } });
   };
 }

@@ -261,6 +261,11 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             row=c.execute('SELECT * FROM resets WHERE token=? AND expires>?',(hashlib.sha256(str(d.get('token','')).encode()).hexdigest(),time.time())).fetchone();require(row,'This reset link is invalid or expired.')
             c.execute('UPDATE users SET password=? WHERE id=?',(password_hash(pw),row['user_id']));c.execute('DELETE FROM resets WHERE user_id=?',(row['user_id'],));c.execute('DELETE FROM sessions WHERE user_id=?',(row['user_id'],));return self.send_json({'ok':True})
         if path=='/api/survey' and method=='GET': return self.send_json({'questions':coach.public_survey()})
+        if path=='/api/placement/check' and method=='POST':
+            self.throttle('placement',120)
+            st=int(num(self.data,'stage',1,5));ans=self.data.get('answers') if isinstance(self.data.get('answers'),dict) else {}
+            ok,right,n_q=coach.stage_result(st,ans)
+            return self.send_json({'passed':ok,'correct':right,'total':n_q,'stage':coach.STAGES[st],'last':st==max(coach.STAGES)})
         if path=='/api/plan/preview' and method=='POST':
             self.throttle('plan-preview',40)
             try: return self.send_json({'plan':coach.build_plan(d.get('answers'))})
@@ -288,6 +293,8 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             kw={k:d[k] for k in ('streak_email','news_email') if k in d}
             if 'breakDays' in d: kw['break_until']=time.time()+int(num(d,'breakDays',0,90))*86400
             return self.send_json(account.set_prefs(c,uid,**kw))
+        if path=='/api/badges' and method=='GET':
+            import badges;return self.send_json(badges.shelf(c,uid,self.client_day()))
         if path=='/api/skills' and method=='GET': return self.send_json(learning.summary(c,uid,self.client_day()))
         if path=='/api/review' and method=='GET':
             sk=parse_qs(urlparse(self.path).query).get('skill',[None])[0]
@@ -409,6 +416,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             return self.send_json({'ok':True},201)
         if path.startswith('/api/practice/') or path.startswith('/api/challenge/'): return self.practice_api(path,method,require,num,ApiError)
         if path=='/api/simulate' and method=='POST':
+            require(economy.is_pro(c,self.user['id']),'The Bankroll Simulator is part of Felt & Fortune Pro.',402)
             self.throttle('simulate',10)
             with JOB_LOCK:
                 for k in list(JOBS):
@@ -451,16 +459,17 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
         c=self.c;uid=self.user['id']
         done={r['lesson_id']:r['best'] for r in c.execute('SELECT lesson_id,best FROM lesson_progress WHERE user_id=?',(uid,))}
         order=coach.lesson_order(plan)
-        tested={l['id'] for u in coach.UNITS if u['id'] in plan['testedOut'] for l in u['lessons']}|{u+'-checkpoint' for u in plan['testedOut']}
+        placed=set(plan.get('placed') or plan.get('testedOut') or [])
+        tested={l for u in placed for l in [x['id'] for x in coach.UNIT_BY_ID[u]['lessons']]+[u+'-checkpoint',u+'-review'] if u in coach.UNIT_BY_ID}
         today=self.client_day()
         passes={}
         for r in c.execute('SELECT lesson_id,day FROM checkpoint_passes WHERE user_id=?',(uid,)): passes.setdefault(r['lesson_id'],set()).add(r['day'])
         if PACING['checkpoints']:
-            for cp,ds in passes.items():
-                if len(ds)>=coach.CHECKPOINT_DAYS: done.setdefault(cp,100)
+            for cp,ds in passes.items(): done.setdefault(cp,100)
         else:
             done.update({l:100 for l in order if l.endswith('-checkpoint') and l not in done})
         units=coach.path_units(plan)
+        ratings={r['skill']:r['rating'] for r in c.execute('SELECT skill,rating FROM skill_rating WHERE user_id=?',(uid,))}
         pro=economy.is_pro(c,uid)
         # Free learners skip past Pro units and keep going through the free ones.
         pro_lessons=set() if pro else {l['id'] for u in units if u['pro'] for l in u['lessons']}
@@ -477,22 +486,20 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
                 elif l['id']==current: l['status']='current'
                 else: l['status']='locked' if order.index(l['id'])>cur_i else 'open'
                 if l.get('checkpoint'):
-                    l['passes']=sorted(passes.get(l['id'],()))[-coach.CHECKPOINT_DAYS:]
-                if l['status']=='current':
-                    if l.get('checkpoint'):
-                        unit_days=[firsts.get(x['id']) for x in u['lessons'] if not x.get('checkpoint') and not x.get('review')]
-                        ready=max([d for d in unit_days if d] or [''])
-                        if today in passes.get(l['id'],()): l['status']='rest';l['opens']='tomorrow';pacing['blocked']='checkpoint-again'
-                        elif ready==today: l['status']='rest';l['opens']='tomorrow';pacing['blocked']='checkpoint-wait'
+                    # Checkpoints open once the unit's skill ratings reach their targets: practice raises them.
+                    l['gate']=[{**gt,'name':learning.SKILL_NAMES.get(gt['skill'],gt['skill']),'rating':round(ratings.get(gt['skill'],learning.START)),
+                                'met':ratings.get(gt['skill'],learning.START)>=gt['target']} for gt in u['gate']]
+                    if l['status']=='current' and not all(x['met'] for x in l['gate']):
+                        l['status']='gated';pacing['blocked']='checkpoint-gate';pacing['gate']=l['gate']
         economy.apply_freezes(c,uid,today)
         streak=economy.streak_info(c,uid,today)[0]
         by_day=dict(c.execute('SELECT day,SUM(xp) FROM xp_log WHERE user_id=? GROUP BY day',(uid,)).fetchall())
         week=[{'day':(date.fromisoformat(today)-timedelta(days=i)).isoformat()} for i in range(6,-1,-1)]
         for w in week: w['xp']=by_day.get(w['day'],0)
-        finished=sum(1 for l in order if l in done or l in tested)
+        finished=sum(1 for l in order if l in done and l not in tested)
         tracks=[]
         if not current and pro_lessons: pacing['blocked']='pro'
-        return {'plan':plan,'units':units,'current':current,'tracks':tracks,'pacing':pacing,'pro':pro,'stats':{'xp':sum(by_day.values()),'todayXp':by_day.get(today,0),'dailyXp':plan['dailyXp'],'streak':streak,'week':week,'done':finished,'total':len(order)}}
+        return {'plan':plan,'units':units,'current':current,'tracks':tracks,'pacing':pacing,'pro':pro,'stats':{'xp':sum(by_day.values()),'todayXp':by_day.get(today,0),'dailyXp':plan['dailyXp'],'streak':streak,'week':week,'done':finished,'total':sum(1 for l in order if l not in tested),'placed':len(placed)}}
     def path_api(self,path,method):
         c=self.c;uid=self.user['id'];d=self.data
         if path=='/api/path' and method=='GET':
@@ -525,6 +532,9 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
         status=next(l['status'] for u in state['units'] for l in u['lessons'] if l['id']==m[1])
         require(status!='locked','Finish the earlier lessons to unlock this one.',403)
         require(status!='pro','This unit is part of Felt & Fortune Pro.',402)
+        if status=='gated':
+            need=next(l['gate'] for u in state['units'] for l in u['lessons'] if l['id']==m[1])
+            raise ApiError('Raise '+' and '.join(f"{x['name']} to {x['target']}" for x in need if not x['met'])+' to open this checkpoint. Practice or replay this unit’s lessons.',423)
         if status=='rest':
             msg={'daily-cap':f'You’ve learned {PACING["daily_new"]} new lessons today. New lessons stick better with sleep in between, so the next one opens tomorrow. Practice and reviews are open now.',
                  'checkpoint-wait':'Checkpoints open the day after you finish a unit, so you’re showing what you remember, not what you just saw.',

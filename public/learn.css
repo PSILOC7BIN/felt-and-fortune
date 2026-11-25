@@ -237,3 +237,39 @@
 .ace-xl{width:120px}
 }
 @media(prefers-reduced-motion:reduce){.bob,.pop,.start-bubble,.node .ring,.build-steps li,.choice-tile.wrong,.node-pop,.sheet{animation:none!important;opacity:1}.coach-top .progress span{transition:none}}
+
+/* ---- Placement levels, placed-out units, and skill-gated checkpoints ---- */
+.stage-note{display:flex;align-items:center;gap:6px;margin:0 0 10px;padding:8px 12px;border-radius:12px;background:#E3F6E8;color:#1E7B34;font:800 14px var(--round)}
+.stage-note svg{width:16px;height:16px}
+.placed-intro .level-steps{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin:14px 0}
+.level-steps span{display:inline-flex;align-items:center;gap:5px;padding:7px 12px;border-radius:999px;background:var(--panel2);border:2px solid var(--border);color:var(--muted);font:800 13px var(--round)}
+.level-steps span.on{background:#E3F6E8;border-color:#34C759;color:#1E7B34}
+.level-steps svg{width:14px;height:14px}
+.start-at{display:flex;align-items:center;gap:12px;margin:8px auto 14px;max-width:440px;padding:14px 16px;border-radius:18px;background:var(--panel);border:2px solid var(--border);text-align:left}
+.start-at small{display:block;font:800 12px var(--round);text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.start-at strong{display:block;font:800 19px var(--round);color:var(--text)}
+.start-at em{font-style:normal;color:var(--muted);font-size:13px}
+.placed-card{max-width:600px;margin:0 auto 22px;border-radius:20px;background:var(--panel);border:2px solid var(--border);box-shadow:0 4px 0 var(--border)}
+.placed-card summary{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;list-style:none}
+.placed-card summary::-webkit-details-marker{display:none}
+.placed-card .tool-icon{background:#E3F6E8;color:#1E7B34}
+.placed-copy{flex:1;display:grid;gap:2px}.placed-copy strong{font:800 16px var(--round);color:var(--text)}.placed-copy small{color:var(--muted)}
+.placed-more{font:800 13px var(--round);color:var(--blue)}.placed-card[open] .placed-more{visibility:hidden}
+.placed-card ul{list-style:none;margin:0;padding:0 16px 14px;display:grid;gap:6px}
+.placed-card li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;border-radius:12px;background:var(--panel2);font-weight:700;color:var(--text)}
+.placed-links{display:flex;gap:6px}
+.placed-links a{display:grid;place-items:center;width:28px;height:28px;border-radius:9px;background:var(--panel);border:2px solid var(--border);font:800 13px var(--round);text-decoration:none;color:var(--text)}
+.placed-links a.done{background:#E3F6E8;border-color:#34C759;color:#1E7B34}
+.node.gated{background:#FFF4D6;color:#B25000;box-shadow:0 7px 0 #F0C060}
+.cp-gate{position:absolute;bottom:-10px;left:50%;translate:-50% 0;padding:1px 7px;border-radius:999px;background:#fff;color:#B25000;font:900 11px var(--round);box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.gate-list{list-style:none;margin:10px 0 4px;padding:0;display:grid;gap:8px}
+.gate-list li{display:grid;grid-template-columns:1fr auto auto;grid-template-areas:'name score act' 'bar bar bar';align-items:center;gap:4px 8px;padding:8px 10px;border-radius:12px;background:rgba(255,255,255,.18)}
+.gate-name{grid-area:name;font:800 14px var(--round)}.gate-list b{grid-area:score;font:900 14px var(--round)}.gate-list b small{opacity:.7;font-size:11px;text-transform:none;letter-spacing:0}
+.gate-list .button,.gate-ok{grid-area:act}.gate-ok svg{width:18px;height:18px}
+.gate-bar{grid-area:bar;height:8px;border-radius:99px;background:rgba(0,0,0,.18);overflow:hidden}.gate-bar i{display:block;height:100%;border-radius:inherit;background:#FFD60A}
+.gate-list li.met .gate-bar i{background:#34C759}
+.node-pop .pop-text{margin:0 0 12px;font-size:14px;line-height:1.45}
+.gate-card .resume-copy{min-width:0}.gate-card .gate-list li{background:rgba(255,255,255,.2)}
+[data-theme="dark"] .stage-note,[data-theme="dark"] .level-steps span.on{background:#0F2E19;color:#6EE38D}
+[data-theme="dark"] .node.gated{background:#3A2A07;color:#FFD27A;box-shadow:0 7px 0 #6B4A0B}
+[data-theme="dark"] .placed-card .tool-icon,[data-theme="dark"] .placed-links a.done{background:#0F2E19;color:#6EE38D}

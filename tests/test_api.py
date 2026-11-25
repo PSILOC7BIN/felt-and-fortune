@@ -134,6 +134,8 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(self.a.call('/api/records?kind=session')[0],401)
         self.assertEqual(anon.call('/api/reset-password','POST',{'token':token,'password':'Another-test-password'})[0],400)
     def test_simulation_job_access_and_completion(self):
+        self.assertEqual(self.a.call('/api/simulate','POST',{'rounds':1000,'seed':12})[0],402)   # Pro only
+        self.a.call('/api/billing/test-purchase','POST',{'plan':'pro-monthly'})
         status,job=self.a.call('/api/simulate','POST',{'rounds':1000,'seed':12});self.assertEqual(status,202)
         path='/api/simulate/'+job['id'];self.assertEqual(self.b.call(path)[0],404)
         for _ in range(100):

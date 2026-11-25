@@ -6,12 +6,12 @@ from test_api import Client
 from transcripts import lesson_transcript, item
 
 NEW = {'experience': 'new', 'goal': 'understand', 'quiz_hard': 'unsure', 'quiz_soft': 'unsure', 'quiz_count': 'unsure', 'quiz_tc': 'unsure', 'challenge': 'unsure', 'game': 'unsure', 'time': '5', 'style': 'explain'}
-EXPERT = {'experience': 'pro', 'goal': 'pro', 'quiz_hard': 'hit', 'quiz_soft': 'hit', 'quiz_count': '1', 'quiz_tc': '3', 'challenge': 'betting', 'game': 'pitch', 'time': '20', 'style': 'quiz'}
+EXPERT = {'experience': 'pro', 'goal': 'pro', **coach.PLACEMENT_ANSWERS, 'challenge': 'betting', 'game': 'pitch', 'time': '20', 'style': 'quiz'}
 
 
 class PlannerTests(unittest.TestCase):
     def test_tracks_are_equal_and_large(self):
-        sizes = {t: [coach.expected_questions(l['steps']) for u in coach.TRACKS[t] for l in u['lessons']] for t in coach.TRACK_ORDER}
+        sizes = {t: [coach.expected_questions(l['steps']) for u in coach.TRACKS[t] for l in u['lessons']] for t in coach.TRACK_ORDER[:4]}
         for t, qs in sizes.items():
             self.assertEqual(len(coach.TRACKS[t]), 10, t)
             self.assertEqual(len(qs), 38, t)
@@ -20,6 +20,12 @@ class PlannerTests(unittest.TestCase):
         self.assertLess(max(totals) / min(totals), 1.15, totals)
         ids = [l['id'] for u in coach.UNITS for l in u['lessons']]
         self.assertEqual(len(ids), len(set(ids)))
+        expert = coach.TRACKS['expert']
+        self.assertEqual((len(expert), sum(len(u['lessons']) for u in expert)), (13, 39))
+        for u in expert:
+            prompts = [st['prompt'] for l in u['lessons'] for st in l['steps'] if st['type'] == 'choice']
+            self.assertEqual(len(prompts), len(set(prompts)), u['id'])
+            for l in u['lessons']: self.assertGreaterEqual(coach.expected_questions(l['steps']), 5, l['id'])
 
     def test_finish_date_matches_pace(self):
         plan = coach.build_plan({**NEW, 'time': '10'}, today=date(2026, 1, 1))
@@ -48,15 +54,28 @@ class PlannerTests(unittest.TestCase):
             self.assertEqual(step['options'][step['answer']], expected)
 
 
-    def test_everyone_gets_the_whole_course(self):
+    def test_placement_starts_you_at_your_level(self):
         everything = {u['id'] for u in coach.UNITS}
-        for answers in (NEW, EXPERT):
-            plan = coach.build_plan(answers, today=date(2026, 1, 1))
-            self.assertEqual(plan['testedOut'], [])
-            self.assertEqual((len(plan['order']), set(plan['order'])), (40, everything))
-            self.assertEqual(plan['version'], 3)
-        self.assertEqual(coach.build_plan(NEW)['startUnit'], 'sm1')
-        self.assertEqual(coach.build_plan(EXPERT)['startUnit'], 'sm1')        # proven skill no longer skips lessons
+        new = coach.build_plan(NEW, today=date(2026, 1, 1))
+        self.assertEqual((new['startUnit'], new['placed'], new['level'], new['version']), ('sm1', [], 'Rookie', 4))
+        self.assertEqual(set(new['order']), everything)
+        expert = coach.build_plan(EXPERT)
+        self.assertEqual((expert['startUnit'], expert['level']), ('ap2', 'Advantage Player'))
+        self.assertIn('cc5', expert['placed']); self.assertNotIn('ap2', expert['placed'])
+        # Passing basics and core strategy but not the full chart: start at hard totals.
+        mid = {**NEW, 'goal': 'count', **{q['id']: coach.PLACEMENT_ANSWERS[q['id']] for q in coach.SURVEY if q.get('stage') in (1, 2)}}
+        plan = coach.build_plan(mid)
+        self.assertEqual((plan['startUnit'], plan['level']), ('ms1', 'Strategist'))
+        self.assertEqual(set(plan['placed']), {'sm1', 'sm2', 'sm3', 'sm9'})
+        # One miss per stage is allowed; "not sure" stops the test.
+        self.assertTrue(coach.stage_result(1, {'p_total': '16', 'p_pay': '20', 'p_dealer': 'hit'})[0])
+        self.assertFalse(coach.stage_result(1, {'p_total': '16', 'p_pay': '30', 'p_dealer': 'unsure'})[0])
+
+    def test_expert_start_unit_is_free(self):
+        units = coach.path_units(coach.build_plan(EXPERT))
+        first = next(u for u in units if not u['placed'])
+        self.assertEqual((first['id'], first['pro']), ('ap2', False))
+        self.assertTrue(next(u for u in units if u['id'] == 'ap3')['pro'])
 
     def test_goal_sets_the_order_with_prerequisites_first(self):
         order = lambda goal: coach.build_plan({**NEW, 'goal': goal})['order']
@@ -71,9 +90,8 @@ class PlannerTests(unittest.TestCase):
     def test_focus_comes_from_misses_and_struggles(self):
         plan = coach.build_plan({**NEW, 'goal': 'count'})
         self.assertIn('sm2', plan['focus'])                              # missed strategy checks
-        self.assertTrue({'cc2', 'cc3'} <= set(plan['focus']))            # missed count and true-count checks
         expert = coach.build_plan(EXPERT)
-        self.assertTrue({'cc4', 'cc6'} <= set(expert['focus']))          # finds betting hardest
+        self.assertIn('ap3', expert['focus'])                            # finds betting hardest: first remaining betting unit
         self.assertNotIn('sm2', expert['focus'])
 
 
@@ -177,7 +195,7 @@ class CoachApiTests(unittest.TestCase):
         uid = result['user']['id']
         with server.db() as c: c.execute("UPDATE plans SET plan=? WHERE user_id=?", ('{"version": 2, "track": "smart", "testedOut": ["sm1"], "focus": []}', uid))
         st = client.call('/api/path')[1]
-        self.assertEqual((st['plan']['version'], st['plan']['testedOut']), (3, []))
+        self.assertEqual((st['plan']['version'], st['plan']['testedOut']), (4, []))
         self.assertEqual(st['units'][0]['lessons'][0]['status'], 'done')
         self.assertEqual(st['current'], 'sm1-2')
 

@@ -28,21 +28,45 @@ SURVEY = [
         ['count', 'Learn to count cards'],
         ['pro', 'Play with a real long-term edge'],
     ]},
-    {'id': 'quiz_hard', 'kind': 'placement', 'prompt': 'You have 16 and the dealer shows a 10. Six decks, no surrender. What’s the best play?',
-     'cards': [10, 6], 'dealer': 10, 'options': [
-        ['hit', 'Hit'], ['stand', 'Stand'], ['double', 'Double'], ['unsure', 'Not sure yet'],
-    ]},
-    {'id': 'quiz_soft', 'kind': 'placement', 'prompt': 'You have A‑7 (soft 18) and the dealer shows a 9. What’s the best play?',
-     'cards': [1, 7], 'dealer': 9, 'options': [
-        ['stand', 'Stand'], ['hit', 'Hit'], ['double', 'Double'], ['unsure', 'Not sure yet'],
-    ]},
-    {'id': 'quiz_count', 'kind': 'placement', 'prompt': 'Using Hi‑Lo, what’s the running count after these cards?',
-     'cards': [2, 5, 13, 1, 6, 9], 'options': [
-        ['-1', '−1'], ['0', '0'], ['1', '+1'], ['3', '+3'], ['unsure', 'What’s Hi‑Lo?'],
-    ]},
-    {'id': 'quiz_tc', 'kind': 'placement', 'prompt': 'The running count is +9 with 3 decks left to play. What’s the true count?', 'options': [
-        ['3', '+3'], ['6', '+6'], ['12', '+12'], ['unsure', 'Not sure yet'],
-    ]},
+    # ---- Placement: five stages, easiest first. The test stops at the first stage you don't pass. ----
+    {'id': 'p_total', 'kind': 'placement', 'stage': 1, 'prompt': 'What’s this hand’s total?', 'cards': [1, 6, 9], 'options': [
+        ['16', '16'], ['26', '26'], ['s16', 'Soft 16'], ['unsure', 'Not sure']]},
+    {'id': 'p_pay', 'kind': 'placement', 'stage': 1, 'prompt': 'You bet $20 and get a blackjack at a 3:2 table. How much do you win?', 'options': [
+        ['20', '$20'], ['30', '$30'], ['40', '$40'], ['unsure', 'Not sure']]},
+    {'id': 'p_dealer', 'kind': 'placement', 'stage': 1, 'prompt': 'The dealer has a hard 16. What must the dealer do?', 'cards': [10, 6], 'options': [
+        ['hit', 'Hit'], ['stand', 'Stand'], ['choose', 'Whatever the dealer wants'], ['unsure', 'Not sure']]},
+    {'id': 'quiz_hard', 'kind': 'placement', 'stage': 2, 'prompt': 'You have 16 and the dealer shows a 10. Six decks, no surrender. What’s the best play?',
+     'cards': [10, 6], 'dealer': 10, 'options': [['hit', 'Hit'], ['stand', 'Stand'], ['double', 'Double'], ['unsure', 'Not sure']]},
+    {'id': 'quiz_soft', 'kind': 'placement', 'stage': 2, 'prompt': 'You have A‑7 (soft 18) and the dealer shows a 9. What’s the best play?',
+     'cards': [1, 7], 'dealer': 9, 'options': [['stand', 'Stand'], ['hit', 'Hit'], ['double', 'Double'], ['unsure', 'Not sure']]},
+    {'id': 'p_eleven', 'kind': 'placement', 'stage': 2, 'prompt': 'You have 11 and the dealer shows a 6. What’s the best play?',
+     'cards': [6, 5], 'dealer': 6, 'options': [['hit', 'Hit'], ['stand', 'Stand'], ['double', 'Double'], ['unsure', 'Not sure']]},
+    {'id': 'p_eights', 'kind': 'placement', 'stage': 2, 'prompt': 'You have a pair of 8s and the dealer shows a 10. What’s the best play?',
+     'cards': [8, 8], 'dealer': 10, 'options': [['hit', 'Hit'], ['stand', 'Stand'], ['split', 'Split'], ['unsure', 'Not sure']]},
+    {'id': 'p_nines', 'kind': 'placement', 'stage': 3, 'prompt': 'You have a pair of 9s and the dealer shows a 7. What’s the best play?',
+     'cards': [9, 9], 'dealer': 7, 'options': [['hit', 'Hit'], ['stand', 'Stand'], ['split', 'Split'], ['unsure', 'Not sure']]},
+    {'id': 'p_soft15', 'kind': 'placement', 'stage': 3, 'prompt': 'You have A‑4 (soft 15) and the dealer shows a 5. What’s the best play?',
+     'cards': [1, 4], 'dealer': 5, 'options': [['hit', 'Hit'], ['stand', 'Stand'], ['double', 'Double'], ['unsure', 'Not sure']]},
+    {'id': 'p_65', 'kind': 'placement', 'stage': 3, 'prompt': 'A table pays 6:5 on blackjack instead of 3:2. About how much does that add to the house edge?', 'options': [
+        ['0.1', '0.1%'], ['1.4', '1.4%'], ['5', '5%'], ['unsure', 'Not sure']]},
+    {'id': 'p_insure', 'kind': 'placement', 'stage': 3, 'prompt': 'The dealer shows an ace. Should a basic-strategy player (not counting) take insurance?', 'options': [
+        ['good', 'Only with a strong hand'], ['never', 'Never'], ['always', 'Always'], ['unsure', 'Not sure']]},
+    {'id': 'quiz_count', 'kind': 'placement', 'stage': 4, 'prompt': 'Using Hi‑Lo, what’s the running count after these cards?',
+     'cards': [2, 5, 13, 1, 6, 9], 'options': [['-1', '−1'], ['0', '0'], ['1', '+1'], ['3', '+3'], ['unsure', 'What’s Hi‑Lo?']]},
+    {'id': 'quiz_tc', 'kind': 'placement', 'stage': 4, 'prompt': 'The running count is +9 with 3 decks left to play. What’s the true count?', 'options': [
+        ['3', '+3'], ['6', '+6'], ['12', '+12'], ['unsure', 'Not sure']]},
+    {'id': 'p_tray', 'kind': 'placement', 'stage': 4, 'prompt': 'Six-deck shoe. About 2½ decks are in the discard tray. How many decks are left to play?', 'options': [
+        ['2.5', '2½'], ['3.5', '3½'], ['4', '4'], ['unsure', 'Not sure']]},
+    {'id': 'p_tags', 'kind': 'placement', 'stage': 4, 'prompt': 'In Hi‑Lo, which cards count as +1?', 'options': [
+        ['low', '2 through 6'], ['mid', '7 through 9'], ['high', 'Tens and aces'], ['unsure', 'Not sure']]},
+    {'id': 'p_16v10', 'kind': 'placement', 'stage': 5, 'prompt': 'Hi‑Lo true count +1, shoe game, no surrender. You have 16 against a 10. What’s the index play?',
+     'cards': [10, 6], 'dealer': 10, 'options': [['hit', 'Hit'], ['stand', 'Stand'], ['unsure', 'Not sure']]},
+    {'id': 'p_ins_idx', 'kind': 'placement', 'stage': 5, 'prompt': 'At what Hi‑Lo true count does insurance become a good bet?', 'options': [
+        ['1', '+1'], ['3', '+3'], ['6', '+6'], ['unsure', 'Not sure']]},
+    {'id': 'p_kelly', 'kind': 'placement', 'stage': 5, 'prompt': 'Bankroll $10,000, edge 1%, variance about 1.3. A full-Kelly bet is closest to…', 'options': [
+        ['8', '$8'], ['77', '$77'], ['770', '$770'], ['unsure', 'Not sure']]},
+    {'id': 'p_ror', 'kind': 'placement', 'stage': 5, 'prompt': 'Your risk of ruin is 10%. You double your bankroll and keep the same bets. Risk of ruin becomes about…', 'options': [
+        ['5', '5%'], ['1', '1%'], ['20', '20%'], ['unsure', 'Not sure']]},
     {'id': 'challenge', 'prompt': 'What feels hardest right now?', 'options': [
         ['chart', 'Remembering the right play'],
         ['speed', 'Keeping up with the cards'],
@@ -66,7 +90,34 @@ SURVEY = [
     ]},
 ]
 
-PLACEMENT_ANSWERS = {'quiz_hard': 'hit', 'quiz_soft': 'hit', 'quiz_count': '1', 'quiz_tc': '3'}
+PLACEMENT_ANSWERS = {'p_total': '16', 'p_pay': '30', 'p_dealer': 'hit', 'quiz_hard': 'hit', 'quiz_soft': 'hit', 'p_eleven': 'double', 'p_eights': 'split',
+                     'p_nines': 'split', 'p_soft15': 'double', 'p_65': '1.4', 'p_insure': 'never',
+                     'quiz_count': '1', 'quiz_tc': '3', 'p_tray': '3.5', 'p_tags': 'low',
+                     'p_16v10': 'stand', 'p_ins_idx': '3', 'p_kelly': '77', 'p_ror': '1'}
+STAGES = {1: 'Table basics', 2: 'Core strategy', 3: 'The full chart', 4: 'Card counting', 5: 'Advantage play'}
+STAGE_SKILLS = {2: {'strategy'}, 3: {'strategy'}, 4: {'counting', 'truecount'}, 5: {'deviations', 'bankroll'}}
+
+
+def stage_questions(stage): return [q for q in SURVEY if q.get('stage') == stage]
+
+
+def stage_result(stage, answers):
+    """(passed, correct, total). A stage passes with at most one miss and no 'Not sure'."""
+    qs = stage_questions(stage)
+    right = sum(1 for q in qs if str(answers.get(q['id'], '')) == PLACEMENT_ANSWERS[q['id']])
+    unsure = any(str(answers.get(q['id'], '')) in ('unsure', 'skip', '') for q in qs)
+    return (right >= len(qs) - 1 and not unsure), right, len(qs)
+
+
+def placement(answers):
+    """Level 0–5: the number of stages passed in a row, plus the ids of missed questions in passed stages."""
+    level, missed = 0, []
+    for st in sorted(STAGES):
+        ok, _, _ = stage_result(st, answers)
+        if not ok: break
+        level = st
+        missed += [q['id'] for q in stage_questions(st) if str(answers.get(q['id'])) != PLACEMENT_ANSWERS[q['id']]]
+    return level, missed
 
 
 def public_survey():
@@ -80,7 +131,8 @@ def validate_answers(answers):
     clean = {}
     for q in SURVEY:
         value = str(answers.get(q['id'], ''))
-        if value not in {o[0] for o in q['options']}:
+        if q.get('kind') == 'placement' and value in ('', 'skip'): value = 'skip'   # the test stopped before this stage
+        elif value not in {o[0] for o in q['options']}:
             raise ValueError('Please answer every survey question.')
         clean[q['id']] = value
     return clean
@@ -387,9 +439,12 @@ UNITS = [
 LIBRARY = {l['id']: l for u in UNITS for l in u['lessons']}  # the original lessons, reused by the tracks
 
 import tracks as _tracks
-TRACK_META, TRACK_ORDER = _tracks.TRACK_META, _tracks.TRACK_ORDER
-TRACKS = _tracks.build({'teach': teach, 'choice': choice, 'gen': gen, 'tool': tool, 'chart': chart,
-                        'lib': lambda i: LIBRARY[i], 'EASY_TC': EASY_TC, 'HARD_TC': HARD_TC})
+import tracks_expert as _expert
+TRACK_META = {**_tracks.TRACK_META, 'expert': _expert.EXPERT_META}
+TRACK_ORDER = _tracks.TRACK_ORDER + ['expert']
+_H = {'teach': teach, 'choice': choice, 'gen': gen, 'tool': tool, 'chart': chart, 'lib': lambda i: LIBRARY[i], 'EASY_TC': EASY_TC, 'HARD_TC': HARD_TC}
+TRACKS = _tracks.build(_H)
+TRACKS['expert'] = _expert.build(_H)
 UNITS = [u for t in TRACK_ORDER for u in TRACKS[t]]          # every unit in every track
 UNIT_BY_ID = {u['id']: u for u in UNITS}
 TRACK_OF_UNIT = {u['id']: t for t in TRACK_ORDER for u in TRACKS[t]}
@@ -410,42 +465,46 @@ REVIEW_POOLS = {
 # Planner: choose a track, place the learner in it, and explain every decision.
 # ---------------------------------------------------------------------------
 
-LEVELS = ['Rookie', 'Player', 'Strategist', 'Counter', 'Advantage Player']
+LEVELS = ['Rookie', 'Player', 'Strategist', 'Sharp Strategist', 'Counter', 'Advantage Player']
 
 
-def _flags(a):
-    exp = ['new', 'casual', 'strategy', 'counter', 'pro'].index(a['experience'])
-    hard_ok = a['quiz_hard'] == PLACEMENT_ANSWERS['quiz_hard']; soft_ok = a['quiz_soft'] == PLACEMENT_ANSWERS['quiz_soft']
-    count_ok = a['quiz_count'] == PLACEMENT_ANSWERS['quiz_count']; tc_ok = a['quiz_tc'] == PLACEMENT_ANSWERS['quiz_tc']
-    proven = {'rules': exp >= 1, 'strategy': exp >= 2 and hard_ok and soft_ok,
-              'count': exp >= 2 and hard_ok and soft_ok and count_ok, 'tc': exp >= 3 and count_ok and tc_ok}
-    return exp, hard_ok, soft_ok, count_ok, tc_ok, proven
+def placed_units(level):
+    """Units a learner already knows at this placement level. They stay open for review but aren't required."""
+    S, ST, C, P = ([u['id'] for u in TRACKS[t]] for t in TRACK_ORDER[:4])
+    out = []
+    if level >= 1: out += ['sm1']
+    if level >= 2: out += ['sm2', 'sm3', 'sm9']
+    if level >= 3: out += [u for u in S if u not in out] + ST + ['cc1']
+    if level >= 4: out += ['cc2', 'cc3', 'cc9', 'ap1']
+    if level >= 5: out += [u for u in C if u not in out]
+    return out
 
 
 GOAL_PATH = {'understand': 'smart', 'smarter': 'strategy', 'count': 'counter', 'pro': 'pro'}
-PHASE = {'smart': 'Foundations', 'strategy': 'Perfect strategy', 'counter': 'Card counting', 'pro': 'Advantage play'}
+PHASE = {'smart': 'Foundations', 'strategy': 'Perfect strategy', 'counter': 'Card counting', 'pro': 'Advantage play', 'expert': 'Expert lab'}
 
 
 def path_order(goal):
-    """Every learner covers every unit. The goal only changes the order: what you care about comes sooner,
-    and prerequisites always come first (strategy before counting, counting before advantage play)."""
-    S, ST, C, P = ([u['id'] for u in TRACKS[t]] for t in TRACK_ORDER)
+    """Every learner covers every unit they don't already know. The goal changes the order: what you care about
+    comes sooner, and prerequisites always come first (strategy before counting, counting before advantage play)."""
+    S, ST, C, P = ([u['id'] for u in TRACKS[t]] for t in TRACK_ORDER[:4])
+    X = [u['id'] for t in TRACK_ORDER[4:] for u in TRACKS[t]]
     core_s, rest_s = S[:3], S[3:]          # rules + simple strategy first, then money, myths, casino skills
     core_st, rest_st = ST[:4], ST[4:]      # hard, soft, pairs, surrender/insurance first, then rule sets and drills
-    if goal == 'understand': return S + ST + C + P
-    if goal == 'smarter': return core_s + ST + rest_s + C + P
-    if goal == 'count': return core_s + core_st + C + rest_st + rest_s + P
-    return core_s + core_st + C + P + rest_st + rest_s       # 'pro'
+    if goal == 'understand': return S + ST + C + P + X
+    if goal == 'smarter': return core_s + ST + rest_s + C + P + X
+    if goal == 'count': return core_s + core_st + C + rest_st + rest_s + P + X
+    return core_s + core_st + C + P + X + rest_st + rest_s       # 'pro'
 
 
 def choose_track(a):
     """The path's name and why it's ordered the way it is. Returns (path key, reason)."""
     key = GOAL_PATH[a['goal']]
     why = {
-        'understand': 'You want to understand the game, so your path starts with the rules, a simple strategy, and the money side, then builds all the way to counting and advantage play.',
+        'understand': 'You want to understand the game, so your path puts the rules, the strategy, and the money side first, then builds to counting and advantage play.',
         'smarter': 'You want to play smarter, so your path gets you to perfect basic strategy quickly, then covers money, casino skills, counting, and advantage play.',
-        'count': 'You want to learn to count, so after the basics and core strategy your path goes straight into counting. The remaining strategy and casino lessons come after.',
-        'pro': 'You want a real edge, so your path runs from core strategy through counting and advantage play first. The rule-set drills and casino lessons come last.',
+        'count': 'You want to learn to count, so your path goes to counting as soon as your strategy is solid. The remaining strategy and casino lessons come after.',
+        'pro': 'You want a real edge, so your path runs through counting, advantage play, and the expert lab first. Rule-set drills and casino lessons come last.',
     }[a['goal']]
     return key, why
 
@@ -453,48 +512,55 @@ def choose_track(a):
 def build_plan(answers, today=None, track=None):
     a = validate_answers(answers)
     today = today or date.today()
-    exp, hard_ok, soft_ok, count_ok, tc_ok, proven = _flags(a)
+    level, missed = placement(a)
     key, why = choose_track(a)
+    placed = placed_units(level)
     order = path_order(a['goal'])
-    units = [UNIT_BY_ID[u] for u in order]
-    reasons = [why, f'Every path covers all {len(units)} units and {sum(len(u["lessons"]) for u in units)} lessons, so you finish knowing everything from table basics to team play. Nothing is skipped.']
+    todo = [UNIT_BY_ID[u] for u in order if u not in placed]
+    first = todo[0]
+    reasons = [why]
+    if placed:
+        reasons.append(f'Your placement check showed you already know {STAGES[level].lower() if level < 5 else "everything up to advantage play"}'
+                       f'{"" if level == 5 else " and everything before it"}, so you skip {len(placed)} units of material you know. '
+                       f'Your path starts at {first["title"]}, which is your Unit 1. The units you skipped stay open if you want a refresher.')
+    else:
+        reasons.append('Your path starts at the very beginning, with how a hand plays out. Everything builds from there.')
+    reasons.append(f'You have {len(todo)} units and {sum(len(u["lessons"]) for u in todo)} lessons ahead, all the way to expert-level play.')
 
-    # Focus areas: an extra review lesson in the first unit that trains each skill you missed or find hardest.
+    # Focus areas: an extra review lesson in the first remaining unit that trains each skill you missed or find hardest.
     weak = set()
-    if not (hard_ok and soft_ok): weak.add('strategy')
-    if not count_ok: weak.add('counting')
-    if not tc_ok: weak.add('truecount')
+    for qid in missed:
+        st = next(q['stage'] for q in SURVEY if q['id'] == qid); weak |= STAGE_SKILLS.get(st, set())
+    for nxt in (level + 1, level + 2): weak |= STAGE_SKILLS.get(nxt, set())   # the areas you're about to reach
     weak |= {'chart': {'strategy'}, 'speed': {'counting', 'truecount'}, 'betting': {'betting', 'bankroll'}, 'discipline': {'bankroll'}}.get(a['challenge'], set())
     focus = []
     for skill in sorted(weak):
-        u = next((u for u in units if u['skill'] == skill), None)
-        if u and skill in REVIEW_POOLS: focus.append(u['id'])
+        u = next((u for u in todo if u['skill'] == skill), None)
+        if u and skill in REVIEW_POOLS and u['id'] not in focus: focus.append(u['id'])
     if focus:
         reasons.append('From your answers and the skill you find hardest, these units get an extra review lesson: ' + ', '.join(UNIT_BY_ID[f]['title'] for f in focus) + '.')
-    if proven['strategy']:
-        reasons.append('You already know a lot of basic strategy, so the early lessons will feel quick. They still count: they lock in the details most players miss.')
 
     minutes = int(a['time']); per = {5: 1, 10: 2, 15: 3, 20: 4}[minutes]
-    remaining = sum(len(u['lessons']) + (u['id'] in focus) for u in units)
+    remaining = sum(len(u['lessons']) + (u['id'] in focus) for u in todo)
     days = math.ceil(remaining / per)
-    reasons.append(f'At {minutes} minutes a day (about {per} lesson{"s" if per > 1 else ""}), the whole course takes about {days} days. Real skill takes repetition.')
+    reasons.append(f'At {minutes} minutes a day (about {per} lesson{"s" if per > 1 else ""}), that takes about {days} days. Each unit ends with a checkpoint that opens once your skill rating is high enough.')
 
     notes = {}
-    first = lambda skill: next((u['id'] for u in units if u['skill'] == skill), None)
-    if a['game'] == 'pitch' and first('betting'): notes[first('betting')] = 'Pitch games are often beaten with smaller spreads, like 1–4 or 1–8, because the count swings faster.'
-    if a['game'] == 'shoe' and first('betting'): notes[first('betting')] = 'Shoe games usually need a bigger spread, such as 1–12, or back-counting.'
-    if a['game'] == 'online' and first('counting'): notes[first('counting')] = 'Most online blackjack reshuffles every hand, so counting won’t help there. Learn it for live games.'
+    first_of = lambda skill: next((u['id'] for u in todo if u['skill'] == skill), None)
+    if a['game'] == 'pitch' and first_of('betting'): notes[first_of('betting')] = 'Pitch games are often beaten with smaller spreads, like 1–4 or 1–8, because the count swings faster.'
+    if a['game'] == 'shoe' and first_of('betting'): notes[first_of('betting')] = 'Shoe games usually need a bigger spread, such as 1–12, or back-counting.'
+    if a['game'] == 'online' and first_of('counting'): notes[first_of('counting')] = 'Most online blackjack reshuffles every hand, so counting won’t help there. Learn it for live games.'
     for f in focus: notes.setdefault(f, 'This is one of your focus areas, so you’ll get an extra review lesson here.')
 
-    level = LEVELS[4 if proven['tc'] else 3 if proven['count'] else 2 if proven['strategy'] else 1 if (exp >= 1 or hard_ok or soft_ok) else 0]
     meta = TRACK_META[key]; months = max(1, round(days / 30))
     goal_names = {'understand': 'Understand the Game', 'smarter': 'Play Smarter', 'count': 'Learn to Count', 'pro': 'Play with an Edge'}
     return {
-        'version': 3, 'track': key, 'trackName': meta['title'], 'tagline': meta['tagline'], 'nextTrack': None, 'order': order,
-        'level': level, 'goal': a['goal'], 'goalName': goal_names[a['goal']],
-        'headline': f'Your {meta["title"]} path: about {months} month{"s" if months != 1 else ""} to master everything',
-        'startUnit': order[0], 'testedOut': [], 'focus': focus,
-        'milestone': {'unit': order[-1], 'text': 'Finish every unit and you’ll know blackjack inside out, from basic strategy to advantage play.'},
+        'version': 4, 'track': key, 'trackName': meta['title'], 'tagline': meta['tagline'], 'nextTrack': None, 'order': order,
+        'level': LEVELS[level], 'levelIndex': level, 'goal': a['goal'], 'goalName': goal_names[a['goal']],
+        'headline': f'You start at {first["title"]}: about {months} month{"s" if months != 1 else ""} of lessons ahead',
+        'startUnit': first['id'], 'startTitle': first['title'], 'testedOut': placed, 'placed': placed, 'focus': focus,
+        'stages': {str(st): stage_result(st, a)[1:] for st in STAGES},
+        'milestone': {'unit': order[-1], 'text': 'Finish every unit and you’ll know blackjack inside out, up to expert-level advantage play.'},
         'notes': notes, 'style': a['style'], 'minutes': minutes, 'lessonsPerDay': per, 'dailyXp': per * 15,
         'remainingLessons': remaining, 'days': days, 'finish': (today + timedelta(days=days)).isoformat(), 'reasons': reasons,
     }
@@ -508,34 +574,73 @@ def plan_units(plan):
 # Pro content and unit checkpoints
 # ---------------------------------------------------------------------------
 
-# Free: all of Smart Player and Strategy Master, plus the first unit of Card Counter and Advantage Pro.
-PRO_TRACKS = ('counter', 'pro')
-PRO_UNITS = {u['id'] for t in PRO_TRACKS for u in TRACKS[t][1:]}
+# Free: all of Smart Player and Strategy Master, the first unit of Card Counter and Advantage Pro,
+# and whichever unit a learner's own path starts at (so advanced learners also get a free taste at their level).
+PRO_TRACKS = ('counter', 'pro', 'expert')
+PRO_UNITS = {u['id'] for t in PRO_TRACKS if t in TRACKS for u in TRACKS[t][(0 if t == 'expert' else 1):]}
 CHECKPOINT_PASS = 90          # accuracy needed on a checkpoint attempt
-CHECKPOINT_DAYS = 2           # passes needed, each on a different day
 
-_CHECKPOINT_DRILLS = {
-    'strategy': lambda: tool('strategy', 16, pool='any'),
-    'counting': lambda: tool('count', 4, cards=10, speed=700),
-    'truecount': lambda: tool('truecount', 12, **HARD_TC),
-    'betting': lambda: tool('bet', 12, max=12),
-    'deviations': lambda: tool('index', 14, insurance=True),
-}
+TRACK_BASE = {'smart': 1100, 'strategy': 1150, 'counter': 1200, 'pro': 1250, 'expert': 1300}
+SKILL_TOOL = {'strategy-hard': '/practice/strategy', 'strategy-soft': '/practice/strategy', 'strategy-pair': '/practice/strategy',
+              'count': '/practice/count', 'decks': '/practice/decks', 'truecount': '/practice/truecount', 'index': '/practice/index',
+              'insurance': '/practice/index', 'bet': '/practice/bet'}
 
 
-def checkpoint(u):
-    """End-of-unit mastery check: a drill of the unit's skill plus the unit's own concept questions."""
+def _gate_skills(u, track):
+    if u.get('gate'): return list(u['gate'])
+    sk, title = u['skill'], u['title'].lower()
+    early = track in ('smart', 'strategy')
+    if sk == 'strategy':
+        if 'soft' in title: return ['strategy-soft']
+        if 'pair' in title: return ['strategy-pair']
+        return ['strategy-hard'] if early or 'refresher' not in title else ['strategy-hard', 'strategy-soft', 'strategy-pair']
+    if sk == 'counting': return ['count'] if track == 'counter' else ['count', 'truecount']
+    if sk == 'truecount': return ['truecount', 'decks']
+    if sk == 'betting': return ['bet']
+    if sk == 'deviations': return ['index', 'insurance'] if 'insurance' in title else ['index']
+    if sk == 'checkout':
+        return {'smart': ['strategy-hard', 'strategy-soft'], 'strategy': ['strategy-hard', 'strategy-soft', 'strategy-pair'],
+                'counter': ['count', 'truecount', 'index', 'bet'], 'pro': ['truecount', 'index', 'bet']}.get(track, ['truecount', 'index'])
+    return ['strategy-hard'] if early else ['truecount']
+
+
+def _gate(u, track, pos):
+    target = TRACK_BASE.get(track, 1300) + min(100, 15 * pos) + (50 if u['skill'] == 'checkout' else 0)
+    return [(sk, target) for sk in _gate_skills(u, track)]
+
+
+GATES = {u['id']: _gate(u, t, i) for t in TRACKS for i, u in enumerate(TRACKS[t])}
+
+
+def _drills(u, track):
+    """Harder than the lessons: more reps, mixed house rules, faster cards, and timers."""
+    sk, title = u['skill'], u['title'].lower()
+    early = track == 'smart'
+    if sk == 'strategy':
+        pool = 'soft' if 'soft' in title else 'pair' if 'pair' in title else 'hard' if 'hard' in title else 'any'
+        if early: return [tool('strategy', 16, pool=pool)]
+        return [tool('strategy', 14, pool=pool), tool('strategy', 8, pool='any', h17=True, surrender=True)]
+    if sk == 'counting': return [tool('count', 3, cards=14, speed=550), tool('count', 2, table=True, seats=5, speed=650)]
+    if sk == 'truecount': return [tool('decks', 4, shoe=6, ask='remaining'), tool('truecount', 12, timer=6, **HARD_TC)]
+    if sk == 'betting': return [tool('bet', 12, max=12), tool('truecount', 6, timer=6, **HARD_TC)]
+    if sk == 'deviations': return [tool('index', 18, insurance=True)]
+    if sk == 'checkout':
+        if track in ('smart', 'strategy'): return [tool('strategy', 20, pool='any', surrender=track == 'strategy')]
+        return [tool('count', 2, table=True, seats=5, speed=600), tool('truecount', 8, timer=6, **HARD_TC), tool('index', 10, insurance=True), tool('bet', 6, max=12)]
+    if early or track == 'strategy': return [tool('strategy', 12, pool='any')]
+    return [tool('truecount', 8, timer=6, **HARD_TC), tool('index', 8, insurance=True)]
+
+
+def checkpoint(u, track='smart'):
+    """End-of-unit mastery check: the unit's concept questions plus drills that are harder than the lessons."""
     choices = [st for l in u['lessons'] for st in l['steps'] if st['type'] == 'choice']
-    drill = _CHECKPOINT_DRILLS.get(u['skill'])
-    steps = [teach('Checkpoint', f'Show you’ve mastered {u["title"]}. Score {CHECKPOINT_PASS}% or better on {CHECKPOINT_DAYS} different days to unlock the next unit. Spacing it out is what makes it stick.')]
-    if drill:
-        steps += choices[-6:] + [drill()]
-    else:
-        steps += choices[-10:] + [tool('strategy', 8, pool='any')]
+    steps = [teach('Checkpoint', f'Show you’ve mastered {u["title"]}. Score {CHECKPOINT_PASS}% or better to unlock the next unit. '
+                   'It’s harder than the lessons: questions from the whole unit, faster drills, and mixed house rules.')]
+    steps += choices[-8:] + _drills(u, track)
     return {'id': u['id'] + '-checkpoint', 'title': u['title'] + ': Checkpoint', 'steps': steps, 'checkpoint': True}
 
 
-CHECKPOINTS = {u['id'] + '-checkpoint': checkpoint(u) for u in UNITS}
+CHECKPOINTS = {u['id'] + '-checkpoint': checkpoint(u, TRACK_OF_UNIT[u['id']]) for u in UNITS}
 
 
 def lesson_order(plan):
@@ -550,12 +655,15 @@ def lesson_order(plan):
 
 def path_units(plan):
     units = []
+    placed = set(plan.get('placed') or plan.get('testedOut') or [])
+    first = next((u['id'] for u in plan_units(plan) if u['id'] not in placed), None)
     for u in plan_units(plan):
         lessons = [{'id': l['id'], 'title': l['title']} for l in u['lessons']]
         if u['id'] in plan.get('focus', []): lessons.append({'id': u['id'] + '-review', 'title': 'Focus review', 'review': True})
         lessons.append({'id': u['id'] + '-checkpoint', 'title': 'Checkpoint', 'checkpoint': True})
         units.append({'id': u['id'], 'title': u['title'], 'summary': u['summary'], 'color': u['color'], 'tool': u['tool'],
-                      'note': plan.get('notes', {}).get(u['id']), 'pro': u['id'] in PRO_UNITS, 'phase': PHASE[TRACK_OF_UNIT[u['id']]], 'lessons': lessons})
+                      'note': plan.get('notes', {}).get(u['id']), 'pro': u['id'] in PRO_UNITS and u['id'] != first, 'placed': u['id'] in placed,
+                      'gate': [{'skill': sk, 'target': t, 'tool': SKILL_TOOL.get(sk, '/practice')} for sk, t in GATES.get(u['id'], [])], 'phase': PHASE[TRACK_OF_UNIT[u['id']]], 'lessons': lessons})
     return units
 
 

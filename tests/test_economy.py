@@ -160,24 +160,36 @@ class EconomyTests(unittest.TestCase):
         self.assertTrue(ev['earned'])
         self.assertIn(ev['reward'], client.call('/api/store')[1]['owned'])
 
-    def test_checkpoint_needs_two_days(self):
-        server.PACING['daily_new'] = 99
-        try:
-            client, _, _ = self.signup(NEW); uid = self.uid(client)
-            client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
-            for l in coach.UNIT_BY_ID['sm1']['lessons']:
-                self.assertEqual(self.finish(client, l['id'])[0], 200)
-            self.assertEqual(client.call('/api/path')[1]['current'], 'sm1-checkpoint')
-            self.assertEqual(client.call('/api/path/lesson/sm1-checkpoint')[0], 423)        # not the same day
-            r = self.complete(client, 'sm1-checkpoint', DAY(1), ok=False)[1]
-            self.assertEqual(r['checkpoint']['passed'], False)
-            r = self.complete(client, 'sm1-checkpoint', DAY(1))[1]
-            self.assertEqual((r['checkpoint']['passed'], r['current']), (True, 'sm1-checkpoint'))
-            self.assertEqual(client.call(f'/api/path/lesson/sm1-checkpoint?day={DAY(1)}')[0], 423)   # again, but another day
-            with server.db() as c: c.execute('INSERT INTO checkpoint_passes VALUES(?,?,?,?)', (uid, 'sm1-checkpoint', DAY(-5), 95))
-            self.assertEqual(client.call('/api/path')[1]['current'], 'sm2-1')
-        finally:
-            server.PACING['daily_new'] = economy.DAILY_NEW_LESSONS
+    def test_free_energy_claim_is_hourly(self):
+        client, _, _ = self.signup(NEW); uid = self.uid(client)
+        self.assertEqual(client.call('/api/energy/claim', 'POST', {})[0], 400)            # already full
+        with server.db() as c: c.execute('UPDATE wallets SET energy=10, energy_at=? WHERE user_id=?', (server.time.time(), uid))
+        eco = client.call('/api/me/economy')[1]
+        self.assertEqual((eco['energy'], eco['energyClaimIn'], eco['energyMax']), (10, 0, 25))
+        self.assertGreater(eco['energyFullIn'], 0)
+        r = client.call('/api/energy/claim', 'POST', {})[1]
+        self.assertEqual((r['added'], r['energy']), (5, 15)); self.assertGreater(r['energyClaimIn'], 3500)
+        self.assertEqual(client.call('/api/energy/claim', 'POST', {})[0], 429)            # once an hour
+        with server.db() as c: c.execute('UPDATE energy_claims SET at=at-3601 WHERE user_id=?', (uid,))
+        self.assertEqual(client.call('/api/energy/claim', 'POST', {})[1]['energy'], 20)
+
+    def test_checkpoint_opens_at_skill_target(self):
+        client, _, _ = self.signup(NEW); uid = self.uid(client)
+        client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
+        for l in coach.UNIT_BY_ID['sm1']['lessons']:
+            self.assertEqual(self.finish(client, l['id'])[0], 200)
+        with server.db() as c: c.execute('DELETE FROM skill_rating WHERE user_id=?', (uid,))
+        st = client.call('/api/path')[1]
+        self.assertEqual(st['current'], 'sm1-checkpoint')
+        cp = st['units'][0]['lessons'][-1]
+        self.assertEqual((cp['status'], cp['gate'][0]['skill'], cp['gate'][0]['met']), ('gated', 'strategy-hard', False))
+        self.assertEqual(client.call('/api/path/lesson/sm1-checkpoint')[0], 423)
+        with server.db() as c: c.execute("INSERT INTO skill_rating VALUES(?,?,?,?,?)", (uid, 'strategy-hard', 1700, 40, 0))
+        self.assertEqual(client.call('/api/path/lesson/sm1-checkpoint')[0], 200)
+        r = self.complete(client, 'sm1-checkpoint', DAY(0), ok=False)[1]
+        self.assertEqual((r['checkpoint']['passed'], r['current']), (False, 'sm1-checkpoint'))
+        r = self.complete(client, 'sm1-checkpoint', DAY(0))[1]
+        self.assertEqual((r['checkpoint']['passed'], r['current']), (True, 'sm2-1'))   # one pass, same day, is enough
 
     def test_pro_units_and_trial(self):
         client, _, _ = self.signup({**NEW, 'goal': 'count'})

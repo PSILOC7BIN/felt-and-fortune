@@ -16,7 +16,9 @@ def _card(c, uid, today, week_start, streak_info, overall):
     u = c.execute('SELECT id, username FROM users WHERE id=?', (uid,)).fetchone()
     end = (date.fromisoformat(week_start) + timedelta(days=7)).isoformat()
     xp = c.execute('SELECT COALESCE(SUM(xp),0) FROM xp_log WHERE user_id=? AND day>=? AND day<?', (uid, week_start, end)).fetchone()[0]
-    return {'username': u['username'], 'streak': streak_info(c, uid, today)[0], 'weekXp': xp, 'rating': overall(c, uid)}
+    import badges
+    return {'username': u['username'], 'streak': streak_info(c, uid, today)[0], 'weekXp': xp, 'rating': overall(c, uid),
+            'badges': [{'name': b['name'], 'icon': b['icon'], 'tier': b['tier']} for b in badges.top(c, uid)]}
 
 
 def friends(c, uid, today):

@@ -6,6 +6,7 @@ Quests are drawn at random per player per period from fixed pools, with one free
 Rewards are fixed and shown up front; nothing is randomized or sold.
 """
 import json, random, time
+import cosmetics as C
 from datetime import date, timedelta
 
 SCHEMA = '''
@@ -161,15 +162,17 @@ def board(c, uid, today, daily_xp=15):
         c.execute('INSERT OR IGNORE INTO badges VALUES(?,?,?)', (uid, badge, today)); has_badge = True
         w = c.execute('SELECT owned FROM wallets WHERE user_id=?', (uid,)).fetchone()
         owned = json.loads((w['owned'] if w else None) or '[]')
-        if item_id not in owned:
-            owned.append(item_id); c.execute('UPDATE wallets SET owned=? WHERE user_id=?', (json.dumps(owned), uid))
+        new = [x for x in (item_id, item_id.replace('back-event-', 'coach-event-')) if x not in owned]
+        if new:
+            owned += new; c.execute('UPDATE wallets SET owned=? WHERE user_id=?', (json.dumps(owned), uid))
     days_left = (date.fromisoformat(m_end) - date.fromisoformat(today)).days
     rerolled = c.execute('SELECT COUNT(*) FROM quest_rerolls WHERE user_id=? AND day LIKE ?', (uid, today + '%')).fetchone()[0]
     badges = [dict(r) for r in c.execute('SELECT badge, earned FROM badges WHERE user_id=? ORDER BY earned DESC', (uid,))]
     return {'daily': daily, 'weekly': weekly, 'allDaily': all_bonus, 'track': track, 'dailiesThisWeek': dailies_week,
             'rerollsUsed': rerolled, 'weekEnds': wk_end, 'today': today,
             'event': {'name': name, 'month': month, 'goal': EVENT_GOAL, 'progress': min(EVENT_GOAL, month_done), 'badge': badge,
-                      'earned': has_badge, 'reward': item_id, 'rewardName': back_name, 'daysLeft': days_left},
+                      'earned': has_badge, 'reward': item_id, 'rewardName': back_name, 'outfit': item_id.replace('back-event-', 'coach-event-'),
+                      'outfitName': C.CATALOG.get(item_id.replace('back-event-', 'coach-event-'), {}).get('name'), 'daysLeft': days_left},
             'badges': badges}
 
 
