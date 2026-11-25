@@ -517,12 +517,47 @@ def build_plan(answers, today=None, track=None):
     }
 
 
+# ---------------------------------------------------------------------------
+# Pro content and unit checkpoints
+# ---------------------------------------------------------------------------
+
+# Free: all of Smart Player and Strategy Master, plus the first unit of Card Counter and Advantage Pro.
+PRO_TRACKS = ('counter', 'pro')
+PRO_UNITS = {u['id'] for t in PRO_TRACKS for u in TRACKS[t][1:]}
+CHECKPOINT_PASS = 90          # accuracy needed on a checkpoint attempt
+CHECKPOINT_DAYS = 2           # passes needed, each on a different day
+
+_CHECKPOINT_DRILLS = {
+    'strategy': lambda: tool('strategy', 16, pool='any'),
+    'counting': lambda: tool('count', 4, cards=10, speed=700),
+    'truecount': lambda: tool('truecount', 12, **HARD_TC),
+    'betting': lambda: tool('bet', 12, max=12),
+    'deviations': lambda: tool('index', 14, insurance=True),
+}
+
+
+def checkpoint(u):
+    """End-of-unit mastery check: a drill of the unit's skill plus the unit's own concept questions."""
+    choices = [st for l in u['lessons'] for st in l['steps'] if st['type'] == 'choice']
+    drill = _CHECKPOINT_DRILLS.get(u['skill'])
+    steps = [teach('Checkpoint', f'Show you’ve mastered {u["title"]}. Score {CHECKPOINT_PASS}% or better on {CHECKPOINT_DAYS} different days to unlock the next unit. Spacing it out is what makes it stick.')]
+    if drill:
+        steps += choices[-6:] + [drill()]
+    else:
+        steps += choices[-10:] + [tool('strategy', 8, pool='any')]
+    return {'id': u['id'] + '-checkpoint', 'title': u['title'] + ': Checkpoint', 'steps': steps, 'checkpoint': True}
+
+
+CHECKPOINTS = {u['id'] + '-checkpoint': checkpoint(u) for u in UNITS}
+
+
 def lesson_order(plan):
-    """All lesson ids in the plan's track, in order, including focus-area review lessons."""
+    """All lesson ids in the plan's track, in order, including focus-area reviews and unit checkpoints."""
     out = []
     for u in TRACKS[plan['track']]:
         out += [l['id'] for l in u['lessons']]
         if u['id'] in plan.get('focus', []): out.append(u['id'] + '-review')
+        out.append(u['id'] + '-checkpoint')
     return out
 
 
@@ -531,8 +566,9 @@ def path_units(plan):
     for u in TRACKS[plan['track']]:
         lessons = [{'id': l['id'], 'title': l['title']} for l in u['lessons']]
         if u['id'] in plan.get('focus', []): lessons.append({'id': u['id'] + '-review', 'title': 'Focus review', 'review': True})
+        lessons.append({'id': u['id'] + '-checkpoint', 'title': 'Checkpoint', 'checkpoint': True})
         units.append({'id': u['id'], 'title': u['title'], 'summary': u['summary'], 'color': u['color'], 'tool': u['tool'],
-                      'note': plan.get('notes', {}).get(u['id']), 'lessons': lessons})
+                      'note': plan.get('notes', {}).get(u['id']), 'pro': u['id'] in PRO_UNITS, 'lessons': lessons})
     return units
 
 
@@ -542,6 +578,8 @@ def track_summaries():
 
 
 def find_lesson(lesson_id):
+    if lesson_id in CHECKPOINTS:
+        return UNIT_BY_ID[lesson_id[:-len('-checkpoint')]], CHECKPOINTS[lesson_id]
     for u in UNITS:
         if lesson_id == u['id'] + '-review' and u['skill'] in REVIEW_POOLS:
             return u, {'id': lesson_id, 'title': u['title'] + ': Focus review', 'steps': REVIEW_POOLS[u['skill']]}

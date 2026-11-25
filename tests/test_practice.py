@@ -85,13 +85,16 @@ class PracticeApi(unittest.TestCase):
     def setUp(self):
         with server.RATE_LOCK: server.RATE.clear()
         self.c = Client(self.base); name = 'p' + server.secrets.token_hex(5)
-        self.assertEqual(self.c.call('/api/signup', 'POST', {'username': name, 'email': name + '@example.test', 'password': 'Test-password-only-42'})[0], 200)
+        self.assertEqual(self.c.call('/api/signup', 'POST', {'username': name, 'email': name + '@example.test', 'password': 'Test-password-only-42', 'birthYear': 1995})[0], 200)
+
+    def round(self, tool):
+        return self.c.call('/api/energy/start', 'POST', {'tool': tool})[1]['round']
 
     def test_practice_log_regrades_and_caps_xp(self):
         results = [item('count')] * 25 + [item('count', ok=False)] * 5
-        status, r = self.c.call('/api/practice/log', 'POST', {'tool': 'count', 'results': results, 'bestStreak': 12, 'seconds': 300, 'day': date.today().isoformat()})
+        status, r = self.c.call('/api/practice/log', 'POST', {'tool': 'count', 'round': self.round('count'), 'results': results, 'bestStreak': 12, 'seconds': 300, 'day': date.today().isoformat()})
         self.assertEqual((status, r['xp'], r['correct'], r['questions']), (200, practice_api.XP_CAP, 25, 30))
-        status, r = self.c.call('/api/practice/log', 'POST', {'tool': 'count', 'results': [item('count', ok=False)] * 3})
+        status, r = self.c.call('/api/practice/log', 'POST', {'tool': 'count', 'round': self.round('count'), 'results': [item('count', ok=False)] * 3})
         self.assertEqual((r['xp'], r['correct']), (0, 0))
         self.assertEqual(self.c.call('/api/practice/log', 'POST', {'tool': 'nope', 'results': [item('count')]})[0], 400)
         self.assertEqual(self.c.call('/api/practice/log', 'POST', {'tool': 'count', 'results': [{'kind': 'count', 'data': {'cards': [99]}, 'given': 0}]})[0], 400)
@@ -101,7 +104,7 @@ class PracticeApi(unittest.TestCase):
     def test_weak_spots_come_from_missed_skills(self):
         self.assertEqual(self.c.call('/api/practice/weak')[1]['skills'], [])
         results = [item('truecount', ok=False)] * 4 + [item('truecount')] * 2 + [item('strategy')] * 6 + [item('decks', ok=False)] * 2 + [item('decks')] * 3
-        self.c.call('/api/practice/log', 'POST', {'tool': 'strategy', 'results': results})
+        self.c.call('/api/practice/log', 'POST', {'tool': 'strategy', 'round': self.round('strategy'), 'results': results})
         skills = [w['skill'] for w in self.c.call('/api/practice/weak')[1]['skills']]
         self.assertEqual(skills[0], 'truecount')
         self.assertIn('decks', skills)
@@ -121,7 +124,7 @@ class PracticeApi(unittest.TestCase):
         self.assertFalse(r['results'][0]['ok'])
         self.assertEqual(r['hearts'], practice_api.HEARTS - 1)
         other = Client(self.base); name = 'q' + server.secrets.token_hex(5)
-        other.call('/api/signup', 'POST', {'username': name, 'email': name + '@example.test', 'password': 'Test-password-only-42'})
+        other.call('/api/signup', 'POST', {'username': name, 'email': name + '@example.test', 'password': 'Test-password-only-42', 'birthYear': 1995})
         self.assertEqual(other.call('/api/challenge/answer', 'POST', {'id': g['id'], 'answers': {'rc': 0}})[0], 400)
 
     def test_deck_drill_uses_half_decks(self):

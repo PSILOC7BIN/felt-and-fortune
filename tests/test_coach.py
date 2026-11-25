@@ -107,7 +107,7 @@ class CoachApiTests(unittest.TestCase):
 
     def signup(self, survey=None):
         client = Client(self.base); name = 'learner' + self.n + server.secrets.token_hex(2)
-        body = {'username': name, 'email': name + '@example.test', 'password': 'Test-password-only-42'}
+        body = {'username': name, 'email': name + '@example.test', 'password': 'Test-password-only-42', 'birthYear': 1995}
         if survey is not None: body['survey'] = survey
         status, result = client.call('/api/signup', 'POST', body)
         return client, status, result
@@ -178,6 +178,8 @@ class CoachApiTests(unittest.TestCase):
         client, _, _ = self.signup(EXPERT)
         state = client.call('/api/path')[1]
         self.assertEqual(state['current'], 'ap2-1')
+        self.assertEqual(client.call('/api/path/lesson/ap2-1')[0], 402)   # Advantage Pro beyond unit 1 is Pro
+        client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-annual'})
         self.assertEqual(client.call('/api/path/lesson/ap1-2')[0], 200)
         self.assertEqual(client.call('/api/path/lesson/ap3-1')[0], 403)
         self.assertEqual(self.finish(client, 'ap2-1')[0], 200)

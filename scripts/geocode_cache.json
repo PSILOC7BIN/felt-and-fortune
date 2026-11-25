@@ -1,1 +1,567 @@
-{}
+{
+ "Ameristar Black Hawk|111 Richman St|Black Hawk|CO": {
+  "lat": 39.8002185,
+  "lng": -105.4892516
+ },
+ "Ameristar Casino Hotel Kansas City|3200 N Ameristar Dr|Kansas City|MO": {
+  "lat": 39.1501347,
+  "lng": -94.4843253
+ },
+ "Ameristar Casino Resort Spa St. Charles|1 Ameristar Blvd|St. Charles|MO": {
+  "lat": 38.7666099,
+  "lng": -90.4838343
+ },
+ "Aquarius Casino Resort|1900 S Casino Dr|Laughlin|NV": {
+  "lat": 35.1627507,
+  "lng": -114.5712839
+ },
+ "Aria|3730 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1083317,
+  "lng": -115.1766353
+ },
+ "Atlantis Casino Resort Spa|3800 S Virginia St|Reno|NV": {
+  "lat": 39.4889062,
+  "lng": -119.7934661
+ },
+ "Avi Resort & Casino (Fort Mojave tribal)|10000 Aha Macav Pkwy|Laughlin|NV": {
+  "lat": 35.0158019,
+  "lng": -114.641324
+ },
+ "Bally's Atlantic City|1900 Pacific Ave|Atlantic City|NJ": {
+  "lat": 39.3567464,
+  "lng": -74.4324843
+ },
+ "Bally's Dover Casino Resort|1131 N DuPont Hwy|Dover|DE": {
+  "lat": 39.189649,
+  "lng": -75.5300468
+ },
+ "Beau Rivage Resort & Casino|875 Beach Blvd|Biloxi|MS": {
+  "lat": 30.3926721,
+  "lng": -88.8918711
+ },
+ "Bellagio|3600 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1123192,
+  "lng": -115.178723
+ },
+ "Binion's Gambling Hall|128 E Fremont St|Las Vegas|NV": {
+  "lat": 36.1686022,
+  "lng": -115.1391894
+ },
+ "Borgata Hotel Casino & Spa|1 Borgata Way|Atlantic City|NJ": {
+  "lat": 39.3785341,
+  "lng": -74.4349308
+ },
+ "Boulder Station (Station)|4111 Boulder Hwy|Las Vegas|NV": {
+  "lat": 36.1337833,
+  "lng": -115.0852605
+ },
+ "Caesars Atlantic City|2100 Pacific Ave|Atlantic City|NJ": {
+  "lat": 39.3557502,
+  "lng": -74.4353152
+ },
+ "Caesars New Orleans (formerly Harrah's New Orleans)|8 Canal St (blackjack.tools: 'Canal at the River')|New Orleans|LA": null,
+ "Caesars Palace|3570 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1167079,
+  "lng": -115.1751896
+ },
+ "California Hotel & Casino (Boyd)|12 E Ogden Ave|Las Vegas|NV": {
+  "lat": 36.1731605,
+  "lng": -115.1448806
+ },
+ "Choctaw Casino & Resort Durant|3735 Choctaw Rd|Durant|OK": {
+  "lat": 33.9542713,
+  "lng": -96.4124736
+ },
+ "Circa Resort & Casino|8 Fremont St|Las Vegas|NV": {
+  "lat": 36.172389,
+  "lng": -115.1451634
+ },
+ "Circus Circus|2880 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1377198,
+  "lng": -115.1658402
+ },
+ "Cosmopolitan of Las Vegas|3708 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1101567,
+  "lng": -115.1740915
+ },
+ "Coushatta Casino Resort|777 Coushatta Dr|Kinder|LA": {
+  "lat": 30.5458878,
+  "lng": -92.8144242
+ },
+ "Delaware Park Casino|777 Delaware Park Blvd|Wilmington|DE": {
+  "lat": 39.7055412,
+  "lng": -75.6553186
+ },
+ "Downtown Grand|206 N 3rd St|Las Vegas|NV": {
+  "lat": 36.1723052,
+  "lng": -115.1414478
+ },
+ "Durango Casino & Resort (Station)|6915 S Durango Dr|Las Vegas|NV": {
+  "lat": 36.0639216,
+  "lng": -115.2825144
+ },
+ "El Cortez Hotel & Casino|600 E Fremont St|Las Vegas|NV": {
+  "lat": 36.1686022,
+  "lng": -115.1391894
+ },
+ "Eldorado Resort Casino|345 N Virginia St|Reno|NV": {
+  "lat": 39.5290357,
+  "lng": -119.8146463
+ },
+ "Encore Boston Harbor|1 Broadway|Everett|MA": {
+  "lat": 42.396941,
+  "lng": -71.064791
+ },
+ "Encore Las Vegas|3121 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1436715,
+  "lng": -115.1575011
+ },
+ "Excalibur|3850 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.098873,
+  "lng": -115.1756084
+ },
+ "Flamingo|3555 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1164253,
+  "lng": -115.1723637
+ },
+ "Fontainebleau Las Vegas|2777 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1374208,
+  "lng": -115.1592284
+ },
+ "Four Queens|202 Fremont St|Las Vegas|NV": {
+  "lat": 36.1695999,
+  "lng": -115.1412464
+ },
+ "Foxwoods Resort Casino|350 Trolley Line Blvd|Mashantucket|CT": {
+  "lat": 41.4718455,
+  "lng": -71.9597687
+ },
+ "Fremont Hotel & Casino (Boyd)|200 E Fremont St|Las Vegas|NV": {
+  "lat": 36.1686022,
+  "lng": -115.1391894
+ },
+ "Gila River Resorts & Casinos - Wild Horse Pass|5040 Wild Horse Pass Blvd (OSM: 5040 S Maricopa Rd)|Chandler|AZ": null,
+ "Gold Coast (Boyd)|4000 W Flamingo Rd|Las Vegas|NV": {
+  "lat": 36.116732,
+  "lng": -115.1929236
+ },
+ "Gold Strike Casino Resort|1010 Casino Center Dr|Tunica Resorts|MS": {
+  "lat": 34.8463044,
+  "lng": -90.3325722
+ },
+ "Golden Gate Hotel & Casino|1 Fremont St|Las Vegas|NV": {
+  "lat": 36.169228,
+  "lng": -115.14083
+ },
+ "Golden Nugget Atlantic City|600 Huron Ave|Atlantic City|NJ": {
+  "lat": 39.3796356,
+  "lng": -74.4279961
+ },
+ "Golden Nugget Biloxi|151 Beach Blvd|Biloxi|MS": {
+  "lat": 30.3934151,
+  "lng": -88.8753113
+ },
+ "Golden Nugget Lake Charles|2550 Golden Nugget Blvd|Lake Charles|LA": {
+  "lat": 30.2045948,
+  "lng": -93.2638734
+ },
+ "Golden Nugget Las Vegas|129 E Fremont St|Las Vegas|NV": {
+  "lat": 36.1686022,
+  "lng": -115.1391894
+ },
+ "Golden Nugget Laughlin|2300 S Casino Dr|Laughlin|NV": {
+  "lat": 35.1541277,
+  "lng": -114.5735063
+ },
+ "Grand Lodge Casino at Hyatt Regency Lake Tahoe|111 Country Club Dr|Incline Village|NV": {
+  "lat": 39.2417232,
+  "lng": -119.9417668
+ },
+ "Green Valley Ranch (Station)|2300 Paseo Verde Pkwy|Henderson|NV": {
+  "lat": 36.0224868,
+  "lng": -115.091978
+ },
+ "Hard Rock Hotel & Casino Atlantic City|1000 Boardwalk|Atlantic City|NJ": {
+  "lat": 39.3587025,
+  "lng": -74.4205132
+ },
+ "Hard Rock Hotel & Casino Biloxi|777 Beach Blvd|Biloxi|MS": {
+  "lat": 30.3917998,
+  "lng": -88.8875483
+ },
+ "Hard Rock Hotel & Casino Tulsa|777 W Cherokee St|Catoosa|OK": {
+  "lat": 36.16763,
+  "lng": -95.76604
+ },
+ "Harrah's Gulf Coast|280 Beach Blvd (blackjack.tools lists 265 Beach Blvd)|Biloxi|MS": {
+  "lat": 30.393104,
+  "lng": -88.8659345
+ },
+ "Harrah's Lake Tahoe|15 US-50|Stateline|NV": {
+  "lat": 38.9599579,
+  "lng": -119.9416639
+ },
+ "Harrah's Las Vegas|3475 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1193033,
+  "lng": -115.1711625
+ },
+ "Harrah's Laughlin|2900 S Casino Dr|Laughlin|NV": {
+  "lat": 35.1446361,
+  "lng": -114.5765952
+ },
+ "Harrah's Philadelphia|777 Harrah's Blvd|Chester|PA": {
+  "lat": 39.8510006,
+  "lng": -75.3483794
+ },
+ "Harrah's Resort Atlantic City|777 Harrah's Blvd|Atlantic City|NJ": {
+  "lat": 39.3847169,
+  "lng": -74.4273809
+ },
+ "Harrington Raceway & Casino|18500 S DuPont Hwy|Harrington|DE": {
+  "lat": 38.9125408,
+  "lng": -75.5744245
+ },
+ "Hollywood Casino Perryville|1201 Chesapeake Overlook Pkwy|Perryville|MD": {
+  "lat": 39.5957347,
+  "lng": -76.0743278
+ },
+ "Hollywood Casino at Greektown|555 E Lafayette Blvd|Detroit|MI": {
+  "lat": 42.301364,
+  "lng": -83.124974
+ },
+ "Hollywood Casino at Penn National Race Course|777 Hollywood Blvd|Grantville|PA": null,
+ "Hollywood Casino at The Meadows|210 Racetrack Rd|Washington|PA": {
+  "lat": 40.2204011,
+  "lng": -80.2019063
+ },
+ "Horseshoe Black Hawk|401 Main St|Black Hawk|CO": {
+  "lat": 39.7980972,
+  "lng": -105.4834834
+ },
+ "Horseshoe Casino Baltimore|1525 Russell St|Baltimore|MD": {
+  "lat": 39.273558,
+  "lng": -76.6274404
+ },
+ "Horseshoe Hammond|777 Casino Center Dr|Hammond|IN": {
+  "lat": 41.6941243,
+  "lng": -87.5066532
+ },
+ "Horseshoe Indianapolis|4300 N Michigan Rd|Shelbyville|IN": {
+  "lat": 39.587882,
+  "lng": -85.826788
+ },
+ "Horseshoe Lake Charles|100 Westlake Ave|Westlake|LA": {
+  "lat": 30.2340447,
+  "lng": -93.2483272
+ },
+ "Horseshoe Las Vegas (formerly Bally's)|3645 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.113482,
+  "lng": -115.169055
+ },
+ "Horseshoe St. Louis|999 N 2nd St|St. Louis|MO": {
+  "lat": 38.6338762,
+  "lng": -90.1848612
+ },
+ "Horseshoe Tunica|1021 Casino Center Dr|Tunica Resorts|MS": null,
+ "IP Casino Resort Spa|850 Bayview Ave|Biloxi|MS": {
+  "lat": 30.4117092,
+  "lng": -88.891878
+ },
+ "Isleta Resort & Casino|11000 Broadway Blvd SE|Albuquerque|NM": {
+  "lat": 34.9362062,
+  "lng": -106.6616403
+ },
+ "J Resort|unverified (former Harrah's Reno site, downtown)|Reno|NV": {
+  "lat": 39.5282504,
+  "lng": -119.8192714
+ },
+ "L'Auberge Casino Resort Lake Charles|777 Ave L'Auberge|Lake Charles|LA": {
+  "lat": 30.202175,
+  "lng": -93.255674
+ },
+ "Live! Casino & Hotel Maryland|7002 Arundel Mills Cir|Hanover|MD": {
+  "lat": 39.1573308,
+  "lng": -76.7270132
+ },
+ "Live! Casino & Hotel Philadelphia|900 Packer Ave|Philadelphia|PA": {
+  "lat": 39.9097954,
+  "lng": -75.1648327
+ },
+ "Live! Casino Pittsburgh|5180 US-30 (Westmoreland Mall)|Greensburg|PA": null,
+ "Luxor|3900 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.0958724,
+  "lng": -115.1758074
+ },
+ "M Resort Spa Casino|12300 Las Vegas Blvd S|Henderson|NV": {
+  "lat": 35.9652236,
+  "lng": -115.1692184
+ },
+ "MGM Grand Detroit|1777 3rd St|Detroit|MI": {
+  "lat": 42.3347685,
+  "lng": -83.0606028
+ },
+ "MGM Grand|3799 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1027891,
+  "lng": -115.1694006
+ },
+ "MGM National Harbor|101 MGM National Ave|Oxon Hill|MD": {
+  "lat": 38.7950567,
+  "lng": -77.00916
+ },
+ "MGM Springfield|1 MGM Way|Springfield|MA": {
+  "lat": 42.0995492,
+  "lng": -72.5880087
+ },
+ "Main Street Station (Boyd)|200 N Main St|Las Vegas|NV": {
+  "lat": 36.1850863,
+  "lng": -115.1376324
+ },
+ "Mandalay Bay|3950 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.0922458,
+  "lng": -115.1758239
+ },
+ "Mohegan Pennsylvania (formerly Mohegan Sun Pocono)|1280 Highway 315|Wilkes-Barre|PA": {
+  "lat": 41.2688306,
+  "lng": -75.820415
+ },
+ "Mohegan Sun|1 Mohegan Sun Blvd|Uncasville|CT": {
+  "lat": 41.4911078,
+  "lng": -72.0897434
+ },
+ "Morongo Casino Resort & Spa|49500 Seminole Dr|Cabazon|CA": {
+  "lat": 33.9220127,
+  "lng": -116.8012179
+ },
+ "MotorCity Casino Hotel|2901 Grand River Ave|Detroit|MI": {
+  "lat": 42.3382446,
+  "lng": -83.066971
+ },
+ "Mount Airy Casino Resort|312 Woodland Rd|Mount Pocono|PA": {
+  "lat": 41.1134364,
+  "lng": -75.3215299
+ },
+ "Muckleshoot Casino Resort|2402 Auburn Way S|Auburn|WA": {
+  "lat": 47.29033,
+  "lng": -122.1955924
+ },
+ "New York-New York|3790 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1021436,
+  "lng": -115.1744946
+ },
+ "Nugget Casino Resort|1100 Nugget Ave|Sparks|NV": {
+  "lat": 39.533303,
+  "lng": -119.757562
+ },
+ "Ocean Casino Resort|500 Boardwalk|Atlantic City|NJ": {
+  "lat": 39.3624336,
+  "lng": -74.4147026
+ },
+ "Palace Station (Station)|2411 W Sahara Ave|Las Vegas|NV": {
+  "lat": 36.1424186,
+  "lng": -115.1749241
+ },
+ "Palazzo (at The Venetian Resort)|3325 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1241843,
+  "lng": -115.168271
+ },
+ "Paris Las Vegas|3655 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1121618,
+  "lng": -115.170638
+ },
+ "Park MGM|3770 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1047548,
+  "lng": -115.175262
+ },
+ "Parx Casino|2999 Street Rd|Bensalem|PA": {
+  "lat": 40.113403,
+  "lng": -74.955836
+ },
+ "Pechanga Resort Casino|45000 Pechanga Pkwy|Temecula|CA": {
+  "lat": 33.4561763,
+  "lng": -117.1049727
+ },
+ "Peppermill Resort Spa Casino|2707 S Virginia St|Reno|NV": {
+  "lat": 39.4986573,
+  "lng": -119.7998413
+ },
+ "Planet Hollywood|3667 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1100625,
+  "lng": -115.1715131
+ },
+ "Plaza Hotel & Casino|1 S Main St|Las Vegas|NV": {
+  "lat": 36.1715877,
+  "lng": -115.1470854
+ },
+ "Presque Isle Downs & Casino|8199 Perry Hwy|Erie|PA": {
+  "lat": 42.0685585,
+  "lng": -80.0308392
+ },
+ "Red Rock Casino Resort & Spa (Station)|11011 W Charleston Blvd|Las Vegas|NV": {
+  "lat": 36.1561105,
+  "lng": -115.3346837
+ },
+ "Resorts Casino Hotel|1133 Boardwalk|Atlantic City|NJ": {
+  "lat": 39.3592071,
+  "lng": -74.422115
+ },
+ "Resorts World Catskills|888 Resorts World Dr|Monticello|NY": {
+  "lat": 41.6604202,
+  "lng": -74.6483212
+ },
+ "Resorts World Las Vegas|3000 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1336945,
+  "lng": -115.1661576
+ },
+ "Rivers Casino & Resort Schenectady|1 Rush St|Schenectady|NY": {
+  "lat": 42.8236632,
+  "lng": -73.9371335
+ },
+ "Rivers Casino Des Plaines|3000 S River Rd|Des Plaines|IL": {
+  "lat": 41.9977912,
+  "lng": -87.8628087
+ },
+ "Rivers Casino Philadelphia|1001 N Delaware Ave|Philadelphia|PA": {
+  "lat": 39.9638356,
+  "lng": -75.1324475
+ },
+ "Rivers Casino Pittsburgh|777 Casino Dr|Pittsburgh|PA": {
+  "lat": 40.4474065,
+  "lng": -80.022482
+ },
+ "Riverside Resort|1650 S Casino Dr|Laughlin|NV": {
+  "lat": 35.1679033,
+  "lng": -114.5717014
+ },
+ "SAHARA Las Vegas|2535 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1423806,
+  "lng": -115.1546448
+ },
+ "Sam's Town (Boyd)|5111 Boulder Hwy|Las Vegas|NV": {
+  "lat": 36.1430779,
+  "lng": -115.0987053
+ },
+ "Sandia Resort & Casino|30 Rainbow Rd NE|Albuquerque|NM": {
+  "lat": 35.2070763,
+  "lng": -106.5669702
+ },
+ "Santa Fe Station (Station)|4949 N Rancho Dr|Las Vegas|NV": {
+  "lat": 36.2498865,
+  "lng": -115.2448221
+ },
+ "Scarlet Pearl Casino Resort|9380 Central Ave|D'Iberville|MS": {
+  "lat": 30.4234106,
+  "lng": -88.8909369
+ },
+ "Seminole Hard Rock Hotel & Casino Hollywood|1 Seminole Way|Hollywood|FL": {
+  "lat": 26.0517276,
+  "lng": -80.2112423
+ },
+ "Seminole Hard Rock Hotel & Casino Tampa|5223 N Orient Rd|Tampa|FL": {
+  "lat": 27.9933782,
+  "lng": -82.371462
+ },
+ "Seneca Niagara Resort & Casino|310 Fourth St|Niagara Falls|NY": {
+  "lat": 43.0864271,
+  "lng": -79.056748
+ },
+ "Silver Legacy Resort Casino|407 N Virginia St|Reno|NV": {
+  "lat": 39.5303293,
+  "lng": -119.8146764
+ },
+ "Snoqualmie Casino|37500 SE North Bend Way|Snoqualmie|WA": {
+  "lat": 47.5186276,
+  "lng": -121.8417148
+ },
+ "South Point Hotel Casino|9777 Las Vegas Blvd S|Las Vegas|NV": {
+  "lat": 36.0119389,
+  "lng": -115.1761154
+ },
+ "Suncoast (Boyd)|9090 Alta Dr|Las Vegas|NV": {
+  "lat": 36.1691368,
+  "lng": -115.2909662
+ },
+ "Sunset Station (Station)|1301 W Sunset Rd|Henderson|NV": {
+  "lat": 36.0604183,
+  "lng": -115.0408078
+ },
+ "Talking Stick Resort|9800 E Talking Stick Way|Scottsdale|AZ": {
+  "lat": 33.5407922,
+  "lng": -111.8701546
+ },
+ "The D Las Vegas|301 Fremont St|Las Vegas|NV": {
+  "lat": 36.1694974,
+  "lng": -115.1429742
+ },
+ "The LINQ|3535 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1183591,
+  "lng": -115.1705968
+ },
+ "The Orleans (Boyd)|4500 W Tropicana Ave|Las Vegas|NV": {
+  "lat": 36.1058277,
+  "lng": -115.2022465
+ },
+ "The STRAT|2000 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1476992,
+  "lng": -115.1561024
+ },
+ "The Vanderpump Hotel (formerly The Cromwell)|3595 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1150973,
+  "lng": -115.1716593
+ },
+ "Thunder Valley Casino Resort|1200 Athens Ave|Lincoln|CA": {
+  "lat": 38.8403664,
+  "lng": -121.3137366
+ },
+ "Treasure Bay Casino & Hotel|1980 Beach Blvd|Biloxi|MS": {
+  "lat": 30.3938363,
+  "lng": -88.9551857
+ },
+ "Treasure Island|3300 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1245764,
+  "lng": -115.1718733
+ },
+ "Tropicana Atlantic City|2831 Boardwalk|Atlantic City|NJ": {
+  "lat": 39.3529872,
+  "lng": -74.4450495
+ },
+ "Tropicana Laughlin|2121 S Casino Dr|Laughlin|NV": {
+  "lat": 35.1578889,
+  "lng": -114.5757704
+ },
+ "Tulalip Resort Casino|10200 Quil Ceda Blvd|Tulalip|WA": {
+  "lat": 48.088053,
+  "lng": -122.1892517
+ },
+ "Turning Stone Resort Casino|5218 Patrick Rd|Verona|NY": {
+  "lat": 43.1150547,
+  "lng": -75.5887867
+ },
+ "Valley Forge Casino Resort|1160 First Ave|King of Prussia|PA": {
+  "lat": 40.0967871,
+  "lng": -75.415789
+ },
+ "Venetian|3355 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1217073,
+  "lng": -115.1693352
+ },
+ "WinStar World Casino and Resort|777 Casino Ave|Thackerville|OK": {
+  "lat": 33.7577867,
+  "lng": -97.1317944
+ },
+ "Wind Creek Bethlehem|77 Wind Creek Blvd|Bethlehem|PA": {
+  "lat": 40.6156999,
+  "lng": -75.3600062
+ },
+ "Wynn Las Vegas|3131 S Las Vegas Blvd|Las Vegas|NV": {
+  "lat": 36.1289345,
+  "lng": -115.165362
+ },
+ "Yaamava' Resort & Casino at San Manuel|777 San Manuel Blvd|Highland|CA": {
+  "lat": 34.1506804,
+  "lng": -117.2294055
+ },
+ "del Lago Resort & Casino|1133 NY-414|Waterloo|NY": {
+  "lat": 42.9692015,
+  "lng": -76.8462349
+ }
+}

@@ -31,7 +31,7 @@ class ApiTests(unittest.TestCase):
         self.bank=self.a.call('/api/records?kind=bankroll')[1]['records'][0]['id']
     def create(self,name):
         client=Client(self.base);client.username=name+self.prefix
-        status,result=client.call('/api/signup','POST',{'username':client.username,'email':client.username+'@example.test','password':'Test-password-only-42'})
+        status,result=client.call('/api/signup','POST',{'username':client.username,'email':client.username+'@example.test','password':'Test-password-only-42','birthYear':1995})
         self.assertEqual(status,200,result);client.user=result['user'];return client
     def record(self,client,kind,body,parent=None): return client.call('/api/records','POST',{'kind':kind,'body':body,'parent':parent})
     def session(self,client=None):

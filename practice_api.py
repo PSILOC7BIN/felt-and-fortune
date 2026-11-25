@@ -1,4 +1,5 @@
 """Practice tools on the server: session logging (with XP) and the server-graded Shoe Challenge."""
+import economy
 import json
 import math
 import random
@@ -111,18 +112,25 @@ class PracticeRoutes:
             except BadTranscript as e: raise ApiError(str(e))
             q = len(d['results'])
             streak = int(num(d, 'bestStreak', 0, 500)); secs = int(num(d, 'seconds', 0, 86400))
+            require(economy.use_round(c, uid, d.get('round'), tool), 'Start a practice round first.', 402)
             record_skills(c, uid, skills)
             day = self.client_day()
             c.execute('INSERT INTO practice_log(user_id,tool,questions,correct,best_streak,seconds,day,created) VALUES(?,?,?,?,?,?,?,?)', (uid, tool, q, ok, streak, secs, day, time.time()))
             xp = min(XP_CAP, ok)
             if xp: c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)', (uid, day, xp, 'practice:' + tool, time.time()))
-            return self.send_json({'xp': xp, 'questions': q, 'correct': ok, 'stats': self.practice_stats()})
+            stars = economy.add_stars(c, uid, 5, 'practice', day) if q >= 5 and ok * 10 >= q * 9 else 0
+            plan = self.load_plan() if hasattr(self, 'load_plan') else None
+            if xp: stars += self.goal_bonus(plan, day, xp)
+            energy_back = economy.earn_energy(c, uid, day, (1 if q >= 5 and ok == q else 0) + min(streak, ok) // 15)
+            return self.send_json({'xp': xp, 'questions': q, 'correct': ok, 'stars': stars, 'energyBack': energy_back, 'stats': self.practice_stats()})
         if path == '/api/practice/weak' and method == 'GET':
             return self.send_json({'skills': weak_spots(c, uid)})
         if path == '/api/practice/stats' and method == 'GET':
             return self.send_json(self.practice_stats())
         if path == '/api/challenge/start' and method == 'POST':
             self.throttle('challenge', 60)
+            rid, left = economy.start_round(c, uid, 'challenge')
+            if not rid: raise ApiError('The Shoe Challenge takes 3 Energy. You’re out for now.', 402)
             c.execute("DELETE FROM games WHERE user_id=? AND finished=0", (uid,))
             gid = secrets.token_hex(12); state = new_game()
             c.execute('INSERT INTO games(id,user_id,state,score,finished,created) VALUES(?,?,?,?,?,?)', (gid, uid, json.dumps(state), 0, 0, time.time()))

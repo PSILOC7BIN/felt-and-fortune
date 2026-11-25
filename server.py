@@ -9,6 +9,12 @@ from datetime import date, timedelta
 from engine import basic, total, hilo, deviation, INDICES, simulate
 import coach
 from practice_api import PracticeRoutes, grade_transcript, record_skills, BadTranscript
+import economy
+from economy import EconomyRoutes
+
+# Pacing is teaching, not a paywall: it applies to every learner (tests can relax it).
+PACING={'daily_new':economy.DAILY_NEW_LESSONS,'checkpoints':True}
+MIN_AGE=18
 
 ROOT=Path(__file__).parent
 DB_PATH=os.environ.get('DATABASE_PATH',str(ROOT/'data'/'ap-toolbox.sqlite3'))
@@ -47,6 +53,7 @@ def initialize():
         CREATE TABLE IF NOT EXISTS feedback(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),rating INTEGER,area TEXT,page TEXT,comment TEXT,created REAL);
         CREATE TABLE IF NOT EXISTS xp_log(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id TEXT REFERENCES users(id),day TEXT,xp INTEGER,lesson_id TEXT,created REAL);
         ''')
+        c.executescript(economy.SCHEMA)
 
 def password_hash(password,salt=None):
     salt=salt or secrets.token_hex(16)
@@ -72,7 +79,7 @@ def num(data,key,minimum=-1e9,maximum=1e9,default=0):
 # They authenticate with a bearer token instead of a cookie, so cross-site request forgery does not apply.
 NATIVE_ORIGINS={'capacitor://localhost','https://localhost','ionic://localhost'}
 
-class Handler(BaseHTTPRequestHandler, PracticeRoutes):
+class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
     server_version='FeltAndFortune/1.0'
     def log_message(self,fmt,*args):
         # Do not log reset tokens, passwords, or message contents.
@@ -199,11 +206,14 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
             require(re.fullmatch(r'[A-Za-z0-9_-]{3,30}',username),'Username must be 3–30 letters, numbers, hyphens or underscores.')
             require(re.fullmatch(r'[^\s@]+@[^\s@]+\.[^\s@]+',email),'Enter a valid email address.')
             require(len(pw)>=10,'Use at least 10 characters for your password.')
+            birth=int(num(d,'birthYear',1900,date.today().year))
+            require(date.today().year-birth>=MIN_AGE,f'Felt & Fortune is for adults {MIN_AGE} and older.',403)
             plan=None
             if d.get('survey') is not None:
                 try: answers=coach.validate_answers(d['survey']);plan=coach.build_plan(answers)
                 except ValueError as e: raise ApiError(str(e))
             uid=secrets.token_hex(12);c.execute('INSERT INTO users VALUES(?,?,?,?,?)',(uid,username,email,password_hash(pw),time.time()))
+            c.execute('INSERT OR IGNORE INTO wallets(user_id,energy,energy_at,birth_year) VALUES(?,?,?,?)',(uid,economy.ENERGY_MAX,time.time(),birth))
             bid=secrets.token_hex(12);now=time.time()
             c.execute('INSERT INTO records VALUES(?,?,?,?,?,?,?)',(bid,'bankroll',uid,None,json.dumps({'name':'My bankroll','currency':'USD','initial':0,'type':'solo'}),now,now))
             c.execute('INSERT INTO members VALUES(?,?,?,?)',(bid,uid,'owner',100))
@@ -343,6 +353,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
             rows=c.execute("SELECT users.username,COUNT(*) attempts,SUM(correct)*10 score FROM challenges JOIN users ON users.id=user_id WHERE mode='career' AND answered=1 GROUP BY user_id ORDER BY score DESC,attempts ASC LIMIT 50")
             return self.send_json({'players':[dict(r) for r in rows]})
         if path.startswith('/api/path'): return self.path_api(path,method)
+        if path=='/api/me/economy' or path.split('/')[2] in ('energy','quests','streak','league','store','billing'): return self.economy_api(path,method,require,ApiError)
         if path=='/api/feedback' and method=='POST':
             self.throttle('feedback',30)
             rating=int(num(d,'rating',1,5));area=str(d.get('area','other'));require(area in ('signup','lesson','practice','track','community','other'),'Choose what you were doing.')
@@ -392,22 +403,40 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
         c=self.c;uid=self.user['id']
         done={r['lesson_id']:r['best'] for r in c.execute('SELECT lesson_id,best FROM lesson_progress WHERE user_id=?',(uid,))}
         order=coach.lesson_order(plan)
-        tested={l['id'] for u in coach.UNITS if u['id'] in plan['testedOut'] for l in u['lessons']}
+        tested={l['id'] for u in coach.UNITS if u['id'] in plan['testedOut'] for l in u['lessons']}|{u+'-checkpoint' for u in plan['testedOut']}
+        today=self.client_day()
+        passes={}
+        for r in c.execute('SELECT lesson_id,day FROM checkpoint_passes WHERE user_id=?',(uid,)): passes.setdefault(r['lesson_id'],set()).add(r['day'])
+        if PACING['checkpoints']:
+            for cp,ds in passes.items():
+                if len(ds)>=coach.CHECKPOINT_DAYS: done.setdefault(cp,100)
+        else:
+            done.update({l:100 for l in order if l.endswith('-checkpoint') and l not in done})
         current=next((l for l in order if l not in done and l not in tested),None)
         cur_i=order.index(current) if current else len(order)
         units=coach.path_units(plan)
+        pro=economy.is_pro(c,uid)
+        firsts={r['lesson_id']:r['day'] for r in c.execute('SELECT lesson_id,day FROM lesson_first WHERE user_id=?',(uid,))}
+        new_today=sum(1 for l,day in firsts.items() if day==today and not l.endswith(('-review','-checkpoint')))
+        pacing={'newToday':new_today,'dailyNew':PACING['daily_new']}
         for u in units:
             for l in u['lessons']:
                 if l['id'] in done: l['status']='done';l['best']=done[l['id']]
                 elif l['id'] in tested: l['status']='tested'
                 elif l['id']==current: l['status']='current'
                 else: l['status']='locked' if order.index(l['id'])>cur_i else 'open'
-        today=self.client_day();days=[r[0] for r in c.execute('SELECT DISTINCT day FROM xp_log WHERE user_id=? ORDER BY day DESC',(uid,))]
-        streak=0;cursor=date.fromisoformat(today)
-        if days and days[0]!=today: cursor-=timedelta(days=1)
-        for day in days:
-            if day==cursor.isoformat(): streak+=1;cursor-=timedelta(days=1)
-            elif day<cursor.isoformat(): break
+                if l.get('checkpoint'):
+                    l['passes']=sorted(passes.get(l['id'],()))[-coach.CHECKPOINT_DAYS:]
+                if l['status']=='current':
+                    if u['pro'] and not pro: l['status']='pro';pacing['blocked']='pro'
+                    elif l.get('checkpoint'):
+                        unit_days=[firsts.get(x['id']) for x in u['lessons'] if not x.get('checkpoint') and not x.get('review')]
+                        ready=max([d for d in unit_days if d] or [''])
+                        if today in passes.get(l['id'],()): l['status']='rest';l['opens']='tomorrow';pacing['blocked']='checkpoint-again'
+                        elif ready==today: l['status']='rest';l['opens']='tomorrow';pacing['blocked']='checkpoint-wait'
+                    elif not l.get('review') and new_today>=PACING['daily_new']: l['status']='rest';l['opens']='tomorrow';pacing['blocked']='daily-cap'
+        economy.apply_freezes(c,uid,today)
+        streak=economy.streak_info(c,uid,today)[0]
         by_day=dict(c.execute('SELECT day,SUM(xp) FROM xp_log WHERE user_id=? GROUP BY day',(uid,)).fetchall())
         week=[{'day':(date.fromisoformat(today)-timedelta(days=i)).isoformat()} for i in range(6,-1,-1)]
         for w in week: w['xp']=by_day.get(w['day'],0)
@@ -422,7 +451,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
             except ValueError: return set()
         tracks=[{**t,'done':sum(1 for u in coach.TRACKS[t['id']] for l in u['lessons'] if l['id'] in done or u['id'] in skips)}
                 for t in coach.track_summaries() for skips in [skipped(t['id'])]]
-        return {'plan':plan,'units':units,'current':current,'tracks':tracks,'stats':{'xp':sum(by_day.values()),'todayXp':by_day.get(today,0),'dailyXp':plan['dailyXp'],'streak':streak,'week':week,'done':finished,'total':len(order)}}
+        return {'plan':plan,'units':units,'current':current,'tracks':tracks,'pacing':pacing,'pro':pro,'stats':{'xp':sum(by_day.values()),'todayXp':by_day.get(today,0),'dailyXp':plan['dailyXp'],'streak':streak,'week':week,'done':finished,'total':len(order)}}
     def path_api(self,path,method):
         c=self.c;uid=self.user['id'];d=self.data
         if path=='/api/path' and method=='GET':
@@ -458,6 +487,12 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
         state=self.path_state(plan)
         status=next(l['status'] for u in state['units'] for l in u['lessons'] if l['id']==m[1])
         require(status!='locked','Finish the earlier lessons to unlock this one.',403)
+        require(status!='pro','This unit is part of Felt & Fortune Pro.',402)
+        if status=='rest':
+            msg={'daily-cap':f'You’ve learned {PACING["daily_new"]} new lessons today. New lessons stick better with sleep in between, so the next one opens tomorrow. Practice and reviews are open now.',
+                 'checkpoint-wait':'Checkpoints open the day after you finish a unit, so you’re showing what you remember, not what you just saw.',
+                 'checkpoint-again':'Nice pass! Pass this checkpoint once more on a different day to unlock the next unit.'}[state['pacing'].get('blocked','daily-cap')]
+            raise ApiError(msg,423)
         if not m[2]:
             require(method=='GET','Method not allowed.',405)
             steps=coach.resolve_steps(lesson['steps'],style=plan.get('style','mix'))
@@ -471,11 +506,31 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
         require(originals==coach.expected_questions(lesson['steps'],plan.get('style','mix')),'These lesson results are incomplete. Please finish the lesson again.')
         record_skills(c,uid,skills)
         accuracy=round(100*first/originals)
+        today=self.client_day()
+        if lesson.get('checkpoint'):
+            passed=accuracy>=coach.CHECKPOINT_PASS
+            if passed: c.execute('INSERT OR IGNORE INTO checkpoint_passes VALUES(?,?,?,?)',(uid,m[1],today,accuracy))
+            xp=10 if passed else 5
+            c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)',(uid,today,xp,m[1],time.time()))
+            stars=economy.add_stars(c,uid,10,'checkpoint',today) if passed else 0
+            stars+=self.goal_bonus(plan,today,xp)
+            return self.send_json({'xp':xp,'accuracy':accuracy,'first':False,'checkpoint':{'passed':passed,'need':coach.CHECKPOINT_PASS},'stars':stars,**self.path_state(plan)})
         first=c.execute('SELECT 1 FROM lesson_progress WHERE user_id=? AND lesson_id=?',(uid,m[1])).fetchone() is None
         xp=(10 if first else 5)+(5 if accuracy==100 else 0)
         c.execute('INSERT INTO lesson_progress VALUES(?,?,?,?,?) ON CONFLICT(user_id,lesson_id) DO UPDATE SET best=MAX(best,excluded.best),completions=completions+1,updated=excluded.updated',(uid,m[1],accuracy,1,time.time()))
-        c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)',(uid,self.client_day(),xp,m[1],time.time()))
-        return self.send_json({'xp':xp,'accuracy':accuracy,'first':first,**self.path_state(plan)})
+        c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)',(uid,today,xp,m[1],time.time()))
+        stars=0
+        if first:
+            c.execute('INSERT OR IGNORE INTO lesson_first VALUES(?,?,?)',(uid,m[1],today))
+            stars+=economy.add_stars(c,uid,10,'lesson',today)
+        stars+=self.goal_bonus(plan,today,xp)
+        return self.send_json({'xp':xp,'accuracy':accuracy,'first':first,'stars':stars,**self.path_state(plan)})
+    def goal_bonus(self,plan,today,just_earned):
+        """20 Stars the moment today's XP first reaches the daily goal."""
+        total=self.c.execute('SELECT COALESCE(SUM(xp),0) FROM xp_log WHERE user_id=? AND day=?',(self.user['id'],today)).fetchone()[0]
+        goal=plan.get('dailyXp',15) if plan else 15
+        if total>=goal and total-just_earned<goal: return economy.add_stars(self.c,self.user['id'],20,'daily-goal',today)
+        return 0
 
 if __name__=='__main__':
     initialize()
