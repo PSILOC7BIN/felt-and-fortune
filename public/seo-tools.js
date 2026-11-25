@@ -27,10 +27,11 @@
       var speed = +document.getElementById('cc-speed').value, n = 0; count = 0;
       start.disabled = true; form2.hidden = true; result.textContent = ''; status.textContent = 'Keep the count…';
       var t = setInterval(function () {
-        if (n === 12) { clearInterval(t); card.textContent = '?'; card.className = 'cc-card'; status.textContent = 'What’s the running count?'; form2.hidden = false; start.disabled = false; document.getElementById('cc-answer').focus(); return; }
+        if (n === 12) { clearInterval(t); card.innerHTML = ''; card.className = 'pc back'; status.textContent = 'What’s the running count?'; form2.hidden = false; start.disabled = false; document.getElementById('cc-answer').focus(); return; }
         var r = ranks[Math.random() * 13 | 0], s = suits[Math.random() * 4 | 0];
         count += value(r); n++;
-        card.textContent = r + s; card.className = 'cc-card' + (s === '♥' || s === '♦' ? ' red' : '');
+        card.innerHTML = '<b>' + r + '<i>' + s + '</i></b><em>' + (/[JQK]/.test(r) ? r : s) + '</em>';
+        card.className = 'pc flip' + (s === '♥' || s === '♦' ? ' red' : '');
       }, speed);
     });
     form2.addEventListener('submit', function (e) {

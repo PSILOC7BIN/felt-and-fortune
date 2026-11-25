@@ -19,7 +19,7 @@ class SeoTests(unittest.TestCase):
 
     def test_chart_matches_engine(self):
         body = seo.strategy_chart()
-        row = '<tr><th>16</th>' + ''.join(f'<td class="a-{seo.ACT[a][1]}">{a}</td>' for a in (basic([10, 6], up, h17=False, das=True, surrender=True) for up in seo.UPS))
+        row = '<tr><th>16</th>' + ''.join(f'<td class="ch-{a}">{a}</td>' for a in (basic([10, 6], up, h17=False, das=True, surrender=True) for up in seo.UPS))
         self.assertIn(row, body)
 
     def test_sitemap_and_robots(self):
