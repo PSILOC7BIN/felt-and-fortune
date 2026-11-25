@@ -75,3 +75,27 @@
 .mat-art::after { font-size: 0; top: 40%; }
 .set-arts .mat-art::before { font-size: 5px; letter-spacing: .12em; }
 .felt-table::after, .deal-table::after { font-size: 0; top: 50%; }
+
+/* ---- Real table layout: dealer (Ace) behind the straight top edge, players around the curve ---- */
+.bj-table { display: flex !important; flex-direction: column !important; align-items: center !important; justify-content: flex-start !important; gap: 18px !important;
+  border-radius: 22px 22px 50% 50% / 22px 22px 34% 34% !important; padding: 26px 24px 46px !important; min-height: 250px; }
+.bj-table.has-dealer { padding-top: 64px !important; margin-top: 58px; }
+.bj-table .dealer-ace { position: absolute; top: -62px; left: 50%; transform: translateX(-50%); z-index: 2; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .3)); }
+.bj-table .ace-dealer { width: 72px; height: auto; display: block; }
+.bj-table .hand { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.bj-table .dealer-hand .cards, .bj-table .seat.dealer .cards { justify-content: center; }
+.bj-table .you-hand { margin-top: auto; }
+.bj-table .hand-label { color: var(--felt-ink, rgba(255,255,255,.6)); font: 900 11px var(--round); letter-spacing: .12em; text-transform: uppercase; }
+.bj-table::before { bottom: 16px; }
+.bj-table::after { top: 46%; height: 30%; left: 18%; right: 18%; }
+/* Seats fan along the curved edge: middle seats sit lowest. */
+.deal-table.bj-table .seats { display: flex; justify-content: center; align-items: flex-start; gap: 10px 14px; flex-wrap: nowrap; width: 100%; margin-top: 8px; }
+.deal-table.bj-table .seat:not(.dealer) { transform: translateY(calc(var(--drop, 0) * 34px)) rotate(var(--tilt, 0deg)); min-width: 0; flex: 1 1 0; max-width: 130px; }
+.deal-table.bj-table .seat .hand-label { margin-top: 2px; }
+.deal-table.bj-table { padding-bottom: 70px !important; }
+@media (max-width: 700px) {
+  .bj-table { padding: 22px 12px 40px !important; }
+  .deal-table.bj-table .seats { gap: 6px; }
+  .deal-table.bj-table .seat:not(.dealer) { transform: translateY(calc(var(--drop, 0) * 22px)) rotate(var(--tilt, 0deg)); }
+  .bj-table .ace-dealer { width: 48px; }
+}

@@ -190,9 +190,9 @@ export function cardHTML(c, i = 0, { back = false, cls = '' } = {}) {
 }
 
 export function tableHTML({ dealer, cards, labels = true, holeCard = true }) {
-  const d = dealer ? `<div class="hand"><span class="hand-label">${labels ? 'Dealer' : ''}</span><div class="cards">${cardHTML(dealer, 0)}${holeCard ? cardHTML(0, 0, { back: true }) : ''}</div></div>` : '';
-  const y = cards ? `<div class="hand"><span class="hand-label">${labels ? 'You' : ''}</span><div class="cards">${cards.map((c, i) => cardHTML(c, i + 1)).join('')}</div></div>` : '';
-  return `<div class="felt-table">${d}${y}</div>`;
+  const d = dealer ? `<div class="hand dealer-hand"><div class="cards">${cardHTML(dealer, 0)}${holeCard ? cardHTML(0, 0, { back: true }) : ''}</div>${labels ? '<span class="hand-label">Dealer</span>' : ''}</div>` : '';
+  const y = cards ? `<div class="hand you-hand">${labels ? '<span class="hand-label">You</span>' : ''}<div class="cards">${cards.map((c, i) => cardHTML(c, i + 1)).join('')}</div></div>` : '';
+  return `<div class="felt-table bj-table${dealer ? ' has-dealer' : ''}">${dealer ? `<div class="dealer-ace" aria-hidden="true">${ace('happy', 'ace-dealer')}</div>` : ''}${d}${y}</div>`;
 }
 
 // ---- the 3D discard tray -------------------------------------------------------------------

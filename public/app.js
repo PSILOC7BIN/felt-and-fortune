@@ -193,5 +193,5 @@ async function render(){
   else notFound();
  }catch(error){fail(error);}
 }
-async function boot(){try{configInfo=await api('/api/me');user=configInfo.user;}catch(error){toast('The server could not be reached. Reload to try again.');}await render();}
+async function boot(){try{configInfo=await api('/api/me');user=configInfo.user;if(user)loadEconomy(api,localDate);}catch(error){toast('The server could not be reached. Reload to try again.');}await render();}
 boot();
