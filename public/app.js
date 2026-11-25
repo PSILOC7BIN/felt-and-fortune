@@ -2,6 +2,8 @@ import {createLearn} from './learn.js';
 import {createPractice} from './practice.js';
 import {edgePage} from './edge.js';
 import {weaknessPage} from './weakness.js';
+import {builderPage} from './builder.js';
+import {dailyPage,rushPage} from './arcade.js';
 import {createSimulator} from './simulator.js';
 import {createDirectory} from './directory.js';
 import {storePage,questsPage,loadEconomy,paywall} from './economy.js';
@@ -184,6 +186,7 @@ async function render(){
   if((m=path.match(/^\/tools\/(strategy|count|decks|truecount|index)$/))){await practice.toolPage(m[1]);return;}
   if(path==='/practice/weak'){await practice.toolPage('weak');return;}
   if(path==='/practice/drill'){await practice.toolPage('drill');return;}
+  if(path==='/tools/rush'||path==='/tools/storm'){await rushPage(ctxBase,path.slice(7));return;}
   if((m=path.match(/^\/practice\/skill\/([a-z-]+)$/))){await practice.toolPage('skill-'+m[1]);return;}
   if(path==='/responsible'){appShell('profile');responsiblePage();return;}
   if(path==='/track'||path==='/track/bankrolls'){appShell('profile');withTabs([['/track','Sessions'],['/track/bankrolls','Bankrolls']],path);if(path==='/track')await resultsPage('results');else await bankrollPage();return;}
@@ -195,6 +198,8 @@ async function render(){
   else if(path==='/tools')await practice.toolsHub();
   else if(path==='/tools/simulator'){if(await proOnly('simulator'))await simulator();}
   else if(path==='/tools/edge')await edgePage(ctxBase);
+  else if(path==='/tools/builder')await builderPage(ctxBase);
+  else if(path==='/practice/daily')await dailyPage(ctxBase);
   else if(path==='/practice/review')await reviewPage(ctxBase);
   else if(path==='/practice/weakness')await weaknessPage(ctxBase);
   else if(path==='/track'||path==='/track/bankrolls'){withTabs([['/track','Sessions'],['/track/bankrolls','Bankrolls']],path);if(path==='/track')await resultsPage('results');else await bankrollPage();}

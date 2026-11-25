@@ -10,7 +10,7 @@ from engine import basic, total, hilo, deviation, INDICES, simulate
 import coach
 mimetypes.add_type('application/manifest+json', '.webmanifest')
 from practice_api import PracticeRoutes, grade_transcript, record_skills, BadTranscript
-import economy, quests, account, learning, seo, social
+import economy, quests, account, learning, seo, social, arcade
 from economy import EconomyRoutes
 
 # Pacing is teaching, not a paywall: it applies to every learner (tests can relax it).
@@ -59,6 +59,7 @@ def initialize():
         c.executescript(account.SCHEMA)
         c.executescript(learning.SCHEMA)
         c.executescript(social.SCHEMA)
+        c.executescript(arcade.SCHEMA)
 
 def password_hash(password,salt=None):
     salt=salt or secrets.token_hex(16)
@@ -415,6 +416,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             rating=int(num(d,'rating',1,5));area=str(d.get('area','other'));require(area in ('signup','lesson','practice','track','community','other'),'Choose what you were doing.')
             c.execute('INSERT INTO feedback(user_id,rating,area,page,comment,created) VALUES(?,?,?,?,?,?)',(uid,rating,area,textfield(d,'page',100,False),textfield(d,'comment',2000,False),time.time()))
             return self.send_json({'ok':True},201)
+        if path.startswith('/api/daily') or path.startswith('/api/rush/') or path.startswith('/api/drills'): return arcade.handle(self,path,method,require,ApiError)
         if path.startswith('/api/practice/') or path.startswith('/api/challenge/'): return self.practice_api(path,method,require,num,ApiError)
         if path=='/api/casinos' and method=='GET':
             # The casino map's data is a Pro feature: never served as a public file.

@@ -132,7 +132,7 @@ class PracticeApi(unittest.TestCase):
             status, q = self.c.call('/api/drill/new', 'POST', {'mode': 'decks'})
             self.assertEqual(status, 200)
             status, r = self.c.call('/api/drill/answer', 'POST', {'id': q['id'], 'answer': 0})
-            self.assertEqual(float(r['answer']) * 2 % 1, 0)
+            self.assertIn("answer", r, (status, r)); self.assertEqual(float(r["answer"]) * 2 % 1, 0)
 
 
 if __name__ == '__main__':

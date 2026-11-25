@@ -149,6 +149,8 @@ class EconomyTests(unittest.TestCase):
         before = client.call('/api/quests')[1]['daily'][1]['id']
         self.assertNotEqual(client.call('/api/quests/reroll', 'POST', {'slot': 1})[1]['daily'][1]['id'], before)
         self.assertEqual(client.call('/api/quests/reroll', 'POST', {'slot': 2})[0], 400)
+        # Pin the hard quest to one the finished lesson can't complete (a random pick like 'perfect1' would be done already).
+        with server.db() as c: c.execute("UPDATE quest_picks SET quest='acc90x4' WHERE user_id=? AND period=? AND slot=2", (uid, 'd:' + DAY()))
         self.assertEqual(client.call('/api/quests/claim', 'POST', {'quest': 'all-daily'})[0], 400)
         # Weekly dailies track and the monthly event.
         with server.db() as c:
@@ -281,3 +283,66 @@ class ToolsAndPathTests(unittest.TestCase):
         w = client.call('/api/weakness')[1]
         self.assertEqual(w['cells'], [{'cell': 'H16', 'up': 10, 'attempts': 4, 'misses': 1, 'last': w['cells'][0]['last']}])
         self.assertEqual((w['decisions'], w['misses'], w['pro']), (4, 1, False))
+
+
+class ArcadeTests(unittest.TestCase):
+    setUpClass = EconomyTests.__dict__['setUpClass']
+    tearDownClass = EconomyTests.__dict__['tearDownClass']
+    setUp = EconomyTests.setUp
+    signup = EconomyTests.signup
+
+    def test_daily_hand_once_a_day_with_split(self):
+        import arcade
+        a, _, _ = self.signup(NEW); b, _, _ = self.signup(NEW)
+        day = DAY(); hand = arcade.daily_hand(day)
+        self.assertNotIn('answer', a.call(f'/api/daily?day={day}')[1])          # never leaks before answering
+        wrong = next(x for x in hand['actions'] if x != hand['answer'])
+        r = a.call('/api/daily/answer', 'POST', {'given': hand['answer'], 'day': day})[1]
+        self.assertTrue(r['ok']); self.assertEqual(r['xp'], 5); self.assertEqual(r['streak'], 1)
+        self.assertEqual(a.call('/api/daily/answer', 'POST', {'given': wrong, 'day': day})[0], 409)
+        r = b.call('/api/daily/answer', 'POST', {'given': wrong, 'day': day})[1]
+        self.assertFalse(r['ok']); self.assertEqual(r['n'], 2); self.assertEqual(r['split'], {hand['answer']: 50, wrong: 50})
+        self.assertEqual(b.call('/api/daily/answer', 'POST', {'given': 'Z', 'day': DAY(1)})[0], 400)
+
+    def test_daily_hands_are_valid_every_day(self):
+        import arcade
+        for i in range(60):
+            h = arcade.daily_hand(DAY(i)); self.assertIn(h['answer'], h['actions'])
+
+    def test_rush_is_graded_and_limited_on_the_server(self):
+        import arcade, json as _j
+        client, _, _ = self.signup(NEW)
+        run = client.call('/api/rush/start', 'POST', {'mode': 'rush'})[1]
+        self.assertNotIn('answer', _j.dumps(run['q']).lower())
+        with server.db() as c: q = _j.loads(c.execute('SELECT state FROM rush_runs WHERE id=?', (run['id'],)).fetchone()['state'])['q']
+        r = client.call('/api/rush/answer', 'POST', {'id': run['id'], 'given': arcade.rush_answer(q)})[1]
+        self.assertTrue(r['ok']); self.assertEqual(r['score'], 1)
+        for _ in range(3): r = client.call('/api/rush/answer', 'POST', {'id': run['id'], 'given': 'X'})[1]
+        self.assertTrue(r['done']); self.assertEqual((r['score'], r['strikes'], r['best']), (1, 3, 1))
+        self.assertEqual(client.call('/api/rush/answer', 'POST', {'id': run['id'], 'given': 'H'})[0], 404)
+        self.assertEqual(client.call('/api/rush/start', 'POST', {'mode': 'rush'})[0], 402)          # one free run a day
+        self.assertEqual(client.call('/api/rush/start', 'POST', {'mode': 'storm'})[0], 200)         # per mode
+        board = client.call('/api/rush/board?mode=rush')[1]
+        self.assertEqual((board['best'], board['left'], board['week'][0]['best']), (1, 0, 1))
+
+    def test_rush_late_answers_are_strikes(self):
+        import arcade, json as _j
+        client, _, _ = self.signup(NEW)
+        run = client.call('/api/rush/start', 'POST', {'mode': 'rush'})[1]
+        with server.db() as c:
+            st = _j.loads(c.execute('SELECT state FROM rush_runs WHERE id=?', (run['id'],)).fetchone()['state']); st['asked'] -= 60
+            c.execute('UPDATE rush_runs SET state=? WHERE id=?', (_j.dumps(st), run['id']))
+        r = client.call('/api/rush/answer', 'POST', {'id': run['id'], 'given': arcade.rush_answer(st['q'])})[1]
+        self.assertFalse(r['ok']); self.assertTrue(r['late'])
+
+    def test_saving_drills_is_pro(self):
+        client, _, _ = self.signup(NEW)
+        spec = {'cells': [['H16', 10], ['S18', 9]], 'rules': {'h17': 'mix'}, 'size': 20}
+        self.assertEqual(client.call('/api/drills', 'POST', {'name': 'Stiffs', 'spec': spec})[0], 402)
+        client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
+        self.assertEqual(client.call('/api/drills', 'POST', {'name': 'Stiffs', 'tag': 'Hard', 'spec': spec})[0], 201)
+        self.assertEqual(client.call('/api/drills', 'POST', {'name': 'Bad', 'spec': {'cells': [['H16', 12]]}})[0], 400)
+        d = client.call('/api/drills')[1]['drills']
+        self.assertEqual((len(d), d[0]['tag'], d[0]['spec']['rules']['h17'], d[0]['spec']['size']), (1, 'Hard', 'mix', 20))
+        client.call('/api/drills/delete', 'POST', {'id': d[0]['id']})
+        self.assertEqual(client.call('/api/drills')[1]['drills'], [])
