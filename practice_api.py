@@ -9,7 +9,7 @@ import time
 
 from engine import hilo, deviation, basic, total
 
-PRACTICE_TOOLS = ('strategy', 'count', 'decks', 'truecount', 'index', 'weak', 'table', 'drill') + tuple('skill-' + k for k in ('strategy-hard', 'strategy-soft', 'strategy-pair', 'count', 'decks', 'truecount', 'index', 'insurance', 'bet'))
+PRACTICE_TOOLS = ('strategy', 'count', 'decks', 'truecount', 'index', 'weak', 'table', 'drill', 'workout') + tuple('skill-' + k for k in ('strategy-hard', 'strategy-soft', 'strategy-pair', 'count', 'decks', 'truecount', 'index', 'insurance', 'bet'))
 SHOE = 6
 ROUNDS = 12
 HEARTS = 3

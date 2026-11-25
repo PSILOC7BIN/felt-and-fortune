@@ -15,7 +15,18 @@ const RULES = [
   ['rsa', 'Resplit aces', [['no', 'No', 0], ['yes', 'Yes', -0.08]], 'no'],
   ['hsa', 'Hit split aces', [['no', 'No', 0], ['yes', 'Yes', -0.19]], 'no'],
   ['peek', 'Dealer hole card', [['peek', 'Peeks for blackjack (US)', 0], ['enhc', 'No hole card (European)', 0.11]], 'peek'],
+  ['shuffle', 'Shuffle', [['cut', 'Cut card (hand shuffle or shoe)', 0], ['csm', 'Continuous shuffler', 0]], 'cut'],
 ];
+// Cut-card effect: dealing to a cut card slightly favors the house, more with fewer decks (Wizard of Odds puts it
+// around 0.1–0.15% for one deck and a few hundredths of a percent for shoes). A continuous shuffler has none.
+const CUT_CARD = { 1: 0.13, 2: 0.06, 4: 0.03, 5: 0.02, 6: 0.02, 8: 0.01 };
+
+/** House edge for a basic strategy player, in %, from rule choices keyed like RULES. Used by the simulator too. */
+export function houseEdge(s) {
+  let e = BASE;
+  for (const [k, , opts, def] of RULES) { const o = opts.find(x => x[0] === (s[k] ?? def)) || opts.find(x => x[0] === def); let d = o[2]; if (k === 'surrender' && s[k] === 'late' && s.soft17 === 'H17') d = -0.09; if (k === 'shuffle' && (s[k] ?? def) === 'cut') d = CUT_CARD[s.decks ?? '6'] ?? 0.02; e += d; }
+  return e;
+}
 const PRESETS = [
   ['Downtown Vegas double deck', { decks: '2', payout: '3:2', soft17: 'H17', double: 'any', das: 'yes', surrender: 'none', split: '4', rsa: 'no', hsa: 'no', peek: 'peek' }],
   ['Strip 6-deck shoe', { decks: '6', payout: '3:2', soft17: 'S17', double: 'any', das: 'yes', surrender: 'late', split: '4', rsa: 'yes', hsa: 'no', peek: 'peek' }],
@@ -35,7 +46,7 @@ export async function edgePage({ onCleanup }) {
     <section class="sim-card edge-out" aria-live="polite"><div class="edge-big"><small>House edge</small><strong id="edge-val"></strong><span id="edge-grade"></span></div><p id="edge-cost" class="sim-sentence"></p><h3 class="sim-sub">What each rule does</h3><ul class="edge-list" id="edge-list"></ul><p class="field-hint">Approximations for a perfect basic strategy player, relative to a 6-deck, stands-on-soft-17 game with double after split (0.40%). Mistakes cost more than any rule: a typical player gives up 1–2% to errors. Card counting can flip a good game to a player edge; try the Bankroll Simulator.</p></section></div>`;
   const paint = () => {
     let e = BASE; const parts = [];
-    for (const [k, label, opts] of RULES) { const o = opts.find(x => x[0] === s[k]); let d = o[2]; if (k === 'surrender' && s[k] === 'late' && s.soft17 === 'H17') d = -0.09; e += d; if (d) parts.push([label, o[1], d]); }
+    for (const [k, label, opts, def] of RULES) { const o = opts.find(x => x[0] === s[k]) || opts.find(x => x[0] === def); let d = o[2]; if (k === 'surrender' && s[k] === 'late' && s.soft17 === 'H17') d = -0.09; if (k === 'shuffle' && o[0] === 'cut') d = CUT_CARD[s.decks] ?? 0.02; e += d; if (d) parts.push([label, o[1], d]); }
     parts.sort((a, b) => Math.abs(b[2]) - Math.abs(a[2]));
     $('#edge-val').textContent = (e < 0 ? '−' : '') + Math.abs(e).toFixed(2) + '%';
     const grade = e < 0 ? ['A rare player-edge game', 'great'] : e <= 0.35 ? ['Excellent game', 'great'] : e <= 0.6 ? ['Good game', 'good'] : e <= 1 ? ['Mediocre game', 'meh'] : ['Avoid this table', 'bad'];
@@ -46,7 +57,7 @@ export async function edgePage({ onCleanup }) {
     localStorage.setItem('ff-edge', JSON.stringify(s)); localStorage.setItem('ff-edge-bet', bet); localStorage.setItem('ff-edge-rph', rph);
   };
   $$('[data-rule]').forEach(sel => sel.onchange = () => { s[sel.dataset.rule] = sel.value; Sound.play('select'); paint(); });
-  $$('[data-preset]').forEach(b => b.onclick = () => { s = { ...PRESETS[b.dataset.preset][1] }; $$('[data-rule]').forEach(sel => { sel.value = s[sel.dataset.rule]; }); Sound.play('select'); paint(); });
+  $$('[data-preset]').forEach(b => b.onclick = () => { s = { shuffle: s.shuffle || 'cut', ...PRESETS[b.dataset.preset][1] }; $$('[data-rule]').forEach(sel => { sel.value = s[sel.dataset.rule]; }); Sound.play('select'); paint(); });
   $('#edge-bet').oninput = () => { bet = Math.max(1, Number($('#edge-bet').value) || 1); paint(); };
   $('#edge-rph').oninput = () => { rph = Math.max(1, Number($('#edge-rph').value) || 1); paint(); };
   paint();

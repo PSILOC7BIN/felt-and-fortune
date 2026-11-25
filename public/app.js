@@ -4,6 +4,9 @@ import {edgePage} from './edge.js';
 import {weaknessPage} from './weakness.js';
 import {builderPage} from './builder.js';
 import {dailyPage,rushPage} from './arcade.js';
+import {reportPage} from './report.js';
+import {testoutPage,certificatePage} from './testout.js';
+import {casinoPage} from './casino.js';
 import {createSimulator} from './simulator.js';
 import {createDirectory} from './directory.js';
 import {storePage,questsPage,loadEconomy,paywall} from './economy.js';
@@ -141,7 +144,8 @@ async function profilePage(){
  ${badgeShelf(bdg)}
  ${skillsPanel(skillSum)}
  <section class="panel mt"><h3>Appearance</h3><div class="segmented" role="radiogroup" aria-label="Appearance">${[["auto","Automatic"],["light","Light"],["dark","Dark"]].map(([v,t])=>`<button type="button" role="radio" data-theme-pick="${v}" aria-checked="${(window.ffTheme?window.ffTheme():"auto")===v}">${t}</button>`).join("")}</div><p class="field-hint">Automatic matches your device’s light or dark setting.</p></section>
- <section class="panel mt" id="notifications"><h3>Email</h3><label class="check-label"><input type="checkbox" id="pref-streak"> <span>Streak reminders: one email on evenings you haven’t practiced yet</span></label><label class="check-label"><input type="checkbox" id="pref-news"> <span>Product news and new courses (rarely)</span></label><p class="field-hint">Receipts, trial reminders, and password resets are always sent.</p></section>
+ <section class="panel mt"><h3>Answer buttons</h3><p class="muted">Put Hit on the side your thumb reaches first.</p><div class="segmented" role="radiogroup" aria-label="Button layout">${[["right","Right-handed"],["left","Left-handed"]].map(([v,t])=>`<button type="button" role="radio" data-hand="${v}" aria-checked="${(localStorage.getItem('ff-hand')||'right')===v}">${t}</button>`).join('')}</div></section>
+ <section class="panel mt" id="notifications"><h3>Email</h3><label class="check-label"><input type="checkbox" id="pref-streak"> <span>Streak reminders (one email on evenings you haven’t practiced yet) and, for Pro, a Monday progress report</span></label><label class="check-label"><input type="checkbox" id="pref-news"> <span>Product news and new courses (rarely)</span></label><p class="field-hint">Receipts, trial reminders, and password resets are always sent.</p></section>
  <section class="panel mt"><h3>Your data</h3><p class="muted">Download everything Felt &amp; Fortune stores about you, or delete your account for good.</p><div class="flex"><button type="button" class="small" id="export-data">${g('book')} Download my data</button><button type="button" class="small danger-text" id="delete-account">Delete account</button></div></section>
  <section class="panel mt"><h3>Celebrations</h3><div class="segmented" role="radiogroup" aria-label="Celebrations">${[["full","Full"],["subtle","Just Ace"],["off","Off"]].map(([v,t])=>`<button type="button" role="radio" data-celebrate="${v}" aria-checked="${(localStorage.getItem("ff-celebrate")||"full")===v}">${t}</button>`).join("")}</div><p class="field-hint">How Ace reacts to your answers: animations and effects, just Ace, or nothing.</p></section>
  ${pathState.plan?`<section class="panel mt"><h3>Daily goal</h3><p class="muted">How much time do you want to practice each day? Your finish date updates to match.</p><div class="segmented" role="radiogroup" aria-label="Daily goal">${[[5,'5 min · casual'],[10,'10 min · regular'],[15,'15 min · serious'],[20,'20 min · intense']].map(([v,t])=>`<button type="button" role="radio" data-goal="${v}" aria-checked="${pathState.plan.minutes===v}">${t}</button>`).join('')}</div><p class="field-hint" id="goal-note">Currently ${pathState.plan.dailyXp} XP a day.</p></section>`:''}
@@ -158,6 +162,7 @@ async function profilePage(){
  $('#export-data').onclick=async()=>{try{const data=await api('/api/account/export');const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='felt-and-fortune-data.json';document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);toast('Your data is downloading.');}catch(e){toast(e.message);}};
  $('#delete-account').onclick=()=>modal('Delete your account?','<p class="muted">This permanently deletes your account, plan, progress, chips, cosmetics, posts, and messages. It can’t be undone. If you subscribe through the App Store or Google Play, cancel there too.</p>'+field('password','Enter your password to confirm','','password','required autocomplete="current-password"'),async data=>{await api('/api/account/delete','POST',{password:data.password});user=null;localStorage.removeItem('ff-token');toast('Your account was deleted.');go('/');});
  $$('[data-celebrate]').forEach(b=>b.onclick=()=>{setCelebrateLevel(b.dataset.celebrate);$$('[data-celebrate]').forEach(x=>x.setAttribute('aria-checked',String(x===b)));if(b.dataset.celebrate!=='off')react(true,{streak:0});});
+ $$('[data-hand]').forEach(b=>b.onclick=()=>{localStorage.setItem('ff-hand',b.dataset.hand);document.documentElement.classList.toggle('lefty',b.dataset.hand==='left');$$('[data-hand]').forEach(x=>x.setAttribute('aria-checked',String(x===b)));toast('Saved.');});
  $$('[data-theme-pick]').forEach(b=>b.onclick=()=>{window.ffSetTheme?.(b.dataset.themePick);$$('[data-theme-pick]').forEach(x=>x.setAttribute('aria-checked',String(x===b)));});
  $$('[data-goal]').forEach(b=>b.onclick=async()=>{try{const st=await api('/api/path/goal','POST',{minutes:Number(b.dataset.goal)});$$('[data-goal]').forEach(x=>x.setAttribute('aria-checked',String(x===b)));$('#goal-note').textContent=`Currently ${st.plan.dailyXp} XP a day. New finish date: ${new Date(st.plan.finish+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric'})}.`;toast('Daily goal updated.');}catch(e){toast(e.message);}});
 }
@@ -177,6 +182,7 @@ async function render(){
   if(path==='/'){if(user){history.replaceState({},'',paths.learn);return render();}homepage();return;}
   if(['/about','/privacy','/terms'].includes(path)){legalPage(path.slice(1));return;}
   if(path==='/start'){await learn.startPage();return;}
+  if(path.startsWith('/certificate/')){await certificatePage(ctxBase,path.split('/')[2],navbar());return;}
   if(path.startsWith('/auth/')){const mode=path.split('/')[2];if(['login','forgot-password','reset-password'].includes(mode)){if(user&&mode==='login'){history.replaceState({},'',paths.learn);return render();}authPage(mode);return;}notFound();return;}
   if(needLogin(path))return;
   let m;
@@ -186,6 +192,9 @@ async function render(){
   if((m=path.match(/^\/tools\/(strategy|count|decks|truecount|index)$/))){await practice.toolPage(m[1]);return;}
   if(path==='/practice/weak'){await practice.toolPage('weak');return;}
   if(path==='/practice/drill'){await practice.toolPage('drill');return;}
+  if(path==='/practice/workout'){await practice.toolPage('workout');return;}
+  if(path==='/tools/testout'){await testoutPage(ctxBase);return;}
+  if(path==='/tools/casino'){await casinoPage(ctxBase);return;}
   if(path==='/tools/rush'||path==='/tools/storm'){await rushPage(ctxBase,path.slice(7));return;}
   if((m=path.match(/^\/practice\/skill\/([a-z-]+)$/))){await practice.toolPage('skill-'+m[1]);return;}
   if(path==='/responsible'){appShell('profile');responsiblePage();return;}
@@ -200,6 +209,7 @@ async function render(){
   else if(path==='/tools/edge')await edgePage(ctxBase);
   else if(path==='/tools/builder')await builderPage(ctxBase);
   else if(path==='/practice/daily')await dailyPage(ctxBase);
+  else if(path==='/practice/report')await reportPage(ctxBase);
   else if(path==='/practice/review')await reviewPage(ctxBase);
   else if(path==='/practice/weakness')await weaknessPage(ctxBase);
   else if(path==='/track'||path==='/track/bankrolls'){withTabs([['/track','Sessions'],['/track/bankrolls','Bankrolls']],path);if(path==='/track')await resultsPage('results');else await bankrollPage();}
@@ -217,4 +227,4 @@ async function proOnly(key){const eco=await loadEconomy(api,localDate);if(eco?.p
  $('#page').innerHTML=`<section class="pro-gate"><div class="pro-gate-art">${g(ic)}<span class="pro-gate-crown">${g('crown')}</span></div><span class="pill">${g('crown')} Pro</span><h1>${title}</h1><p>${text}</p><ul class="pro-gate-list">${perks.map(p=>`<li>${g('check')}<span>${p}</span></li>`).join('')}</ul><div class="pro-gate-cta"><a class="button primary chunky" href="/store#plans">See Pro plans</a><button type="button" class="button ghost" id="pro-gate-more">What else is in Pro?</button></div></section>`;
  $('#pro-gate-more').onclick=()=>paywall({api},`${title} is part of Pro.`);return false;}
 async function boot(){try{configInfo=await api('/api/me');user=configInfo.user;if(user)loadEconomy(api,localDate);}catch(error){toast('The server could not be reached. Reload to try again.');}await render();}
-fitCoachScreens();boot();
+document.documentElement.classList.toggle('lefty',localStorage.getItem('ff-hand')==='left');fitCoachScreens();boot();

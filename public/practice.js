@@ -29,6 +29,8 @@ const NEXT_TIER = [[900, 'Learner'], [1100, 'Solid'], [1300, 'Sharp'], [1500, 'E
 const EXTRA_TOOLS = [
   { id: 'rush', name: 'Blackjack Rush', glyph: 'bolt', color: 'orange', purpose: 'Three strikes, a shrinking clock, and harder hands every few answers. Weekly leaderboard.' },
   { id: 'storm', name: 'Count Storm', glyph: 'count', color: 'purple', purpose: 'Keep the running count as cards arrive faster. Three strikes.' },
+  { id: 'casino', name: 'Casino Floor', glyph: 'pin', color: 'green', purpose: 'A full table at real speed: other players, noise, a dealer with a personality, mistakes to catch, and surprise count checks.' },
+  { id: 'testout', name: 'Casino-ready test-out', glyph: 'trophy', color: 'gold', purpose: 'Five timed sections at casino speed. Pass them all for a shareable certificate.' },
   { id: 'builder', name: 'Drill builder', glyph: 'gear', color: 'blue', purpose: 'Pick exact hands, upcards, and rules, or work through leveled drill packs.' },
 ];
 const EDGE_TOOL = { id: 'edge', name: 'House Edge Calculator', glyph: 'divide', color: 'teal', purpose: 'Enter a table’s rules and see the house edge, what each rule costs, and your cost per hour.' };
@@ -91,10 +93,11 @@ export function createPractice(ctx) {
     $('#page').innerHTML = `<header class="page-hero"><div><h1>Practice</h1><p>One trainer for each skill rating. Every answer moves that rating, and the questions get harder as you improve. Checkpoints open when your ratings reach their targets. ${eco?.plan?.pro ? 'Pro: practice as much as you like.' : 'Each round uses 1 Energy. Weak Spots and Hand Review are free.'}</p></div><div data-eco-chips>${chipsHTML(eco)}</div></header>`
       + (gating.length ? `<div class="gate-banner">${g('shield')}<span><b>Your next checkpoint is waiting.</b> Raise ${gating.map(([k, t]) => `${SKILL_NAMES[k]} to ${t.target}`).join(' and ')} to unlock it.</span></div>` : '')
       + `<div class="practice-top-cards">${await dailyCard(api, localDate, true)}<a class="weak-card review-link" href="/practice/review"><span class="tool-icon">${g('book')}</span><span class="tool-copy"><strong>Hand Review</strong><span>${rev.open ? `${rev.open} missed decision${rev.open === 1 ? '' : 's'} to fix.` : 'Every hand you miss lands here.'}</span></span>${g('next', 'tool-go')}</a>`
+      + `<a class="weak-card workout-tile" href="/practice/workout"><span class="tool-icon">${g('flame')}</span><span class="tool-copy"><strong>Daily Workout</strong><span>${eco?.plan?.pro ? 'Five minutes built from your leaks and lowest skills.' : 'A five-minute mixed session. Pro builds it from your weak spots.'}</span></span>${g('next', 'tool-go')}</a>`
       + `<a class="weak-card map-link" href="/practice/weakness"><span class="tool-icon">${g('chart')}</span><span class="tool-copy"><strong>Weakness map</strong><span>Your accuracy on every hand in the chart, and your costliest leaks.</span></span>${g('next', 'tool-go')}</a>`
       + (weak.length ? `<a class="weak-card" href="/practice/weak"><span class="tool-icon">${g('target')}</span><span class="tool-copy"><strong>Weak spots</strong><span>${weak.map(w => SKILL_NAMES[w.skill]).join(', ')}</span></span>${g('next', 'tool-go')}</a>` : `<div class="weak-card empty"><span class="tool-icon">${g('target')}</span><span class="tool-copy"><strong>Weak spots</strong><span>After a few sessions Ace builds one from your misses.</span></span></div>`) + '</div>'
       + SKILL_GROUPS.map(([title, ids]) => `<h2 class="hub-group">${title}</h2><div class="tool-cards skill-cards">${ids.map(id => card(sk.skills.find(x => x.skill === id) || { skill: id, name: SKILL_NAMES[id], n: 0 })).join('')}</div>`).join('')
-      + `<p class="muted small hub-foot">Looking for the configurable trainers, the Free Play table, the Shoe Challenge, or the calculators? They’re in <a href="/tools">Tools</a>.</p>`;
+      + `<p class="muted small hub-foot">Your <a href="/practice/report">weekly report</a> shows how this week compares with last. Looking for the configurable trainers, the Free Play table, the Shoe Challenge, or the calculators? They’re in <a href="/tools">Tools</a>.</p>`;
   }
 
   // ---- Tools: configurable trainers, play modes, and calculators --------------------------------
@@ -109,6 +112,8 @@ export function createPractice(ctx) {
       if (t.id === 'edge') return 'Free for everyone';
       if (t.id === 'rush' || t.id === 'storm') return pro ? 'Unlimited runs' : '1 free run a day';
       if (t.id === 'builder') return 'Build free · save and packs with Pro';
+      if (t.id === 'casino') return pro ? 'Every dealer and condition' : 'Dealer of the month free';
+      if (t.id === 'testout') return pro ? 'One attempt a month' : 'Part of Pro';
       return s?.questions ? `${Math.round(s.correct / s.questions * 100)}% accurate · best streak ${s.best_streak}` : 'Not used yet';
     };
     const all = [...TOOLS, EDGE_TOOL, ...EXTRA_TOOLS];
@@ -117,7 +122,7 @@ export function createPractice(ctx) {
       + group('Arcade', ['rush', 'storm'])
       + group('Calculators', ['edge', 'simulator'])
       + group('Configurable trainers', ['builder', 'strategy', 'count', 'decks', 'truecount', 'index'])
-      + group('Play', ['table', 'challenge']);
+      + group('Play and prove it', ['casino', 'table', 'challenge', 'testout']);
   }
 
   // ---- a trainer -------------------------------------------------------------------------------
@@ -125,7 +130,7 @@ export function createPractice(ctx) {
     let weakSkills = [];
     if (tool === 'weak') { try { weakSkills = (await api('/api/practice/weak')).skills.map(w => w.skill); } catch { weakSkills = []; } if (!weakSkills.length) { go('/practice'); return; } }
     const skill = tool.startsWith('skill-') ? tool.slice(6) : null;
-    let home = tool === 'drill' ? '/practice/weakness' : skill || tool === 'weak' ? '/practice' : '/tools';
+    let home = tool === 'workout' ? '/practice' : tool === 'drill' ? '/practice/weakness' : skill || tool === 'weak' ? '/practice' : '/tools';
     let drillCells = [], spec = {};
     if (tool === 'drill') {
       try { spec = JSON.parse(sessionStorage.getItem('ff-drill') || '[]'); } catch { spec = []; }
@@ -135,17 +140,31 @@ export function createPractice(ctx) {
     }
     const ruleOf = v => (v === 'mix' ? Math.random() < 0.5 : v === 'on');
     if (skill && !SKILL_INFO[skill]) { go('/practice'); return; }
-    let rating = 1000;
+    let rating = 1000, plan = [];
+    if (tool === 'workout') {
+      // Pro: built from your leaks and your two lowest skills. Free: a fixed mixed session.
+      const eco0 = await loadEconomy(api, localDate);
+      if (eco0?.plan?.pro) {
+        let w = { cells: [] }, sk = { skills: [] };
+        try { [w, sk] = await Promise.all([api('/api/weakness'), api('/api/skills?day=' + localDate())]); } catch { /* fall back below */ }
+        const leaks = w.cells.filter(x => x.misses).sort((a, b) => b.misses / b.attempts - a.misses / a.attempts || b.misses - a.misses).slice(0, 4);
+        const low = sk.skills.filter(x => x.n >= 5).sort((a, b) => a.rating - b.rating).slice(0, 2);
+        plan = [...leaks.map(c => () => strategyQ({ hand: cardsFor(c.cell), up: c.up })), ...low.flatMap(x => [0, 1, 2].map(() => () => skillQuestion(x.skill, x.rating)))];
+      }
+      const fixed = [() => strategyQ({ pool: 'hard' }), () => strategyQ({ pool: 'soft' }), () => strategyQ({ pool: 'pair' }), () => strategyQ({ pool: 'stiff' }), () => countQ({ cards: 8, speed: 900 }), () => countQ({ cards: 12, speed: 800 }), () => trueCountQ({ rcMin: -10, rcMax: 12, deckOptions: [1, 2, 3, 4, 5] }), () => trueCountQ({ rcMin: -10, rcMax: 12, deckOptions: [1, 2, 3, 4, 5] }), () => betQ(), () => indexQ({ insurance: false })];
+      while (plan.length < 10) plan.push(fixed[plan.length % fixed.length]);
+      plan = plan.slice(0, 10).sort(() => Math.random() - 0.5);
+    }
     if (skill) { try { rating = (await api('/api/skills?day=' + localDate())).skills.find(x => x.skill === skill)?.rating ?? 1000; } catch { /* default */ } }
-    const meta = tool === 'drill' ? { id: 'drill', glyph: 'target', color: 'red', name: spec.name || 'Hand drill', purpose: drillCells.length === 1 ? 'One hand until it’s automatic' : `${drillCells.length} spots${spec.home ? '' : ' from your weakness map'}` } : skill ? { id: tool, name: SKILL_NAMES[skill] + ' trainer', ...SKILL_INFO[skill] } : tool === 'weak' ? { id: 'weak', name: 'Weak spots', glyph: 'target', color: 'red', purpose: weakSkills.map(k => SKILL_NAMES[k]).join(' · ') } : TOOLS.find(t => t.id === tool), defs = SETTINGS[tool] || [];
+    const meta = tool === 'workout' ? { id: 'workout', name: 'Daily Workout', glyph: 'flame', color: 'orange', purpose: 'About five minutes, built from your weakest spots' } : tool === 'drill' ? { id: 'drill', glyph: 'target', color: 'red', name: spec.name || 'Hand drill', purpose: drillCells.length === 1 ? 'One hand until it’s automatic' : `${drillCells.length} spots${spec.home ? '' : ' from your weakness map'}` } : skill ? { id: tool, name: SKILL_NAMES[skill] + ' trainer', ...SKILL_INFO[skill] } : tool === 'weak' ? { id: 'weak', name: 'Weak spots', glyph: 'target', color: 'red', purpose: weakSkills.map(k => SKILL_NAMES[k]).join(' · ') } : TOOLS.find(t => t.id === tool), defs = SETTINGS[tool] || [];
     let saved = {}; try { saved = JSON.parse(localStorage.getItem('ff-practice-' + tool) || '{}'); } catch { saved = {}; }
     const s = Object.fromEntries(defs.map(([k, , opts]) => [k, opts.some(o => o[0] === saved[k]) ? saved[k] : opts[0][0]]));
     const round = await startRound(ctx, tool);
     if (!round) { if (location.pathname !== home) go(home); return; }
-    const size = (tool === 'drill' && spec.size) || ROUND_SIZE[tool] || 10;
+    const size = tool === 'workout' ? plan.length : (tool === 'drill' && spec.size) || ROUND_SIZE[tool] || 10;
     const stats = { questions: 0, correct: 0, streak: 0, best: 0, started: Date.now() }, results = [];
     let turn = 0, asked = 0, logged = false;
-    const nextQ = () => { if (asked >= size) return null; asked++; if (tool === 'drill') { const [cell, up] = drillCells[Math.floor(Math.random() * drillCells.length)]; const rl = spec.rules || {}; return strategyQ({ hand: cardsFor(cell), up, h17: ruleOf(rl.h17), surrender: ruleOf(rl.surrender), das: rl.das === undefined ? true : ruleOf(rl.das) }); } return skill ? skillQuestion(skill, rating + 15 * stats.streak) : tool === 'weak' ? SKILL_MAKERS[weakSkills[turn++ % weakSkills.length]]() : makeQuestion(tool, s); };
+    const nextQ = () => { if (asked >= size) return null; asked++; if (tool === 'workout') return plan[asked - 1](); if (tool === 'drill') { const [cell, up] = drillCells[Math.floor(Math.random() * drillCells.length)]; const rl = spec.rules || {}; return strategyQ({ hand: cardsFor(cell), up, h17: ruleOf(rl.h17), surrender: ruleOf(rl.surrender), das: rl.das === undefined ? true : ruleOf(rl.das) }); } return skill ? skillQuestion(skill, rating + 15 * stats.streak) : tool === 'weak' ? SKILL_MAKERS[weakSkills[turn++ % weakSkills.length]]() : makeQuestion(tool, s); };
 
     $('#app').innerHTML = `<main id="main" class="coach-screen practice c-${meta.color}">
       <header class="coach-top practice-top"><button type="button" class="icon-btn" id="pr-end" aria-label="End practice">${g('close')}</button><div class="pr-title"><span class="tool-icon sm">${g(meta.glyph)}</span><div><strong>${meta.name}</strong><small>${meta.purpose}</small></div></div>
@@ -166,6 +185,9 @@ export function createPractice(ctx) {
       onEmpty: () => endRound(),
     });
     onCleanup(() => runner.destroy());
+    // Don’t lose a round in progress to a stray reload or back swipe.
+    const guard = e => { if (stats.questions > 0 && !logged) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', guard); onCleanup(() => window.removeEventListener('beforeunload', guard));
     runner.start();
 
     const gear = $('#pr-gear');

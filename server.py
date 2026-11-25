@@ -10,7 +10,7 @@ from engine import basic, total, hilo, deviation, INDICES, simulate
 import coach
 mimetypes.add_type('application/manifest+json', '.webmanifest')
 from practice_api import PracticeRoutes, grade_transcript, record_skills, BadTranscript
-import economy, quests, account, learning, seo, social, arcade
+import economy, quests, account, learning, seo, social, arcade, progress
 from economy import EconomyRoutes
 
 # Pacing is teaching, not a paywall: it applies to every learner (tests can relax it).
@@ -60,6 +60,7 @@ def initialize():
         c.executescript(learning.SCHEMA)
         c.executescript(social.SCHEMA)
         c.executescript(arcade.SCHEMA)
+        c.executescript(progress.SCHEMA)
 
 def password_hash(password,salt=None):
     salt=salt or secrets.token_hex(16)
@@ -282,6 +283,9 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             for label,cards in [(str(n),[10,n-10] if n>=12 else [2,n-2]) for n in range(5,21)]+[(f'A,{n}',[1,n]) for n in range(2,10)]+[(f'{n},{n}',[n,n]) for n in range(1,11)]:
                 rows.append({'label':label,'actions':[basic(cards,up,h17) for up in [2,3,4,5,6,7,8,9,10,1]]})
             return self.send_json({'rows':rows,'indices':INDICES})
+        if path.startswith('/api/certificate/') and method=='GET':
+            # A passed test-out's certificate is public by link: username, date, and section scores only.
+            cert=progress.certificate(c,path.split('/')[-1]);require(cert,'Certificate not found.',404);return self.send_json(cert)
         self.auth();uid=self.user['id']
         if path=='/api/friends' and method=='GET': return self.send_json(social.friends(c,uid,self.client_day()))
         if path=='/api/friends' and method=='POST':
@@ -416,6 +420,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             rating=int(num(d,'rating',1,5));area=str(d.get('area','other'));require(area in ('signup','lesson','practice','track','community','other'),'Choose what you were doing.')
             c.execute('INSERT INTO feedback(user_id,rating,area,page,comment,created) VALUES(?,?,?,?,?,?)',(uid,rating,area,textfield(d,'page',100,False),textfield(d,'comment',2000,False),time.time()))
             return self.send_json({'ok':True},201)
+        if path.startswith(('/api/testout','/api/rush/battle/','/api/skillscore','/api/report')): return progress.handle(self,path,method,require,ApiError)
         if path.startswith('/api/daily') or path.startswith('/api/rush/') or path.startswith('/api/drills'): return arcade.handle(self,path,method,require,ApiError)
         if path.startswith('/api/practice/') or path.startswith('/api/challenge/'): return self.practice_api(path,method,require,num,ApiError)
         if path=='/api/casinos' and method=='GET':
@@ -601,7 +606,7 @@ def reminder_loop():
     """Trial-ending and renewal notices, checked every hour."""
     while True:
         try:
-            with db() as c: account.run_reminders(c)
+            with db() as c: account.run_reminders(c); progress.weekly_emails(c)
         except Exception as e: print('reminders', type(e).__name__, e)
         time.sleep(3600)
 

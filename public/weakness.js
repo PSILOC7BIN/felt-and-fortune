@@ -41,6 +41,36 @@ function cost(cell, up) {
   return v.length > 1 ? v[0] - v[1] : 0;
 }
 
+// ---- Skill Score: the house edge you actually face, given your mistakes -------------------------------
+// Each first decision's miss rate (smoothed toward your overall rate) times what a miss costs there, weighted by how
+// often that hand and upcard come up in a real game, added to the 0.40% edge perfect basic strategy faces (6 decks, S17).
+const BASE_EDGE = 0.40, PV = v => (v === 10 ? 4 / 13 : 1 / 13);
+export function skillScore(rows) {
+  const attempts = rows.reduce((a, c) => a + c.attempts, 0), misses = rows.reduce((a, c) => a + c.misses, 0);
+  if (attempts < 20) return null;
+  const overall = misses / attempts, prior = 3, freq = new Map();
+  for (let a = 1; a <= 10; a++) for (let b = 1; b <= 10; b++) {
+    if ((a === 1 && b === 10) || (a === 10 && b === 1)) continue;
+    const cell = a === b ? (a === 1 ? 'PA' : `P${a}`) : a === 1 || b === 1 ? `S${11 + (a === 1 ? b : a)}` : `H${a + b}`;
+    freq.set(cell, (freq.get(cell) || 0) + PV(a) * PV(b));
+  }
+  let cost = 0;
+  for (const [cell, pc] of freq) for (let up = 1; up <= 10; up++) {
+    const row = rows.find(r => r.cell === cell && r.up === up);
+    const rate = row ? (row.misses + prior * overall) / (row.attempts + prior) : overall;
+    const v = Object.values(actionEVs(cardsFor(cell), up, {})).sort((x, y) => y - x);
+    cost += pc * PV(up) * rate * (v.length > 1 ? v[0] - v[1] : 0);
+  }
+  return { edge: BASE_EDGE + cost * 100, cost: cost * 100, attempts };
+}
+
+function scoreSpark(hist) {
+  if (hist.length < 2) return '';
+  const vals = hist.map(h => h.edge), lo = Math.min(...vals) - 0.05, hi = Math.max(...vals) + 0.05;
+  const pts = vals.map((v, i) => `${(i / (vals.length - 1) * 100).toFixed(1)},${(4 + (v - lo) / (hi - lo) * 32).toFixed(1)}`).join(' ');
+  return `<svg class="score-spark" viewBox="0 0 100 40" preserveAspectRatio="none" role="img" aria-label="Skill Score over time, lower is better"><polyline points="${pts}" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
 export async function weaknessPage(ctx) {
   const { api } = ctx;
   const data = await api('/api/weakness');
@@ -55,10 +85,18 @@ export async function weaknessPage(ctx) {
   const tracked = cells.reduce((a, c) => a + c.attempts, 0);
   const lost = tracked ? cells.reduce((a, c) => a + c.misses * c.cost, 0) / tracked : 0;
   const pro = data.pro;
+  const score = skillScore(data.cells);
+  let hist = [];
+  if (score) { try { await api('/api/skillscore', 'POST', { edge: score.edge }); hist = (await api('/api/skillscore')).history; } catch { /* optional */ } }
+  const scoreHTML = score ? `<section class="sim-card skill-score"><div class="ss-main"><small>Your Skill Score</small><strong>${score.edge.toFixed(2)}%</strong><span>You play like a <b>${score.edge.toFixed(2)}% house edge</b>. Perfect basic strategy faces ${BASE_EDGE.toFixed(2)}%; a typical casino player gives up about 2%.</span></div>
+      <div class="ss-scale" aria-hidden="true"><i style="left:${Math.min(100, (score.edge - BASE_EDGE) / 2 * 100)}%"></i><span>Perfect</span><span>Typical player</span></div>
+      <div class="ss-side">${pro ? (hist.length > 1 ? `${scoreSpark(hist)}<small>Last ${hist.length} days · lower is better</small>` : '<small>Your trend appears here as you practice.</small>') : `<button type="button" class="small" id="ss-pro">${g('crown')} Track your trend with Pro</button>`}<button type="button" class="small" id="ss-share">${g('next')} Share</button></div>
+      <p class="field-hint">Based on ${score.attempts} first decisions, weighted by how often each hand comes up in a real 6-deck game. Hands you haven’t played use your overall miss rate.</p></section>`
+    : `<p class="muted small">Play ${Math.max(1, 20 - tracked)} more strategy decisions to get your Skill Score: the house edge you actually face, given your mistakes.</p>`;
 
   $('#page').innerHTML = `<a class="back-link" href="/practice">${g('back')} Practice</a>
     <header class="page-hero"><div><h1>Weakness map</h1><p>Every basic-strategy hand you’ve played in lessons, trainers, and Free Play, colored by how often you get it right. Tap any cell to drill that exact hand.</p></div></header>
-    ${tracked ? `<div class="plan-grid three wk-stats"><div class="stat-tile blue"><small>Decisions tracked</small><strong>${tracked}</strong></div><div class="stat-tile ${data.misses / tracked < 0.1 ? 'green' : 'orange'}"><small>Accuracy</small><strong>${Math.round((1 - data.misses / tracked) * 100)}%</strong></div><div class="stat-tile purple"><small>Mistakes cost you</small><strong>${(lost * 100).toFixed(2)}%</strong><span>of each bet, on the hands you’ve played</span></div></div>`
+    ${tracked ? `<div class="plan-grid three wk-stats"><div class="stat-tile blue"><small>Decisions tracked</small><strong>${tracked}</strong></div><div class="stat-tile ${data.misses / tracked < 0.1 ? 'green' : 'orange'}"><small>Accuracy</small><strong>${Math.round((1 - data.misses / tracked) * 100)}%</strong></div><div class="stat-tile purple"><small>Mistakes cost you</small><strong>${(lost * 100).toFixed(2)}%</strong><span>of each bet, on the hands you’ve played</span></div></div>${scoreHTML}`
       : `<div class="empty-review">${ace('think', 'ace-lg')}<h2>No hands tracked yet</h2><p class="muted">Play a few strategy questions in lessons, the trainers, or Free Play and your map fills in here.</p><a class="button primary" href="/practice/skill/strategy-hard">Start with hard totals</a></div>`}
     ${tracked ? `<section class="sim-card"><h2 class="sim-step"><span>${g('target')}</span>Your costliest leaks</h2><p class="field-hint">Ranked by how often you miss the hand times what each miss costs.</p>
       ${leaks.length ? `<ol class="wk-leaks">${leaks.map((c, i) => `<li class="${!pro && i > 0 ? 'locked' : ''}"><span><b>${esc(rowLabel(c.cell))} vs ${upLabel(c.up)}</b><small>${c.attempts - c.misses}/${c.attempts} right · the chart says ${bj.ACTIONS[act(c.cell, c.up)].toLowerCase()} · each miss costs ≥ ${(c.cost * 100).toFixed(1)}%</small></span>${!pro && i > 0 ? `<span class="pro-tag">${g('crown')} Pro</span>` : `<button type="button" class="small" data-drill="${c.cell}:${c.up}">Drill</button>`}</li>`).join('')}</ol>
@@ -73,6 +111,11 @@ export async function weaknessPage(ctx) {
     const [, , test] = FAMILIES[b.dataset.family];
     const all = Object.values(ROWS).flat().flatMap(cell => UPS.map(up => ({ cell, up }))).filter(test);
     drill(all.map(c => [c.cell, c.up]));
+  });
+  $('#ss-pro')?.addEventListener('click', () => paywall(ctx, 'Pro tracks your Skill Score every day so you can watch the edge you give away shrink.'));
+  $('#ss-share')?.addEventListener('click', async () => {
+    const text = `My blackjack Skill Score on Felt & Fortune: I play like a ${score.edge.toFixed(2)}% house edge (perfect is ${BASE_EDGE.toFixed(2)}%).`;
+    try { if (navigator.share) await navigator.share({ text, url: location.origin }); else { await navigator.clipboard.writeText(text + ' ' + location.origin); ctx.toast('Copied to your clipboard.'); } } catch { /* cancelled */ }
   });
   $('#wk-pro')?.addEventListener('click', () => paywall(ctx, 'Pro ranks every leak in your game and drills them all at once.'));
 }

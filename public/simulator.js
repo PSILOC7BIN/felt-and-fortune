@@ -1,6 +1,7 @@
 // Bankroll Simulator (EV calculator): four starter presets, plus every input a counter needs (rules, penetration,
 // a full bet spread by true count, back-counting, index plays) and pro metrics (SCORE, DI, N₀, bankroll for a target risk).
 import { esc, $, $$, Sound, ace, g } from './ui.js';
+import { houseEdge } from './edge.js';
 
 const COUNTS = [-3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7];
 const RAMPS = {
@@ -71,10 +72,15 @@ export function createSimulator({ api, onCleanup }) {
           ${field('Leave the shoe', sel('sim-wongout', [[-20, 'Never'], ...[-2, -1, 0, 1].map(n => [n, `When it drops below ${signed(n)}`])], s.wongOut))}
           ${field('Rounds to simulate', sel('sim-rounds', [[20000, '20,000 · fast'], [100000, '100,000'], [300000, '300,000'], [1000000, '1,000,000 · precise']], s.rounds))}</div>
         <div class="spread-wrap"><table class="spread-table"><thead><tr><th>True count</th><th>Units</th><th>Hands</th><th>Total bet</th></tr></thead><tbody id="sp-body">${spreadRows()}</tbody></table>
-        <div class="spread-side"><p class="field-hint">Bet this many units at each true count. Playing two hands at high counts gets more money out at lower variance per dollar.</p><p class="spread-sum" id="sp-sum"></p><div class="flex"><button type="button" class="small" id="sp-x2">Double the spread</button><button type="button" class="small" id="sp-half">Halve it</button></div></div></div>
+        <div class="spread-side"><p class="field-hint">Bet this many units at each true count. Playing two hands at high counts gets more money out at lower variance per dollar.</p><p class="spread-sum" id="sp-sum"></p><div class="flex"><button type="button" class="small" id="sp-x2">Double the spread</button><button type="button" class="small" id="sp-half">Halve it</button></div>
+        <div class="solver"><h3>${g('target')} Solve my ramp</h3><p class="field-hint">Builds the bet spread that grows your bankroll fastest for the risk you choose (proportional Kelly betting on the Hi‑Lo edge at each true count, with these rules).</p>
+          <div class="sim-inputs two">${field('Risk of ruin you accept', sel('sol-ror', [[1, '1%'], [2, '2%'], [5, '5%'], [10, '10%'], [13.5, '13.5% (full Kelly)']], s.solveRor ?? 5))}${field('Largest bet (units)', sel('sol-cap', [8, 12, 16, 24, 32, 50].map(n => [n, `${n} units`]), s.solveCap ?? 16))}</div>
+          <button type="button" class="primary" id="sol-go">${g('target')} Solve</button><p class="field-hint" id="sol-note"></p></div></div></div>
       </section>
       <div class="sim-run"><button type="button" class="primary chunky large" id="sim-go">${g('chart')} Run simulation</button><span id="sim-status" class="muted" role="status"></span></div>
-      <section id="sim-out" aria-live="polite"></section>`;
+      <section id="sim-out" aria-live="polite"></section>
+      <section class="sim-card"><h2 class="sim-step"><span>${g('chart')}</span>Compare games</h2><p class="field-hint">Add the current setup, change the rules or spread, add again, then rank them all by SCORE (win per 100 rounds at a $10,000 bankroll and 13.5% risk), the standard way pros compare games.</p>
+        <ul class="cmp-list" id="cmp-list"></ul><div class="flex"><button type="button" class="small" id="cmp-add">${g('star')} Add this setup</button><button type="button" class="primary small" id="cmp-go">${g('chart')} Compare</button><button type="button" class="small ghost" id="cmp-clear">Clear</button></div><div id="cmp-out" aria-live="polite"></div></section>`;
 
     const paintSum = () => { const lo = Math.min(...s.spread.map(r => r.units * r.hands)), hi = Math.max(...s.spread.map(r => r.units * r.hands)); $('#sp-sum').innerHTML = `Spread <b>1–${num(hi / lo, 1)}</b> · ${money(lo * s.unit)} to ${money(hi * s.unit)}`; $$('.sp-bet').forEach((td, i) => { td.textContent = money(s.spread[i].units * s.unit * s.spread[i].hands); }); };
     const markCustom = () => { if (s.preset === 'custom') return; s.preset = 'custom'; const c = $('.preset.custom'); c.disabled = false; $$('.preset').forEach(x => x.setAttribute('aria-checked', String(x === c))); };
@@ -109,6 +115,48 @@ export function createSimulator({ api, onCleanup }) {
       if (s.playMode === 'deviations' && (s.h17 || s.surrender)) return 'Index plays here are for S17 games without surrender. Change the rules or choose basic strategy.';
       if (s.wongOut > -20 && s.wong > -20 && s.wongOut > s.wong) return 'Your leave count must be at or below your entry count.';
       return '';
+    };
+
+    // ---- solve my ramp: bet ∝ edge / variance, scaled so the bankroll meets the chosen risk of ruin --------
+    const RULE_MAP = () => ({ decks: String(s.decks), payout: s.payout === 1.2 ? '6:5' : '3:2', soft17: s.h17 ? 'H17' : 'S17', double: s.doubleRule, das: s.das ? 'yes' : 'no', surrender: s.surrender ? 'late' : 'none', split: s.maxHands === 2 ? '2' : '4', rsa: s.rsa ? 'yes' : 'no' });
+    $('#sol-go').onclick = () => {
+      read();
+      const ror = Number($('#sol-ror').value) / 100, cap = Number($('#sol-cap').value); s.solveRor = ror * 100; s.solveCap = cap;
+      const base = -houseEdge(RULE_MAP()) / 100, perTc = 0.005, variance = 1.33;
+      const scale = -2 * s.bankroll / Math.log(ror);           // dollars per unit of (edge / variance)
+      s.spread.forEach(r => { const e = base + perTc * r.count, bet = scale * e / variance; r.units = Math.min(cap, Math.max(1, Math.round(bet / s.unit * 2) / 2)); r.hands = 1; });
+      $('#sp-body').innerHTML = spreadRows(); wireSpread(); markCustom(); paintSum(); localStorage.setItem('ff-sim2', JSON.stringify(s));
+      const top = s.spread[s.spread.length - 1].units, first = s.spread.find(r => r.units > 1);
+      $('#sol-note').innerHTML = top <= 1 ? `At ${(-base * 100).toFixed(2)}% house edge off the top and this bankroll, even a +7 count barely justifies more than 1 unit. A bigger bankroll, a smaller unit, or better rules would help.`
+        : `Start raising at ${first ? (first.count > 0 ? '+' : '') + first.count : '+7'} and reach ${top} units. ${top >= cap ? `Your ${cap}-unit cap limits the top bets; ` : ''}Run the simulation to check the real risk, since the minimum bet at negative counts adds a little.`;
+      Sound.play('select');
+    };
+
+    // ---- compare games ----------------------------------------------------------------------------------
+    let cmp = []; try { cmp = JSON.parse(localStorage.getItem('ff-sim-cmp') || '[]'); } catch { cmp = []; }
+    const label = x => `${x.decks}D ${x.h17 ? 'H17' : 'S17'} ${x.payout === 1.2 ? '6:5' : '3:2'} · ${x.penetration}% pen · 1–${Math.max(...x.spread.map(r => r.units * r.hands)) / Math.min(...x.spread.map(r => r.units * r.hands))} spread${x.wong > -20 ? ` · enter +${x.wong}` : ''}${x.playMode === 'deviations' ? ' · indices' : ''}`;
+    const paintCmp = () => { $('#cmp-list').innerHTML = cmp.length ? cmp.map((x, i) => `<li><span>${esc(label(x))}</span><button type="button" class="small ghost" data-cmp-del="${i}" aria-label="Remove">${g('close')}</button></li>`).join('') : '<li class="muted">No setups yet.</li>'; $$('[data-cmp-del]').forEach(b => b.onclick = () => { cmp.splice(Number(b.dataset.cmpDel), 1); localStorage.setItem('ff-sim-cmp', JSON.stringify(cmp)); paintCmp(); }); };
+    paintCmp();
+    $('#cmp-add').onclick = () => { read(); if (cmp.length >= 6) { $('#cmp-out').innerHTML = '<p class="form-error">Compare up to 6 setups at once.</p>'; return; } cmp.push(JSON.parse(JSON.stringify(s))); localStorage.setItem('ff-sim-cmp', JSON.stringify(cmp)); paintCmp(); Sound.play('select'); };
+    $('#cmp-clear').onclick = () => { cmp = []; localStorage.setItem('ff-sim-cmp', '[]'); paintCmp(); $('#cmp-out').innerHTML = ''; };
+    $('#cmp-go').onclick = async () => {
+      if (cmp.length < 2) { $('#cmp-out').innerHTML = '<p class="form-error">Add at least two setups to compare.</p>'; return; }
+      const out = $('#cmp-out'), btn = $('#cmp-go'); btn.disabled = true; const rows = [];
+      for (let i = 0; i < cmp.length; i++) {
+        const x = cmp[i]; out.innerHTML = `<p class="muted"><span class="spinner"></span> Simulating setup ${i + 1} of ${cmp.length}…</p>`;
+        const cfg = { bankroll: x.bankroll, unit: x.unit, rph: x.rph, decks: x.decks, penetration: x.penetration, h17: x.h17, das: x.das, surrender: x.surrender, rsa: x.rsa, payout: x.payout, wong: x.wong, wongOut: x.wongOut, rounds: 100000, seed: 7 + i, playMode: x.playMode, maxHands: x.maxHands, doubleRule: x.doubleRule, splitAces: x.splitAces, spread: x.spread };
+        try {
+          const job = await api('/api/simulate', 'POST', cfg); let st;
+          do { await new Promise(r => setTimeout(r, 900)); if (!alive) return; st = await api('/api/simulate/' + job.id); } while (st.status === 'running');
+          if (st.status === 'error') { rows.push({ x, error: st.error }); continue; }
+          const r = st.result, pr = r.ev / x.rph, sr = r.sd / Math.sqrt(x.rph), di = r.ev > 0 ? 1000 * pr / sr : null;
+          rows.push({ x, r, di, score: di ? di * di : null });
+        } catch (e) { rows.push({ x, error: e.message }); }
+      }
+      btn.disabled = false;
+      rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1) || (b.r?.ev ?? -1e9) - (a.r?.ev ?? -1e9));
+      out.innerHTML = `<div class="cmp-table-wrap"><table class="spread-table cmp-table"><thead><tr><th>#</th><th>Setup</th><th>Win/hour</th><th>SD/hour</th><th>Risk of ruin</th><th>SCORE</th><th>DI</th></tr></thead><tbody>${rows.map((w, i) => w.error ? `<tr><td>${i + 1}</td><td>${esc(label(w.x))}</td><td colspan="5" class="form-error">${esc(w.error)}</td></tr>` : `<tr class="${i === 0 && w.score ? 'best' : ''}"><td>${i + 1}</td><td>${esc(label(w.x))}</td><td>${money(w.r.ev)}</td><td>±${money(w.r.sd)}</td><td>${w.r.ev > 0 ? num(w.r.risk * 100, 1) + '%' : '100%'}</td><td>${w.score ? num(w.score, 1) : '—'}</td><td>${w.di ? num(w.di, 2) : '—'}</td></tr>`).join('')}</tbody></table></div><p class="field-hint">100,000 rounds each. SCORE and DI ignore bankroll and unit size, so they compare games fairly; win per hour and risk use each setup’s own bankroll.</p>`;
+      Sound.play('reveal');
     };
     $('#sim-go').onclick = async () => {
       read();

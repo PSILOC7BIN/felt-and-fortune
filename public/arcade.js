@@ -55,6 +55,7 @@ export async function rushPage(ctx, mode) {
   const { api, go, localDate, onCleanup } = ctx;
   const meta = MODES[mode];
   let timer = null, keyHandler = null, run = null, misses = [];
+  const battleId = new URLSearchParams(location.search).get('battle'); let battle = null;
   const onKey = e => keyHandler?.(e);
   document.addEventListener('keydown', onKey);
   onCleanup(() => { clearTimeout(timer); document.removeEventListener('keydown', onKey); });
@@ -73,20 +74,24 @@ export async function rushPage(ctx, mode) {
     let b = { week: [], friends: [], best: 0, runs: 0, left: null };
     try { b = await api('/api/rush/board?mode=' + mode + '&day=' + localDate()); } catch { /* optional */ }
     const list = (rows, empty) => rows.length ? `<ol class="rush-board">${rows.map(r => `<li><span>${esc(r.username)}</span><b>${r.best}</b></li>`).join('')}</ol>` : `<p class="muted small">${empty}</p>`;
+    if (battleId) { try { battle = await api('/api/rush/battle/' + encodeURIComponent(battleId)); } catch (e) { ctx.toast(e.message); battle = null; } }
     const tired = runsThisVisit() >= 3;
-    body.innerHTML = `<div class="coach-intro rush-intro">${ace('happy', 'ace-lg bob')}<h1>${meta.name}</h1><p>${meta.blurb}</p>
+    const battleHTML = battle ? `<div class="battle-card">${g('trophy')}<div><strong>${battle.mine ? 'Your battle' : `${esc(battle.host)} challenged you`}</strong><span>${battle.mine ? `You scored ${battle.hostScore}. Friends who open your link play the exact same hands.` : battle.played ? 'You already played this one.' : `They scored <b>${battle.hostScore}</b> on these exact hands. Beat it. Battles don’t use your free run.`}</span>${battle.challengers.length ? `<ol class="rush-board">${[{ username: battle.host + ' (host)', best: battle.hostScore }, ...battle.challengers.map(c => ({ username: c.username, best: c.score }))].sort((a, b) => b.best - a.best).map(r => `<li><span>${esc(r.username)}</span><b>${r.best}</b></li>`).join('')}</ol>` : ''}</div></div>` : '';
+    body.innerHTML = `<div class="coach-intro rush-intro">${ace('happy', 'ace-lg bob')}<h1>${meta.name}</h1><p>${meta.blurb}</p>${battleHTML}
       <div class="plan-grid three"><div class="stat-tile yellow"><small>Your best</small><strong>${b.best}</strong></div><div class="stat-tile blue"><small>Runs</small><strong>${b.runs}</strong></div><div class="stat-tile purple"><small>Today</small><strong>${b.left == null ? 'Unlimited' : b.left ? '1 free run' : 'Used'}</strong></div></div>
       ${tired ? `<p class="break-note">${g('heart')} You’ve played a few runs in a row. A short break helps it stick.</p>` : ''}
       <div class="rush-boards"><div><h3>This week</h3>${list(b.week, 'No runs yet this week. Set the first score.')}</div><div><h3>You and friends</h3>${list(b.friends, 'Follow friends in Community to race them.')}</div></div></div>`;
     foot.className = 'coach-foot';
-    if (b.left === 0) { foot.innerHTML = `<span class="foot-hint">Free members get one run a day per mode.</span><button type="button" class="primary chunky" id="ru-pro">${g('crown')} Unlimited runs with Pro</button>`; $('#ru-pro').onclick = () => paywall(ctx, 'Pro has unlimited Rush and Count Storm runs.'); return; }
-    foot.innerHTML = `<span class="foot-hint">Enter to start</span><button type="button" class="primary chunky" id="ru-go">Start</button>`;
+    const canBattle = battle && !battle.mine && !battle.played;
+    if (b.left === 0 && !canBattle) { foot.innerHTML = `<span class="foot-hint">Free members get one run a day per mode.</span><button type="button" class="primary chunky" id="ru-pro">${g('crown')} Unlimited runs with Pro</button>`; $('#ru-pro').onclick = () => paywall(ctx, 'Pro has unlimited Rush and Count Storm runs.'); return; }
+    if (battle && !canBattle) { foot.innerHTML = `<span class="foot-hint">${battle.mine ? 'Share your link with friends.' : 'You’ve played this battle.'}</span><a class="button primary chunky" href="/tools/${mode}">Play a normal run</a>`; return; }
+    foot.innerHTML = `<span class="foot-hint">Enter to start</span><button type="button" class="primary chunky" id="ru-go">${canBattle ? 'Start the battle' : 'Start'}</button>`;
     $('#ru-go').onclick = start; keyHandler = e => { if (e.key === 'Enter') { e.preventDefault(); start(); } };
   }
 
   async function start() {
     keyHandler = null; misses = [];
-    try { run = await api('/api/rush/start', 'POST', { mode, day: localDate() }); } catch (e) { if (/Pro/.test(e.message)) paywall(ctx, e.message); else ctx.toast(e.message); return; }
+    try { run = await api('/api/rush/start', 'POST', { mode, day: localDate(), battle: battle && !battle.mine && !battle.played ? battle.id : undefined }); } catch (e) { if (/Pro/.test(e.message)) paywall(ctx, e.message); else ctx.toast(e.message); return; }
     sessionStorage.setItem('ff-rush-runs', String(runsThisVisit() + 1));
     $('#ru-score').textContent = 0; strikes(0, run.maxStrikes); ask(run.q);
   }
@@ -136,8 +141,16 @@ export async function rushPage(ctx, mode) {
       <div class="plan-grid three"><div class="stat-tile yellow"><small>Score</small><strong>${res.score}</strong></div><div class="stat-tile orange"><small>Best</small><strong>${res.best}</strong></div><div class="stat-tile purple"><small>XP</small><strong>+${Math.min(20, res.score)}</strong></div></div>
       ${misses.length ? `<h3 class="sim-sub">Your misses</h3><ul class="rush-misses">${misses.map(m => `<li>${mode === 'storm' ? `Count after ${m.q.cards.map(bj.rank).join(' ')}: you said ${m.given == null ? '—' : bj.signed(m.given)}, it was <b>${bj.signed(m.res.answerKey)}</b>` : `${esc(bj.handLabel(m.q.cards))} vs ${m.q.dealer === 1 ? 'A' : m.q.dealer}${m.q.tc != null ? ` at TC ${bj.signed(m.q.tc)}` : ''}: ${m.given === 'X' ? 'ran out of time' : ACT[m.given]} → <b>${ACT[m.res.answerKey]}</b>`}</li>`).join('')}</ul>` : ''}
       ${last ? whyHTML(last.q.cards, last.q.dealer, last.q.rules, last.given === 'X' ? null : last.given) : ''}</div>`;
-    foot.className = 'coach-foot'; foot.innerHTML = `<button type="button" class="ghost" id="ru-done">Back to Tools</button><button type="button" class="primary chunky" id="ru-again">Leaderboard and play again</button>`;
-    $('#ru-done').onclick = () => go('/tools'); $('#ru-again').onclick = intro; $('#ru-again').focus();
+    const wasBattle = battle && !battle.mine && !battle.played;
+    if (wasBattle) body.insertAdjacentHTML('afterbegin', `<div class="battle-card result">${g('trophy')}<div><strong>${res.score > battle.hostScore ? `You beat ${esc(battle.host)}!` : res.score === battle.hostScore ? `Tied with ${esc(battle.host)}` : `${esc(battle.host)} wins this one`}</strong><span>You ${res.score} · ${esc(battle.host)} ${battle.hostScore}</span></div></div>`);
+    foot.className = 'coach-foot'; foot.innerHTML = `<button type="button" class="ghost" id="ru-done">Back to Tools</button>${res.score > 0 && !wasBattle ? `<button type="button" class="button" id="ru-battle">${g('users')} Challenge a friend</button>` : ''}<button type="button" class="primary chunky" id="ru-again">Leaderboard and play again</button>`;
+    $('#ru-done').onclick = () => go('/tools'); $('#ru-again').onclick = () => { if (wasBattle) { history.replaceState(null, '', '/tools/' + mode); battle = null; } intro(); }; $('#ru-again').focus();
+    $('#ru-battle')?.addEventListener('click', async () => {
+      const eco = await api('/api/me/economy').catch(() => null);
+      if (!eco?.plan?.pro) { paywall(ctx, 'Pro members can challenge friends to battles on the exact same hands.'); return; }
+      const url = `${location.origin}/tools/${mode}?battle=${run.id}`, text = `I scored ${res.score} in ${meta.name} on Felt & Fortune. Same hands, your turn:`;
+      try { if (navigator.share) await navigator.share({ text, url }); else { await navigator.clipboard.writeText(`${text} ${url}`); ctx.toast('Battle link copied. Send it to a friend.'); } } catch { /* cancelled */ }
+    });
   }
   intro();
 }

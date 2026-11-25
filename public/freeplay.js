@@ -34,7 +34,7 @@ export async function freePlayPage(ctx, meta) {
   const tot = cards => bj.total(cards);
   const up = () => dealer.cards[0];
   const isBJ = h => h.cards.length === 2 && !h.fromSplit && tot(h.cards).total === 21;
-  const label = cards => { const { total: t, soft } = tot(cards); return t > 21 ? `Bust ${t}` : soft && t < 21 ? `Soft ${t}` : String(t); };
+  const label = cards => { const { total: t, soft } = tot(cards); return t > 21 ? `Bust ${t}` : soft && t < 21 ? `Soft ${t}` : t === 21 ? '21' : `Hard ${t}`; };
 
   $('#app').innerHTML = `<main id="main" class="coach-screen practice freeplay c-${meta.color}">
     <header class="coach-top practice-top"><button type="button" class="icon-btn" id="fp-end" aria-label="Leave the table">${g('close')}</button><div class="pr-title"><span class="tool-icon sm">${g(meta.glyph)}</span><div><strong>${meta.name}</strong><small>Ace deals. Play your way; Ace flags any play that isn’t basic strategy.</small></div></div>
@@ -42,7 +42,8 @@ export async function freePlayPage(ctx, meta) {
       <button type="button" class="icon-btn" id="fp-gear" aria-expanded="false" aria-controls="fp-settings" aria-label="Table rules">${g('gear')}</button></header>
     <div class="settings-bar" id="fp-settings" hidden>
       ${[['h17', 'Dealer', [['s17', 'Stands soft 17'], ['h17', 'Hits soft 17']]], ['surrender', 'Surrender', [['off', 'Off'], ['on', 'On']]], ['count', 'Count', [['off', 'Hidden'], ['on', 'Show running count']]]].map(([k, l, opts]) => `<div class="seg-group"><span>${l}</span><div class="segmented" role="radiogroup" aria-label="${l}">${opts.map(([v, t]) => `<button type="button" role="radio" data-k="${k}" data-v="${v}" aria-checked="${(k === 'h17' ? (rules.h17 ? 'h17' : 's17') : rules[k] ? 'on' : 'off') === v}">${t}</button>`).join('')}</div></div>`).join('')}
-      <button type="button" class="ghost small" id="fp-reset">Reset practice bankroll</button></div>
+      <button type="button" class="ghost small" id="fp-reset">Reset practice bankroll</button>
+      <p class="field-hint fp-shuffle">How the cards are dealt: a real six-deck shoe, shuffled with your browser’s random number generator and reshuffled at about 75% penetration, the same as a casino cut card. Nothing about the shoe changes based on your bets or play.</p></div>
     <section class="coach-body fp-body" id="coach-body">
       <div class="felt-table bj-table has-dealer fp-table">
         <div class="dealer-ace" aria-hidden="true">${ace('happy', 'ace-dealer')}</div>
@@ -126,10 +127,16 @@ export async function freePlayPage(ctx, meta) {
     if (up() === 1) say(`${g('target')}<span>Ace up and no blackjack underneath. Basic strategy never takes insurance, so it isn’t offered here.</span>`);
   }
 
+  let confirmAct = null;
   async function act(a) {
     if (busy || phase !== 'play') return;
     const h = players[active], o = options(h);
     if (!o[a]) return;
+    // A misclick guard: hitting or doubling a hard 19+, or splitting tens, asks once before it happens.
+    const ht = tot(h.cards);
+    const odd = ((a === 'H' || a === 'D') && !ht.soft && ht.total >= 19) || (a === 'P' && Math.min(h.cards[0], 10) === 10);
+    if (odd && confirmAct !== a) { confirmAct = a; say(`${g('target')}<span><b>${bj.ACTIONS[a]} on ${label(h.cards).toLowerCase()}?</b> Tap ${bj.ACTIONS[a]} again to confirm, or pick another play.</span>`); return; }
+    confirmAct = null;
     busy = true;
     const want = bj.basic(h.cards, up(), { h17: rules.h17, das: true, surrender: o.R, split: o.P });
     const ok = a === want, before = h.cards.slice();

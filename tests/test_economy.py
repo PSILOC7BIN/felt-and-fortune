@@ -346,3 +346,75 @@ class ArcadeTests(unittest.TestCase):
         self.assertEqual((len(d), d[0]['tag'], d[0]['spec']['rules']['h17'], d[0]['spec']['size']), (1, 'Hard', 'mix', 20))
         client.call('/api/drills/delete', 'POST', {'id': d[0]['id']})
         self.assertEqual(client.call('/api/drills')[1]['drills'], [])
+
+
+class ProgressTests(unittest.TestCase):
+    setUpClass = EconomyTests.__dict__['setUpClass']
+    tearDownClass = EconomyTests.__dict__['tearDownClass']
+    setUp = EconomyTests.setUp
+    signup = EconomyTests.signup
+
+    def _answers(self, tid):
+        import json as _j
+        with server.db() as c: return [it['answer'] for it in _j.loads(c.execute('SELECT state FROM testouts WHERE id=?', (tid,)).fetchone()['state'])['items']]
+
+    def test_testout_is_pro_monthly_and_certifies_a_pass(self):
+        from test_api import Client
+        client, _, _ = self.signup(NEW)
+        self.assertEqual(client.call('/api/testout/start', 'POST', {})[0], 402)
+        client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
+        run = client.call('/api/testout/start', 'POST', {})[1]
+        self.assertNotIn('answer', run['item'])
+        for a in self._answers(run['id']): r = client.call('/api/testout/answer', 'POST', {'id': run['id'], 'given': a})[1]
+        self.assertTrue(r['done']); self.assertTrue(r['passed']); self.assertTrue(all(s['passed'] for s in r['results']))
+        cert = Client(self.base).call('/api/certificate/' + r['certificate'])          # public, no sign-in
+        self.assertEqual(cert[0], 200); self.assertEqual(set(cert[1]), {'id', 'username', 'day', 'results'})
+        self.assertEqual(client.call('/api/testout/start', 'POST', {})[0], 429)        # one attempt a month
+        st = client.call('/api/testout')[1]; self.assertFalse(st['available']); self.assertTrue(st['attempts'][0]['passed'])
+
+    def test_failed_testout_has_no_certificate(self):
+        from test_api import Client
+        client, _, _ = self.signup(NEW); client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
+        run = client.call('/api/testout/start', 'POST', {})[1]
+        for a in self._answers(run['id']): r = client.call('/api/testout/answer', 'POST', {'id': run['id'], 'given': 'nope'})[1]
+        self.assertFalse(r['passed']); self.assertIsNone(r['certificate'])
+        self.assertEqual(Client(self.base).call('/api/certificate/' + run['id'])[0], 404)
+
+    def test_battle_replays_the_same_hands(self):
+        import arcade, json as _j
+        host, _, _ = self.signup(NEW); guest, _, _ = self.signup(NEW)
+        host.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
+        run = host.call('/api/rush/start', 'POST', {'mode': 'rush'})[1]; first = run['q']
+        for _ in range(3): host.call('/api/rush/answer', 'POST', {'id': run['id'], 'given': 'X'})
+        guest.call('/api/rush/start', 'POST', {'mode': 'rush'})                         # guest's free run today
+        b = guest.call('/api/rush/start', 'POST', {'mode': 'rush', 'battle': run['id']})
+        self.assertEqual(b[0], 200); self.assertEqual(b[1]['q']['cards'], first['cards']); self.assertEqual(b[1]['q']['dealer'], first['dealer'])
+        with server.db() as c: q = _j.loads(c.execute('SELECT state FROM rush_runs WHERE id=?', (b[1]['id'],)).fetchone()['state'])['q']
+        guest.call('/api/rush/answer', 'POST', {'id': b[1]['id'], 'given': arcade.rush_answer(q)})
+        for _ in range(3): guest.call('/api/rush/answer', 'POST', {'id': b[1]['id'], 'given': 'X'})
+        res = guest.call('/api/rush/battle/' + run['id'])[1]
+        self.assertEqual((res['hostScore'], res['challengers'][0]['score'], res['played']), (0, 1, True))
+        self.assertEqual(guest.call('/api/rush/start', 'POST', {'mode': 'rush', 'battle': run['id']})[0], 400)   # once per battle
+        self.assertEqual(host.call('/api/rush/start', 'POST', {'mode': 'rush', 'battle': run['id']})[0], 400)    # not your own
+
+    def test_skill_score_history_and_report(self):
+        client, _, _ = self.signup(NEW)
+        self.assertEqual(client.call('/api/skillscore', 'POST', {'edge': 0.62})[0], 200)
+        self.assertEqual(client.call('/api/skillscore', 'POST', {'edge': 99})[0], 400)
+        self.assertEqual(client.call('/api/skillscore')[1]['history'][-1]['edge'], 0.62)
+        r = client.call('/api/report')[1]
+        self.assertEqual(r['skillScore'][1], 0.62); self.assertIn('xp', r['this']); self.assertFalse(r['pro'])
+
+    def test_weekly_email_goes_to_active_pro_members_on_monday(self):
+        import progress, account, time as _t
+        from datetime import datetime
+        client, _, _ = self.signup(NEW); client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
+        self.finish_lesson = None
+        with server.db() as c:
+            uid = c.execute('SELECT id FROM users ORDER BY created DESC LIMIT 1').fetchone()['id']
+            c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)', (uid, DAY(-1), 10, 'sm1-1', _t.time()))
+            monday = datetime.now(); 
+            while monday.weekday() != 0: monday = monday.replace(day=monday.day) if False else datetime.fromtimestamp(monday.timestamp() + 86400)
+            ts = monday.replace(hour=10).timestamp()
+            n1 = progress.weekly_emails(c, ts); n2 = progress.weekly_emails(c, ts)
+        self.assertGreaterEqual(n1, 1); self.assertEqual(n2, 0)

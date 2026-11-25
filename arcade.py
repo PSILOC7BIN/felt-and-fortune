@@ -121,7 +121,7 @@ def board(c, mode, day, uid):
 
 
 def runs_today(c, uid, mode, day):
-    return c.execute('SELECT COUNT(*) FROM rush_runs WHERE user_id=? AND mode=? AND day=?', (uid, mode, day)).fetchone()[0]
+    return c.execute('SELECT COUNT(*) FROM rush_runs WHERE user_id=? AND mode=? AND day=? AND id NOT IN (SELECT run FROM rush_battles)', (uid, mode, day)).fetchone()[0]
 
 
 def handle(h, path, method, require, ApiError):
@@ -151,14 +151,19 @@ def handle(h, path, method, require, ApiError):
         return h.send_json({**board(c, mode, today, uid), 'pro': pro, 'left': None if pro else max(0, FREE_RUNS - runs_today(c, uid, mode, today))})
     if path == '/api/rush/start' and method == 'POST':
         mode = str(d.get('mode', 'rush')); require(mode in ('rush', 'storm'), 'Unknown mode.')
-        if not economy.is_pro(c, uid):
+        if not economy.is_pro(c, uid) and not d.get('battle'):
             require(runs_today(c, uid, mode, today) < FREE_RUNS, 'Free members get one run a day. Pro has unlimited runs.', 402)
         h.throttle('rush', 30)
-        seed = secrets.randbits(32); rng = random.Random(seed)
+        seed = secrets.randbits(32); battle = str(d.get('battle') or '')
+        if battle:
+            import progress
+            seed, err = progress.start_battle_run(c, uid, mode, battle); require(seed is not None, err or 'That battle doesn’t exist.')
+        rng = random.Random(seed)
         q = storm_question(0, rng, 0) if mode == 'storm' else rush_question(0, rng)
         state = {'seed': seed, 'n': 0, 'rc': 0, 'q': q, 'asked': time.time(), 'draws': 1}
         rid = secrets.token_hex(10)
         c.execute('INSERT INTO rush_runs(id,user_id,mode,day,state,started) VALUES(?,?,?,?,?,?)', (rid, uid, mode, today, json.dumps(state), time.time()))
+        if battle: c.execute('INSERT INTO rush_battles VALUES(?,?)', (rid, battle))
         return h.send_json({'id': rid, 'mode': mode, 'q': public_q(mode, q), 'strikes': 0, 'score': 0, 'maxStrikes': STRIKES})
     if path == '/api/rush/answer' and method == 'POST':
         row = c.execute('SELECT * FROM rush_runs WHERE id=? AND user_id=?', (str(d.get('id', '')), uid)).fetchone()
