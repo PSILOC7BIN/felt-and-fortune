@@ -295,6 +295,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             return self.send_json(account.set_prefs(c,uid,**kw))
         if path=='/api/badges' and method=='GET':
             import badges;return self.send_json(badges.shelf(c,uid,self.client_day()))
+        if path=='/api/weakness' and method=='GET': return self.send_json({**learning.weakness(c,uid),'pro':economy.is_pro(c,uid)})
         if path=='/api/skills' and method=='GET': return self.send_json(learning.summary(c,uid,self.client_day()))
         if path=='/api/review' and method=='GET':
             sk=parse_qs(urlparse(self.path).query).get('skill',[None])[0]

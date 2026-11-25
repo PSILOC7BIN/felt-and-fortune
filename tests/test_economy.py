@@ -268,3 +268,16 @@ class ToolsAndPathTests(unittest.TestCase):
         self.assertEqual(e.exception.code, 404)
         page = urllib.request.urlopen(self.base + '/blackjack-casino-rules').read().decode()
         self.assertNotIn('house edge ·', page); self.assertIn('Pro Casino Map', page)
+
+    def test_weakness_map_tracks_each_chart_cell(self):
+        import learning
+        self.assertEqual(learning.cell_of({'kind': 'strategy', 'data': {'cards': [10, 6], 'dealer': 13}}), ('H16', 10))
+        self.assertEqual(learning.cell_of({'kind': 'strategy', 'data': {'cards': [1, 7], 'dealer': 9}}), ('S18', 9))
+        self.assertEqual(learning.cell_of({'kind': 'strategy', 'data': {'cards': [12, 13], 'dealer': 1}}), ('P10', 1))
+        self.assertEqual(learning.cell_of({'kind': 'strategy', 'data': {'cards': [1, 1], 'dealer': 6}}), ('PA', 6))
+        self.assertIsNone(learning.cell_of({'kind': 'count', 'data': {'cards': [2, 3]}}))
+        client, _, _ = self.signup(NEW)
+        self.assertEqual(self.log(client, 'drill', [item('strategy')] * 3 + [item('strategy', ok=False)])[0], 200)
+        w = client.call('/api/weakness')[1]
+        self.assertEqual(w['cells'], [{'cell': 'H16', 'up': 10, 'attempts': 4, 'misses': 1, 'last': w['cells'][0]['last']}])
+        self.assertEqual((w['decisions'], w['misses'], w['pro']), (4, 1, False))

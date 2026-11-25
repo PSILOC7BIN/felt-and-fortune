@@ -12,6 +12,8 @@ CREATE TABLE IF NOT EXISTS skill_rating(user_id TEXT REFERENCES users(id), skill
 CREATE TABLE IF NOT EXISTS rating_log(user_id TEXT REFERENCES users(id), day TEXT, overall REAL, PRIMARY KEY(user_id, day));
 CREATE TABLE IF NOT EXISTS mistakes(id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT REFERENCES users(id), day TEXT, source TEXT, skill TEXT,
     kind TEXT, data TEXT, given TEXT, answer TEXT, explain TEXT, cleared INTEGER DEFAULT 0, created REAL);
+CREATE TABLE IF NOT EXISTS decision_stats(user_id TEXT REFERENCES users(id), cell TEXT, up INTEGER, attempts INTEGER, misses INTEGER, last REAL,
+    PRIMARY KEY(user_id, cell, up));
 '''
 
 START = 1000
@@ -78,6 +80,26 @@ def _overall(c, uid):
     return round(sum(r['rating'] * min(r['n'], 60) for r in rows) / w)
 
 
+def cell_of(item):
+    """The basic-strategy chart cell for a strategy decision: ('H16', 10), ('S18', 9), ('P8', 1)... or None."""
+    if item.get('kind') != 'strategy': return None
+    d = item.get('data') or {}
+    try:
+        cards = [min(int(x), 10) for x in d['cards']]; up = min(int(d['dealer']), 10)
+        if not 1 <= up <= 10 or len(cards) < 2 or not all(1 <= x <= 10 for x in cards): return None
+        if len(cards) == 2 and cards[0] == cards[1]: return ('PA' if cards[0] == 1 else f'P{cards[0]}', up)
+        t, soft = total(cards)
+        if t > 21: return None
+        return (f'S{t}', up) if soft else (f'H{min(max(t, 5), 21)}', up)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def weakness(c, uid):
+    rows = [dict(r) for r in c.execute('SELECT cell, up, attempts, misses, last FROM decision_stats WHERE user_id=?', (uid,))]
+    return {'cells': rows, 'decisions': sum(r['attempts'] for r in rows), 'misses': sum(r['misses'] for r in rows)}
+
+
 def record(c, uid, items, choices, source, day):
     """Update ratings and store misses for an already-validated transcript."""
     now = time.time(); ratings = {}
@@ -93,6 +115,10 @@ def record(c, uid, items, choices, source, day):
             expected = 1 / (1 + 10 ** ((difficulty(it) - r) / 400))
             k = 40 if n < 20 else 24 if n < 100 else 16
             ratings[s] = [r + k * ((1 if ok else 0) - expected), n + 1]
+        cell = cell_of(it)
+        if cell:
+            c.execute('INSERT INTO decision_stats VALUES(?,?,?,1,?,?) ON CONFLICT(user_id,cell,up) DO UPDATE SET attempts=attempts+1, misses=misses+excluded.misses, last=excluded.last',
+                      (uid, cell[0], cell[1], 0 if ok else 1, now))
         if not ok and not it.get('retry'):
             c.execute('INSERT INTO mistakes(user_id,day,source,skill,kind,data,given,answer,explain,created) VALUES(?,?,?,?,?,?,?,?,?,?)',
                       (uid, day, source, s or 'concept', it.get('kind'), json.dumps(it.get('data') or {}), given_text(it), answer_of(it, choices),

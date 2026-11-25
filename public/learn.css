@@ -280,3 +280,25 @@
 .coach-screen .coach-foot{flex-shrink:0}
 @media(max-height:760px){.coach-top{padding-top:10px}.coach-body{padding-top:14px;padding-bottom:16px}.coach-foot{min-height:76px;padding-top:12px;padding-bottom:12px}.choice-tile{min-height:50px;padding:10px 16px}.q{gap:12px}}
 .coach-screen .coach-body > *{flex-shrink:0}
+/* "Why?" panel: expected value of each play */
+.why-btn{display:inline;margin-left:6px;padding:2px 10px;border-radius:99px;border:2px solid currentColor;background:transparent;color:inherit;font:800 13px var(--round);min-height:0;box-shadow:none;cursor:pointer;opacity:.9}
+.why-wrap{width:100%;max-width:560px;margin:14px auto 0}
+.why-panel{padding:14px 16px;border-radius:18px;background:#F7F7FA;border:2px solid var(--border)}
+.why-head{margin:0 0 8px;font:800 12px var(--round);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.why-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.why-list li{display:grid;grid-template-columns:96px 1fr 64px;align-items:center;gap:10px;font-weight:700;font-size:15px}
+.why-list li.best .why-act{color:#1E7B34}
+.why-list li.picked .why-act{color:#D70015}
+.why-bar{position:relative;height:14px;border-radius:99px;background:#E5E5EA}
+.why-bar i{position:absolute;top:0;bottom:0;border-radius:99px;background:#8E8E93}
+.why-list li.best .why-bar i{background:#34C759}
+.why-list li.picked .why-bar i{background:#FF3B30}
+.why-bar b{position:absolute;top:-3px;bottom:-3px;width:2px;background:#3A3A3C;opacity:.5}
+.why-val{text-align:right;font-variant-numeric:tabular-nums}
+.why-note{margin:10px 0 0;font-size:14px;line-height:1.45}
+[data-theme="dark"] .why-panel{background:#141B33;border-color:#2A3456}
+[data-theme="dark"] .why-bar{background:#1E2747}
+[data-theme="dark"] .why-bar b{background:#fff}
+[data-theme="dark"] .why-list li.best .why-act{color:#6EE38D}
+[data-theme="dark"] .why-list li.picked .why-act{color:#FF8A80}
+.why-open .action-row{display:none}.why-open .why-wrap{margin-top:4px}

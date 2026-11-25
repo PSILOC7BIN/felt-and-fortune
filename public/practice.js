@@ -5,6 +5,7 @@ import { startRound, loadEconomy, setEconomy, chipsHTML, economyState, outOfEner
 import * as bj from './bj.js';
 import { esc, $, $$, Sound, ace, g, tableHTML, cardHTML, mountTray, mountStepper, mountNumber } from './ui.js';
 import { freePlayPage } from './freeplay.js';
+import { cardsFor } from './weakness.js';
 import { TOOLS, createRunner, strategyQ, countQ, decksQ, trueCountQ, indexQ, betQ, chartHTML } from './trainers.js';
 
 export const SKILL_NAMES = { 'strategy-hard': 'Hard totals', 'strategy-soft': 'Soft totals', 'strategy-pair': 'Pairs', count: 'Running count', decks: 'Deck estimation', truecount: 'True count', index: 'Index plays', insurance: 'Insurance', bet: 'Bet sizing' };
@@ -83,6 +84,7 @@ export function createPractice(ctx) {
     $('#page').innerHTML = `<header class="page-hero"><div><h1>Practice</h1><p>One trainer for each skill rating. Every answer moves that rating, and the questions get harder as you improve. Checkpoints open when your ratings reach their targets. ${eco?.plan?.pro ? 'Pro: practice as much as you like.' : 'Each round uses 1 Energy. Weak Spots and Hand Review are free.'}</p></div><div data-eco-chips>${chipsHTML(eco)}</div></header>`
       + (gating.length ? `<div class="gate-banner">${g('shield')}<span><b>Your next checkpoint is waiting.</b> Raise ${gating.map(([k, t]) => `${SKILL_NAMES[k]} to ${t.target}`).join(' and ')} to unlock it.</span></div>` : '')
       + `<div class="practice-top-cards"><a class="weak-card review-link" href="/practice/review"><span class="tool-icon">${g('book')}</span><span class="tool-copy"><strong>Hand Review</strong><span>${rev.open ? `${rev.open} missed decision${rev.open === 1 ? '' : 's'} to fix.` : 'Every hand you miss lands here.'}</span></span>${g('next', 'tool-go')}</a>`
+      + `<a class="weak-card map-link" href="/practice/weakness"><span class="tool-icon">${g('chart')}</span><span class="tool-copy"><strong>Weakness map</strong><span>Your accuracy on every hand in the chart, and your costliest leaks.</span></span>${g('next', 'tool-go')}</a>`
       + (weak.length ? `<a class="weak-card" href="/practice/weak"><span class="tool-icon">${g('target')}</span><span class="tool-copy"><strong>Weak spots</strong><span>${weak.map(w => SKILL_NAMES[w.skill]).join(', ')}</span></span>${g('next', 'tool-go')}</a>` : `<div class="weak-card empty"><span class="tool-icon">${g('target')}</span><span class="tool-copy"><strong>Weak spots</strong><span>After a few sessions Ace builds one from your misses.</span></span></div>`) + '</div>'
       + SKILL_GROUPS.map(([title, ids]) => `<h2 class="hub-group">${title}</h2><div class="tool-cards skill-cards">${ids.map(id => card(sk.skills.find(x => x.skill === id) || { skill: id, name: SKILL_NAMES[id], n: 0 })).join('')}</div>`).join('')
       + `<p class="muted small hub-foot">Looking for the configurable trainers, the Free Play table, the Shoe Challenge, or the calculators? They’re in <a href="/tools">Tools</a>.</p>`;
@@ -112,11 +114,13 @@ export function createPractice(ctx) {
   async function toolPage(tool) {
     let weakSkills = [];
     if (tool === 'weak') { try { weakSkills = (await api('/api/practice/weak')).skills.map(w => w.skill); } catch { weakSkills = []; } if (!weakSkills.length) { go('/practice'); return; } }
-    const skill = tool.startsWith('skill-') ? tool.slice(6) : null, home = skill || tool === 'weak' ? '/practice' : '/tools';
+    const skill = tool.startsWith('skill-') ? tool.slice(6) : null, home = tool === 'drill' ? '/practice/weakness' : skill || tool === 'weak' ? '/practice' : '/tools';
+    let drillCells = [];
+    if (tool === 'drill') { try { drillCells = JSON.parse(sessionStorage.getItem('ff-drill') || '[]'); } catch { drillCells = []; } if (!drillCells.length) { go('/practice/weakness'); return; } }
     if (skill && !SKILL_INFO[skill]) { go('/practice'); return; }
     let rating = 1000;
     if (skill) { try { rating = (await api('/api/skills?day=' + localDate())).skills.find(x => x.skill === skill)?.rating ?? 1000; } catch { /* default */ } }
-    const meta = skill ? { id: tool, name: SKILL_NAMES[skill] + ' trainer', ...SKILL_INFO[skill] } : tool === 'weak' ? { id: 'weak', name: 'Weak spots', glyph: 'target', color: 'red', purpose: weakSkills.map(k => SKILL_NAMES[k]).join(' · ') } : TOOLS.find(t => t.id === tool), defs = SETTINGS[tool] || [];
+    const meta = tool === 'drill' ? { id: 'drill', name: 'Hand drill', glyph: 'target', color: 'red', purpose: drillCells.length === 1 ? 'One hand until it’s automatic' : `${drillCells.length} hands from your weakness map` } : skill ? { id: tool, name: SKILL_NAMES[skill] + ' trainer', ...SKILL_INFO[skill] } : tool === 'weak' ? { id: 'weak', name: 'Weak spots', glyph: 'target', color: 'red', purpose: weakSkills.map(k => SKILL_NAMES[k]).join(' · ') } : TOOLS.find(t => t.id === tool), defs = SETTINGS[tool] || [];
     let saved = {}; try { saved = JSON.parse(localStorage.getItem('ff-practice-' + tool) || '{}'); } catch { saved = {}; }
     const s = Object.fromEntries(defs.map(([k, , opts]) => [k, opts.some(o => o[0] === saved[k]) ? saved[k] : opts[0][0]]));
     const round = await startRound(ctx, tool);
@@ -124,7 +128,7 @@ export function createPractice(ctx) {
     const size = ROUND_SIZE[tool] || 10;
     const stats = { questions: 0, correct: 0, streak: 0, best: 0, started: Date.now() }, results = [];
     let turn = 0, asked = 0, logged = false;
-    const nextQ = () => { if (asked >= size) return null; asked++; return skill ? skillQuestion(skill, rating + 15 * stats.streak) : tool === 'weak' ? SKILL_MAKERS[weakSkills[turn++ % weakSkills.length]]() : makeQuestion(tool, s); };
+    const nextQ = () => { if (asked >= size) return null; asked++; if (tool === 'drill') { const [cell, up] = drillCells[Math.floor(Math.random() * drillCells.length)]; return strategyQ({ hand: cardsFor(cell), up }); } return skill ? skillQuestion(skill, rating + 15 * stats.streak) : tool === 'weak' ? SKILL_MAKERS[weakSkills[turn++ % weakSkills.length]]() : makeQuestion(tool, s); };
 
     $('#app').innerHTML = `<main id="main" class="coach-screen practice c-${meta.color}">
       <header class="coach-top practice-top"><button type="button" class="icon-btn" id="pr-end" aria-label="End practice">${g('close')}</button><div class="pr-title"><span class="tool-icon sm">${g(meta.glyph)}</span><div><strong>${meta.name}</strong><small>${meta.purpose}</small></div></div>
