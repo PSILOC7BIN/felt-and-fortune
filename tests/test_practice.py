@@ -10,7 +10,7 @@ from transcripts import item
 class LessonToolSteps(unittest.TestCase):
     def test_every_tool_step_is_runnable(self):
         known = coach.TOOL_NAMES
-        lessons = [l for u in coach.UNITS for l in u['lessons']] + [coach.find_lesson(u + '-review')[1] for u in coach.REVIEW_POOLS]
+        lessons = [l for u in coach.UNITS for l in u['lessons']] + [coach.find_lesson(u['id'] + '-review')[1] for u in coach.UNITS if u['skill'] in coach.REVIEW_POOLS]
         for lesson in lessons:
             for step in lesson['steps']:
                 if step['type'] == 'tool':

@@ -10,7 +10,7 @@
 </div>
 <div class="row" style="margin-top:40px">
 <div class="card" style="flex:1"><p class="card-text"><b>engine.py</b>: basic strategy, Hi‑Lo, indices, and the Monte Carlo simulator.</p></div>
-<div class="card" style="flex:1"><p class="card-text"><b>coach.py</b>: the survey, planner, 33-lesson curriculum, and question generators.</p></div>
+<div class="card" style="flex:1"><p class="card-text"><b>coach.py</b>: the survey, planner, and question generators; <b>tracks.py</b>: four 30-lesson tracks.</p></div>
 </div>
 <aside>Backup slide (hidden): show it if asked how it’s built. The architecture is deliberately small for a solo project. The browser runs a single-page app in plain HTML, CSS, and JavaScript; the new learning section lives in its own module. The server is Python using only the standard library, so there’s nothing to install. It handles accounts, permissions, simulations, and the new learning-path API. SQLite stores everything, including plans, lesson progress, and an XP log for streaks. The domain logic sits in two modules: engine.py for the blackjack math and coach.py for the survey, planner, curriculum, and question generators.</aside>
 </section>

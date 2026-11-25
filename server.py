@@ -350,8 +350,14 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
 
     # ---- Learning path ---------------------------------------------------
     def load_plan(self):
-        row=self.c.execute('SELECT plan FROM plans WHERE user_id=?',(self.user['id'],)).fetchone()
-        return json.loads(row['plan']) if row else None
+        row=self.c.execute('SELECT plan,answers FROM plans WHERE user_id=?',(self.user['id'],)).fetchone()
+        if not row: return None
+        plan=json.loads(row['plan'])
+        if plan.get('version',1)<2 or plan.get('track') not in coach.TRACKS:
+            # Plans from before tracks existed: rebuild from the saved survey answers (XP is kept).
+            plan=coach.build_plan(json.loads(row['answers']))
+            self.c.execute('UPDATE plans SET plan=?,updated=? WHERE user_id=?',(json.dumps(plan),time.time(),self.user['id']))
+        return plan
     def client_day(self):
         raw=parse_qs(urlparse(self.path).query).get('day',[''])[0] or str(self.data.get('day',''))
         server_day=date.today()
@@ -384,7 +390,8 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
         week=[{'day':(date.fromisoformat(today)-timedelta(days=i)).isoformat()} for i in range(6,-1,-1)]
         for w in week: w['xp']=by_day.get(w['day'],0)
         finished=sum(1 for l in order if l in done or l in tested)
-        return {'plan':plan,'units':units,'current':current,'stats':{'xp':sum(by_day.values()),'todayXp':by_day.get(today,0),'dailyXp':plan['dailyXp'],'streak':streak,'week':week,'done':finished,'total':len(order)}}
+        tracks=[{**t,'done':sum(1 for u in coach.TRACKS[t['id']] for l in u['lessons'] if l['id'] in done)} for t in coach.track_summaries()]
+        return {'plan':plan,'units':units,'current':current,'tracks':tracks,'stats':{'xp':sum(by_day.values()),'todayXp':by_day.get(today,0),'dailyXp':plan['dailyXp'],'streak':streak,'week':week,'done':finished,'total':len(order)}}
     def path_api(self,path,method):
         c=self.c;uid=self.user['id'];d=self.data
         if path=='/api/path' and method=='GET':
@@ -396,6 +403,13 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes):
             except ValueError as e: raise ApiError(str(e))
             now=time.time()
             c.execute('INSERT INTO plans VALUES(?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET answers=excluded.answers,plan=excluded.plan,updated=excluded.updated',(uid,json.dumps(answers),json.dumps(plan),now,now))
+            return self.send_json(self.path_state(plan))
+        if path=='/api/path/track' and method=='POST':
+            self.throttle('plan',30)
+            row=c.execute('SELECT answers FROM plans WHERE user_id=?',(uid,)).fetchone();require(row,'Build your plan first.',409)
+            track=str(d.get('track',''));require(track in coach.TRACKS,'Choose a track.')
+            plan=coach.build_plan(json.loads(row['answers']),track=track)
+            c.execute('UPDATE plans SET plan=?,updated=? WHERE user_id=?',(json.dumps(plan),time.time(),uid))
             return self.send_json(self.path_state(plan))
         if path=='/api/path/goal' and method=='POST':
             plan=self.load_plan();require(plan,'Build your plan first.',409)

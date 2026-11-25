@@ -293,3 +293,24 @@ a.weak-card:active { transform: translateY(4px); box-shadow: none; }
 .deal-table .pc b { font-size: 12px; top: 4px; left: 5px; }
 .deal-status { display: flex; align-items: center; gap: 8px; margin: 0; color: #fff; font: 800 16px var(--round); }
 @media (max-width: 700px) { .deal-table .pc { width: 42px; height: 60px; font-size: 22px; margin-left: -16px; } .deal-table .seat { min-width: 90px; } }
+
+/* ---- tracks ------------------------------------------------------------------------------ */
+.track-hero, .track-bar, .track-option { display: flex; align-items: center; gap: 14px; text-align: left; }
+.track-hero { width: 100%; padding: 14px 16px; border-radius: 20px; background: var(--c-tint); }
+.track-hero small, .track-copy small { display: block; font: 800 12px var(--round); text-transform: uppercase; letter-spacing: .05em; color: var(--c-deep); }
+.c-yellow .track-hero small, .c-gold .track-hero small { color: #8A6100; }
+.track-hero strong { display: block; font: 900 22px var(--round); }
+.track-hero span:not(.tool-icon), .track-copy > span { display: block; color: var(--muted); font-size: 14px; line-height: 1.4; }
+.track-bar { max-width: 600px; margin: 0 auto 14px; padding: 12px 14px; border-radius: 20px; border: 2px solid var(--border); }
+.track-copy { flex: 1; min-width: 0; }
+.track-copy strong { display: block; font: 800 18px var(--round); }
+.track-list { display: grid; gap: 10px; margin: 8px 0 12px; width: 100%; }
+.track-option { padding: 14px; border-radius: 18px; border: 2px solid var(--border); }
+.track-option.current { border-color: var(--c); background: var(--c-tint); }
+.track-option .track-copy small { margin-top: 6px; color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 700; }
+.track-option button, .track-option .pill { width: auto; flex: none; }
+.track-sheet { text-align: left; align-items: stretch; }
+.track-sheet h2 { text-align: center; }
+[data-theme="dark"] .track-hero, [data-theme="dark"] .track-option.current { background: #1C1C1E; }
+[data-theme="dark"] .track-bar, [data-theme="dark"] .track-option { border-color: #38383A; }
+@media (max-width: 700px) { .track-bar { flex-wrap: wrap; } .track-option { flex-wrap: wrap; } }

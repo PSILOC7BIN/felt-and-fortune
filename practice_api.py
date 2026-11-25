@@ -208,7 +208,7 @@ def grade_item(item, choices=None):
     k, d, given = item.get('kind'), item.get('data') or {}, item.get('given')
     if k == 'strategy':
         cards = _cards(d.get('cards'), 2, 2); dealer = _int(d.get('dealer'), 1, 13)
-        return given == basic(cards, dealer, h17=bool(d.get('h17')), das=True, surrender=bool(d.get('surrender')))
+        return given == basic(cards, dealer, h17=bool(d.get('h17')), das=d.get('das', True) is not False, surrender=bool(d.get('surrender')))
     if k in ('index', 'play'):
         cards = _cards(d.get('cards'), 2, 2); dealer = _int(d.get('dealer'), 1, 13); tc = _int(d.get('tc'), -40, 40)
         return given == deviation(cards, dealer, tc)

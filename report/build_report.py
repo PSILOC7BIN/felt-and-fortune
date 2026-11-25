@@ -231,7 +231,7 @@ def layout():
     ps = (f"$w = New-Object -ComObject Word.Application; $w.Visible = $false; "
           f"try {{ $d = $w.Documents.Open('{OUT_DOCX}', $false, $true); $d.Repaginate(); "
           f"foreach ($p in $d.Paragraphs) {{ $r = $p.Range; $e = $d.Range($r.End - 1, $r.End - 1); "
-          f"'{{0}}|{{1}}|{{2}}' -f $e.Information(3), [math]::Round($e.Information(6)), ($r.Text.Trim() -replace '\\s+',' ').Substring(0, [math]::Min(50, $r.Text.Trim().Length)) }}; "
+          f"$t = ($r.Text.Trim() -replace '\\s+',' '); '{{0}}|{{1}}|{{2}}' -f $e.Information(3), [math]::Round($e.Information(6)), $t.Substring(0, [math]::Min(50, $t.Length)) }}; "
           f"$d.Close($false) }} finally {{ $w.Quit() }}")
     r = subprocess.run(['powershell', '-NoProfile', '-Command', ps], capture_output=True, text=True, timeout=300, encoding='utf-8', errors='replace')
     last = {}

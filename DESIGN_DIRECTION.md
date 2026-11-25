@@ -21,13 +21,14 @@ Lessons embed the tools (live hands, flashing counts, the 3D tray, timed convers
 
 The planner is a transparent, rule-based expert system (`coach.py`, `build_plan`). No external AI service is used, by choice. It:
 
-- places the learner in the curriculum, and tests them out of units only when the placement checks back up their self-reported level;
+- assigns one of four goal-based tracks (Smart Player, Strategy Master, Card Counter, Advantage Pro) from the learner's goal and proven skill (`choose_track`);
+- places the learner in that track, and tests them out of units only when the placement checks back up their self-reported level;
 - adds focus-area review lessons from missed checks and the learner's stated hardest skill;
 - sets a daily XP goal and finish date from their available time;
 - adds game-specific notes (shoe, pitch, or online) and a goal milestone;
 - explains every decision in a "Why this plan" list.
 
-The curriculum has 11 units and 33 lessons, from table basics through Pro Checkout. Practice questions are generated from the strategy engine (`engine.py`), so basic-strategy and index answers always match the charts and drills.
+Each track (`tracks.py`) has 8 units, 30 lessons, and roughly 400 graded questions (kept within 15% of one another by a test). Learners can browse and switch tracks from Learn (`POST /api/path/track`); XP and streaks carry over and progress is saved per track. Old single-path plans are rebuilt from the stored answers on load. The original 11-unit lessons live on in `coach.py` as a library the tracks reuse. Practice questions are generated from the strategy engine (`engine.py`), so basic-strategy and index answers always match the charts and drills.
 
 ### Visual direction
 
@@ -42,6 +43,6 @@ A fusion of Apple's system design and a playful learning-app feel, applied acros
 
 The workspace contains a Python/SQLite application and a browser interface. Prototype features include authentication, the onboarding survey and planner, the learning path, session tracking, CSV import/export, bankroll membership, server-checked drills, simulations, forum records, directory reports, and direct messages. These are prototype implementations, not a completed production release.
 
-The test suite has 56 passing tests, including planner, learning-path, practice, grading, Shoe Challenge, and JS/Python engine parity tests. Lessons and practice send transcripts that the server re-grades (questions are still dealt in the browser). Also built: Weak Spots practice, a daily-goal setting, dark mode (Profile → Appearance), a full-table Count Trainer mode, an in-app feedback form with `scripts/study_report.py` and `docs/user-testing.md`, and deployment files (`DEPLOY.md`). SMTP account recovery still requires configuration.
+The test suite has 61 passing tests, including planner, learning-path, practice, grading, Shoe Challenge, and JS/Python engine parity tests. Lessons and practice send transcripts that the server re-grades (questions are still dealt in the browser). Also built: Weak Spots practice, a daily-goal setting, dark mode (Profile → Appearance), a full-table Count Trainer mode, an in-app feedback form with `scripts/study_report.py` and `docs/user-testing.md`, and deployment files (`DEPLOY.md`). SMTP account recovery still requires configuration.
 
 The existing SQLite filename is retained to preserve local records. The name does not appear in the interface. Use `scripts/qa_server.py` (port 8001) for browser testing against an isolated database.

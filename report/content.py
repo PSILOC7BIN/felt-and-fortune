@@ -21,11 +21,11 @@ META = {
         'Free blackjack training tools exist, but they are scattered and rarely tell a beginner where to start. '
         'Felt & Fortune is a free, educational web application built around a personalized learning path. New users answer a ten-question '
         'survey that includes four real skill checks, and a transparent rule-based planner turns the answers into a '
-        'plan (starting point, focus areas, daily goal, and finish date) with a plain-language reason for each '
-        'decision. Learners then follow a gamified path of 33 interactive lessons that embed seven single-purpose '
+        'plan (one of four tracks, a starting point, focus areas, a daily goal, and a finish date) with a reason for '
+        'each decision. Each track is a gamified path of 30 lessons that embed seven single-purpose '
         'training tools, including a rotatable 3D discard tray, all driven by one verified strategy engine. This report '
         'describes the design, the development process, including two pivots (toolbox to coach, then coach-first app), '
-        'and an evaluation based on 56 automated tests and cross-device walkthroughs.'
+        'and an evaluation based on 61 automated tests and cross-device walkthroughs.'
     ),
     'ccs': ['Applied computing → Interactive learning environments', 'Human-centered computing → Web-based interaction',
             'Computing methodologies → Knowledge representation and reasoning'],
@@ -46,7 +46,7 @@ BODY = [
           'tools (Figure 1). It contributes:'),
     ('list', [
         'A ten-question onboarding survey that combines experience, goals, and schedule with four real placement checks.',
-        'A transparent rule-based planner that places each learner in an 11-unit curriculum and explains every decision.',
+        'A transparent rule-based planner that assigns one of four equal-sized tracks, places the learner, and explains why.',
         'Seven single-purpose training tools, embedded in a gamified lesson path and available on their own, all '
         'driven by one strategy engine so answers cannot drift from the charts.',
     ]),
@@ -54,7 +54,7 @@ BODY = [
      'Figure 1: The onboarding flow on a phone. Left: a placement check. Center: the generated plan with its '
      'explanations. Right: instant feedback in a lesson.',
      'Three phone screenshots. Left: the mascot asks the best play for 16 against a dealer 10, over a green card table '
-     'with answer tiles. Center: a plan screen with level, daily goal, finish date and goal tiles. Right: a lesson '
+     'with answer tiles. Center: a plan screen assigning the Smart Player track, with level, daily goal, finish date and goal tiles. Right: a lesson '
      'question with the correct answer, Stand, highlighted in green and a “Nice!” feedback panel.'),
 
     ('h1', 'Background and Related Work'),
@@ -90,7 +90,8 @@ BODY = [
           'created only after the learner has seen their plan.'),
     ('h2', 'The Coach planner'),
     ('p', 'The planner is a small expert system, chosen over machine learning or an external AI service for '
-          'transparency and zero running cost. Placement is sequential and evidence-based (Algorithm 1): self-reported '
+          'transparency and zero running cost. It assigns a track by goal and proven skill (Algorithm 1), then places the '
+          'learner sequentially: self-reported '
           'experience moves a learner forward only when the matching checks are also correct, and a stage is skipped '
           'only if every earlier stage is too. A learner who claims to count but misses the count check gets extra '
           'counting review instead. Table 1 lists the planner’s other rules.'),
@@ -98,21 +99,17 @@ BODY = [
         ['Survey signal', 'Plan decision'],
         ['A missed check, or the hardest skill', 'Adds a focus-review lesson to the matching unit(s).'],
         ['Daily minutes', 'Lessons per day = minutes ÷ 5; daily goal = 15 XP per lesson; finish date from the remaining lessons.'],
-        ['Goal', 'Places a milestone (perfect basic strategy, counting, or the Pro Checkout).'],
         ['Game type; learning style', 'Adds unit notes (e.g., online games reshuffle); adjusts questions per block.'],
     ]),
-    ('algorithm', 'ALGORITHM 1: Sequential placement', [
-        'start ← Unit 1 (Table Basics)',
-        'if experience ≥ casual then start ← Unit 2 (Hard Totals)',
-        'if start = Unit 2 and both strategy checks are correct and experience ≥ uses a chart then',
-        '      start ← Unit 5 (Running Count)',
-        '      if the running count is correct then start ← Unit 6 (True Count)',
-        '            if the true count is correct and experience ≥ has counted then start ← Unit 7 (Betting)',
-        'tested out ← every unit before start',
+    ('algorithm', 'ALGORITHM 1: Track choice and placement', [
+        'understand → Smart Player;  count → Card Counter',
+        'play smarter → Strategy Master if strategy proven, else Smart Player',
+        'edge → Advantage Pro if true count proven, else Card Counter if strategy proven, else Strategy Master',
+        'start ← unit 1; while start’s placement check is proven: start ← next unit',
     ]),
     ('p', 'Each rule that fires adds a sentence to a “Why this plan” list (“You got both strategy checks right, so '
           'you’ll test out of the basic strategy units and start counting.”), shown on the plan screen and in the '
-          'path’s sidebar. Learners can retake the placement without losing progress.'),
+          'path’s sidebar. Learners can browse and switch tracks at any time; XP and streak carry over, and progress is saved per track.'),
     ('h2', 'Seven tools, one job each'),
     ('p', 'An audit found overlapping tools (separate chart, drill, checkout, and career pages), so they were '
           'consolidated into seven, each with one purpose: a Strategy Trainer with the chart built in; a Count Trainer '
@@ -122,7 +119,8 @@ BODY = [
           'grades each round there, scoring the true count and bet from the player’s own count so one slip is not '
           'punished twice. Every tool is a reusable question component, so lessons embed the same tools.'),
     ('h2', 'Curriculum'),
-    ('p', 'The curriculum has 11 units and 33 lessons, from Table Basics to a Pro Checkout. Lessons run up to about '
+    ('p', 'Each track has 8 units, 30 lessons, and about 400 graded questions: Smart Player (rules to casino know-how), '
+          'Strategy Master (every hand and rule set), Card Counter (Hi‑Lo to index plays), and Advantage Pro (Kelly betting, team play). Lessons run up to about '
           '25 interactions: short explanation cards, harder concept questions (for example hourly SD, N₀, and risk of '
           'ruin), and embedded tools such as live hands, flashing card sequences, the 3D tray, and full mini-shoe '
           'scenarios that chain counting, conversion, betting, and play. Answers come from the same `basic()` and '
@@ -136,11 +134,11 @@ BODY = [
           'server re-grades it with the Python engine and awards XP from its own score. The same data drives a '
           '“Weak spots” session built from the skills a learner misses most.'),
     ('figure', ['figures/learning-path.jpg'], 3.9,
-     'Figure 2: My Path on a desktop browser, with the app’s tab rail, unit banners, lesson nodes, and the daily goal '
-     'and plan sidebar.',
+     'Figure 2: My Path on a desktop browser, with the tab rail, the current track and its Change track button, unit '
+     'banners, lesson nodes, and the daily goal and plan sidebar.',
      'Desktop screenshot of the learning path: the Learn, Practice, Track, Community, and Profile navigation rail; a '
-     'True Count unit with two finished lessons, the next lesson marked Next with the mascot beside it, and a locked '
-     'lesson; the yellow Betting with the Count unit below; and a sidebar with the streak, XP, a reached daily goal, and the plan.'),
+     'Smart Player track card with 11 of 30 lessons and a Change track button; a Continue card for Unit 4, Payouts and '
+     'Side Bets; a tested-out Table Basics unit with its lesson nodes; and a sidebar with the streak, XP, daily goal, and the plan.'),
     ('h2', 'Visual design'),
     ('p', 'The whole site was redesigned as a fusion of Apple’s design language (system colors, system fonts, '
           'frosted-glass navigation, segmented controls) [@applehig] and a mobile learning app (chunky pressable '
@@ -164,8 +162,8 @@ BODY = [
 
     ('h1', 'Evaluation'),
     ('h2', 'Automated tests and walkthroughs'),
-    ('p', 'All 56 tests pass. Beyond authentication, permissions, and the simulator, they check placement (an '
-          'unproven self-reported level is not skipped ahead), lesson unlocking and XP, and that every lesson’s tool '
+    ('p', 'All 61 tests pass. Beyond authentication, permissions, and the simulator, they check track choice and placement (an '
+          'unproven self-reported level is not skipped ahead), equal track sizes, track switching, lesson unlocking and XP, and that every lesson’s tool '
           'steps are valid. A parity test compares the JavaScript and Python engines on every two-card hand, upcard, '
           'rule set, and true count from −6 to +8. Shoe Challenge tests confirm that perfect play keeps every heart, that '
           'later parts are graded from the player’s own count, and that answers stay hidden. Grading tests confirm '
