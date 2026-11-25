@@ -143,7 +143,11 @@ export function celebrateEvents(ctx, events = []) {
     if (e.type === 'freeze-used') { Sound.play('freeze'); ctx.toast(`A Streak Freeze kept your streak alive (${e.days.length} day${e.days.length > 1 ? 's' : ''}).`); }
     if (e.type === 'milestone') {
       confetti(); Sound.play('levelup');
-      openSheet(`<div class="milestone">${g('flame', 'milestone-flame')}<h2>${e.days}-day streak!</h2><p class="muted">Habits are built one day at a time.</p><p class="reward">${g('star')} +${e.stars} Stars${e.freeze ? ` · ${g('snow')} a free Streak Freeze` : ''}</p><button type="button" class="primary chunky" data-close>Keep going</button></div>`);
+      openSheet(`<div class="milestone">${g('flame', 'milestone-flame')}<h2>${e.days}-day streak!</h2><p class="muted">Habits are built one day at a time.</p><p class="reward">${g('star')} +${e.stars} Stars${e.freeze ? ` · ${g('snow')} a free Streak Freeze` : ''}</p><button type="button" class="primary chunky" data-close>Keep going</button><button type="button" class="ghost" id="share-milestone">Share it</button></div>`);
+      document.getElementById('share-milestone')?.addEventListener('click', async () => {
+        const [{ shareProgress }, me, sk, path] = await Promise.all([import('./share.js'), ctx.api('/api/me'), ctx.api('/api/skills').catch(() => null), ctx.api('/api/path').catch(() => null)]);
+        shareProgress(ctx, { username: me.user?.username || '', streak: e.days, rating: sk?.overall ?? null, tier: sk?.tier, lessons: path?.stats?.done || 0, track: path?.plan?.trackName || '' });
+      });
     }
   }
 }
@@ -167,7 +171,7 @@ export function leagueCard(lg) {
   const ends = Math.max(0, Math.ceil((new Date(lg.endsOn + 'T00:00:00') - new Date()) / 86400000));
   return `<div class="side-card league"><div class="side-head"><h3><span class="league-gem" style="--lc:${LEAGUE_COLORS[lg.tier]}">${g('gem')}</span>${esc(lg.name)} League</h3><span class="muted small">${ends} day${ends === 1 ? '' : 's'} left</span></div>
     <ol class="league-list">${top.map((p, i) => `<li class="${p.me ? 'me' : ''}"><span class="rank">${i + 1}</span><span class="who">${esc(p.username)}</span><b>${p.xp} XP</b></li>`).join('')}${me >= 5 ? `<li class="me"><span class="rank">${me + 1}</span><span class="who">${esc(lg.players[me].username)}</span><b>${lg.players[me].xp} XP</b></li>` : ''}</ol>
-    <p class="muted small">Finish in the top fifth to move up a league. XP comes from accurate lessons and practice.</p></div>`;
+    <p class="muted small">Finish in the top fifth to move up a league. XP comes from accurate lessons and practice.</p><a class="small-link" href="/community/friends">${g('users')} Race your friends this week</a></div>`;
 }
 
 // ---- store --------------------------------------------------------------------------------------

@@ -327,3 +327,10 @@ a.weak-card:active { transform: translateY(4px); box-shadow: none; }
 .free-tools { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
 .free-tool { display: grid; gap: 4px; text-decoration: none; color: var(--text); transition: transform .15s; } .free-tool:hover { transform: translateY(-3px); }
 .free-tool .glyph { width: 28px; height: 28px; color: #0A84FF; } .free-tool span { color: var(--muted); font-size: 14px; }
+
+.promise-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.promise { display: grid; gap: 6px; padding: 20px; border-radius: 22px; background: var(--panel); border: 2px solid var(--border); }
+.promise .glyph { width: 30px; height: 30px; color: #34C759; } .promise span { color: var(--muted); font-size: 14px; }
+.forum-guides { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.forum-guide { display: grid; gap: 4px; padding: 14px 16px; border-radius: 18px; background: var(--panel); border: 2px dashed var(--border); }
+.forum-guide span { color: var(--muted); font-size: 14px; } .forum-guide small { font-weight: 800; color: #0A84FF; text-transform: uppercase; letter-spacing: .05em; font-size: 11px; }

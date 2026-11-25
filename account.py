@@ -140,7 +140,7 @@ def _tables(c):
 
 def _user_columns(c, table):
     cols = [r[1] for r in c.execute(f'PRAGMA table_info("{table}")')]
-    return cols, [k for k in ('user_id', 'owner', 'sender', 'recipient') if k in cols]
+    return cols, [k for k in ('user_id', 'owner', 'sender', 'recipient', 'friend_id') if k in cols]
 
 
 def export(c, uid):
@@ -184,7 +184,7 @@ def delete(c, uid):
 # First-party funnel analytics (no third-party trackers)
 # ---------------------------------------------------------------------------------------------------
 EVENT_NAMES = {'landing_view', 'pricing_view', 'survey_start', 'plan_shown', 'signup', 'first_lesson', 'lesson_complete',
-               'paywall_view', 'store_view', 'trial_start', 'purchase', 'cancel', 'quest_claim', 'practice_round'}
+               'paywall_view', 'store_view', 'trial_start', 'purchase', 'cancel', 'quest_claim', 'practice_round', 'share'}
 
 
 def track(c, name, anon=None, uid=None, props=None, day=None):
