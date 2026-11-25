@@ -53,8 +53,8 @@ class PlannerTests(unittest.TestCase):
     def test_tracks_are_equal_and_large(self):
         sizes = {t: [coach.expected_questions(l['steps']) for u in coach.TRACKS[t] for l in u['lessons']] for t in coach.TRACK_ORDER}
         for t, qs in sizes.items():
-            self.assertEqual(len(coach.TRACKS[t]), 8, t)
-            self.assertEqual(len(qs), 30, t)
+            self.assertEqual(len(coach.TRACKS[t]), 10, t)
+            self.assertEqual(len(qs), 38, t)
             self.assertGreaterEqual(min(qs), 5, t)
         totals = [sum(q) for q in sizes.values()]
         self.assertLess(max(totals) / min(totals), 1.15, totals)

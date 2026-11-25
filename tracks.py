@@ -1,4 +1,4 @@
-"""The four learning tracks. Each has 8 units and 30 lessons.
+"""The four learning tracks. Each has 10 units and 38 lessons.
 
 Unit keys: id, title, color, tool (practice page), summary, skill (focus-area tag), test (placement check that lets
 a learner test out of the unit, or None), lessons. Lesson ids are unique across tracks.
@@ -473,6 +473,10 @@ def build(h):
     ]
 
     tracks = {'smart': smart, 'strategy': strategy, 'counter': counter, 'pro': pro}
+    # Two more units per track, placed before each track's checkout unit.
+    from tracks_more import more_units
+    for tid, extra in more_units(h).items():
+        tracks[tid][-1:-1] = extra
     more = extras(h)
     for units in tracks.values():
         for u in units:
