@@ -13,3 +13,4 @@ node_modules/
 native-www/
 android/app/build/
 ios/App/build/
+ios-build/
