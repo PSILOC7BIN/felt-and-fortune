@@ -22,6 +22,9 @@
     "@capacitor/status-bar": "^8.0.4"
   },
   "devDependencies": {
-    "@capacitor/cli": "^8.6.2"
+    "@capacitor/cli": "^8.6.2",
+    "d3-geo": "^3.1.2",
+    "topojson-client": "^3.1.0",
+    "us-atlas": "^3.0.1"
   }
 }

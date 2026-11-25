@@ -1,13 +1,14 @@
 import {createLearn} from './learn.js';
 import {createPractice} from './practice.js';
 import {createSimulator} from './simulator.js';
+import {createDirectory} from './directory.js';
 import {ace,g,Sound} from './ui.js';
 import {TOOLS} from './trainers.js';
 const $=(s,r=document)=>r.querySelector(s), $$=(s,r=document)=>[...r.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 // Every route in the app. Older keys (dashboard, results, basic…) stay as aliases for the pages that use them.
-const paths={learn:'/learn',start:'/start',practice:'/practice',track:'/track',community:'/community',profile:'/profile',dashboard:'/learn',results:'/track',bankrolls:'/track/bankrolls',simulate:'/practice/simulator',forum:'/community',directory:'/community/directory',messages:'/community/messages',settings:'/profile',basic:'/practice/strategy'};
-const names={learn:'Learn',practice:'Practice',track:'Track',community:'Community',profile:'Profile',dashboard:'Learn',results:'Results',bankrolls:'Bankrolls',simulate:'Bankroll Simulator',forum:'Forum',directory:'Game Directory',messages:'Messages',settings:'Profile',basic:'Strategy Trainer'};
+const paths={learn:'/learn',start:'/start',practice:'/practice',track:'/track',community:'/community',profile:'/profile',dashboard:'/learn',results:'/track',bankrolls:'/track/bankrolls',simulate:'/practice/simulator',forum:'/community',directory:'/community/reports',casinos:'/community/directory',messages:'/community/messages',settings:'/profile',basic:'/practice/strategy'};
+const names={learn:'Learn',practice:'Practice',track:'Track',community:'Community',profile:'Profile',dashboard:'Learn',results:'Results',bankrolls:'Bankrolls',simulate:'Bankroll Simulator',forum:'Forum',directory:'Player Reports',casinos:'Casino Map',messages:'Messages',settings:'Profile',basic:'Strategy Trainer'};
 // Old addresses keep working.
 const REDIRECTS={'/dashboard':'/learn','/dashboard/results':'/track','/dashboard/bankrolls':'/track/bankrolls','/dashboard/simulate':'/practice/simulator','/dashboard/ev-calculator':'/practice/simulator','/dashboard/training/tutorial':'/learn','/dashboard/training/charts':'/practice/strategy','/dashboard/training/basic':'/practice/strategy','/dashboard/training/count':'/practice/count','/dashboard/training/deviation':'/practice/index','/dashboard/training/decks':'/practice/decks','/dashboard/training/true-count':'/practice/truecount','/dashboard/training/checkouts':'/practice/challenge','/dashboard/career':'/practice/challenge','/dashboard/forum':'/community','/dashboard/game-directory':'/community/directory','/dashboard/messages':'/community/messages','/dashboard/settings':'/profile','/auth/signup':'/start'};
 const iconPaths={chart:'M3 3v18h18 M6 15l4-5 4 3 6-8',book:'M12 5v16 M3 4h5q4 0 4 3q0-3 4-3h5v15h-5q-4 0-4 2q0-2-4-2H3Z',brain:'M9 4a3 3 0 0 0-5 3a4 4 0 0 0-1 7a4 4 0 0 0 6 5 M15 4a3 3 0 0 1 5 3a4 4 0 0 1 1 7a4 4 0 0 1-6 5 M9 3v18 M15 3v18 M5 10h4 M15 14h4',calc:'M6 2h12v20H6Z M9 6h6 M9 10h1 M14 10h1 M9 14h1 M14 14h1 M9 18h1 M14 18h1',pin:'M19 10c0 6-7 11-7 11S5 16 5 10a7 7 0 1 1 14 0Z M15 10a3 3 0 1 1-6 0a3 3 0 1 1 6 0',chat:'M3 3h18v14H8l-5 4Z',cards:'M7 4h13v17H7Z M4 18L2 4l10-2 M11 9l3-3 3 3-3 3Z',users:'M16 21v-3a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v3 M13 6a4 4 0 1 1-8 0a4 4 0 1 1 8 0 M17 3a4 4 0 0 1 0 8 M19 14q3 1 3 5',trophy:'M7 3h10v8q0 5-5 5q-5 0-5-5Z M7 5H3v4q0 4 4 4 M17 5h4v4q0 4-4 4 M12 16v5 M8 21h8',home:'M3 10l9-8 9 8 M5 9v12h14V9 M9 21v-8h6v8',wallet:'M3 5h17v16H3Z M3 5V3h15v2 M15 11h6v5h-6Z',settings:'M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8 M10 2h4l1 4 4-1 2 4-3 3 3 3-2 4-4-1-1 4h-4l-1-4-4 1-2-4 3-3-3-3 2-4 4 1Z',arrow:'M4 12h16 M14 6l6 6-6 6',menu:'M3 6h18 M3 12h18 M3 18h18',plus:'M12 4v16 M4 12h16',download:'M12 3v12 M7 10l5 5 5-5 M4 16v5h16v-5',clock:'M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18 M12 7v6l4 2',check:'M4 12l5 5L20 6',close:'M6 6l12 12 M6 18L18 6',eye:'M2 12q10-15 20 0q-10 15-20 0 M12 8a4 4 0 1 0 0 8a4 4 0 1 0 0-8'};
@@ -115,6 +116,7 @@ const ctxBase={$,$$,esc,api,go,brand,paths,localDate,toast,getUser:()=>user,setU
 const learn=createLearn(ctxBase);
 const practice=createPractice(ctxBase);
 const simulator=createSimulator(ctxBase);
+const casinoDirectory=createDirectory(ctxBase);
 function needLogin(path){if(user)return false;sessionStorage.setItem('after-login',path);history.replaceState({},'','/auth/login');authPage('login');return true;}
 function notFound(){$('#app').innerHTML=navbar()+`<main class="legal-page" id="main">${empty('Page not found','That page moved or doesn’t exist.',`<a class="button primary" href="${user?paths.learn:'/'}">${user?'Go to Learn':'Go home'}</a>`)}</main>`;}
 async function render(){
@@ -139,7 +141,7 @@ async function render(){
   else if(path==='/practice')await practice.hub();
   else if(path==='/practice/simulator')await simulator();
   else if(path==='/track'||path==='/track/bankrolls'){withTabs([['/track','Sessions'],['/track/bankrolls','Bankrolls']],path);if(path==='/track')await resultsPage('results');else await bankrollPage();}
-  else if(['/community','/community/directory','/community/messages'].includes(path)){withTabs([['/community','Forum'],['/community/directory','Game Directory'],['/community/messages','Messages']],path);if(path==='/community')await forumPage();else if(path==='/community/directory')await directoryPage();else await messagesPage();}
+  else if(['/community','/community/directory','/community/reports','/community/messages'].includes(path)){withTabs([['/community','Forum'],['/community/directory','Casino Map'],['/community/reports','Player Reports'],['/community/messages','Messages']],path);if(path==='/community')await forumPage();else if(path==='/community/directory')await casinoDirectory();else if(path==='/community/reports')await directoryPage();else await messagesPage();}
   else if(path==='/profile')await profilePage();
   else notFound();
  }catch(error){fail(error);}
