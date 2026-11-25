@@ -93,6 +93,16 @@ class EconomyTests(unittest.TestCase):
         client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
         self.assertIn('back-pro', client.call('/api/store/buy', 'POST', {'item': 'back-pro'})[1]['owned'])
 
+    def test_chip_packs_add_chips_with_a_receipt(self):
+        client, _, _ = self.signup(NEW); uid = self.uid(client)
+        before = client.call('/api/me/economy')[1]['stars']
+        r = client.call('/api/billing/test-chips', 'POST', {'pack': 'chips-1400'})[1]
+        self.assertEqual((r['added'], r['stars']), (1400, before + 1400))
+        self.assertEqual(client.call('/api/billing/test-chips', 'POST', {'pack': 'chips-999999'})[0], 400)
+        self.assertIn('chipPacks', client.call('/api/store')[1])
+        with server.db() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM outbox WHERE user_id=? AND kind='receipt'", (uid,)).fetchone()[0], 1)
+
     def test_freezes_cover_missed_days_and_repair_is_monthly(self):
         client, _, _ = self.signup(NEW); uid = self.uid(client)
         with server.db() as c:

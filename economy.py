@@ -1,4 +1,4 @@
-"""Felt & Fortune economy: the Pro plan, practice Energy, Stars, streak freezes, daily quests, and leagues.
+"""Felt & Fortune economy: the Pro plan, practice Energy, chips, streak freezes, daily quests, and leagues.
 
 Design (see reports/Gamified app monetization and retention.md):
 - Free keeps all basic-strategy learning; Pro unlocks counting/advantage-play units and unlimited Energy.
@@ -28,6 +28,14 @@ PLANS = {
     'pro-monthly': {'name': 'Pro Monthly', 'price': 9.99, 'period': 'month', 'days': 30, 'trial': 0},
     'pro-annual': {'name': 'Pro Annual', 'price': 49.99, 'period': 'year', 'days': 365, 'trial': 14, 'perMonth': 4.17},
     'pro-lifetime': {'name': 'Pro Lifetime', 'price': 119.99, 'period': None, 'days': None, 'trial': 0},
+}
+
+# Chip packs (real money, test mode). Chips buy cosmetics and power-ups only: never wagers, no cash value.
+CHIP_PACKS = {
+    'chips-500': {'name': 'Handful of Chips', 'chips': 500, 'price': 1.99},
+    'chips-1400': {'name': 'Stack of Chips', 'chips': 1400, 'price': 4.99, 'bonus': '12% more chips per dollar'},
+    'chips-3000': {'name': 'Rack of Chips', 'chips': 3000, 'price': 9.99, 'bonus': '20% more chips per dollar'},
+    'chips-7000': {'name': 'Tray of Chips', 'chips': 7000, 'price': 19.99, 'bonus': '40% more chips per dollar'},
 }
 
 POWERUPS = {
@@ -366,13 +374,13 @@ class EconomyRoutes:
             w = wallet(c, uid); owned = json.loads(w['owned'] or '[]')
             wk = week_start(today); ends = (date.fromisoformat(wk) + timedelta(days=7)).isoformat()
             sets = [{**st, 'price': set_price(st['id'], owned)} for st in C.set_progress(owned)]
-            return self.send_json({'plans': PLANS, 'powerups': POWERUPS, 'catalog': C.CATALOG, 'rarity': C.RARITY, 'sets': sets,
+            return self.send_json({'plans': PLANS, 'chipPacks': CHIP_PACKS, 'powerups': POWERUPS, 'catalog': C.CATALOG, 'rarity': C.RARITY, 'sets': sets,
                                    'featured': {'items': C.featured(wk), 'ends': ends}, 'billingMode': BILLING_MODE, **snapshot(c, uid, today, daily_xp)})
         if path == '/api/store/buy' and method == 'POST':
             item_id = str(d.get('item', '')); item = SHOP.get(item_id); require(item, 'Unknown item.')
             w = wallet(c, uid); owned = json.loads(w['owned'] or '[]'); pro = is_pro(c, uid)
             if item['kind'] in ('freeze', 'refill'):
-                require(w['stars'] >= item['stars'], 'You need more Stars for that.', 402)
+                require(w['stars'] >= item['stars'], 'You need more chips for that.', 402)
                 if item['kind'] == 'freeze': require(w['freezes'] < FREEZE_MAX, f'You can hold up to {FREEZE_MAX} freezes.')
                 else:
                     require(not pro, 'Pro already has unlimited Energy.')
@@ -384,7 +392,7 @@ class EconomyRoutes:
             require(item_id not in owned, 'You already own this.')
             require(not item.get('event'), 'Event items are earned by finishing that month’s event.')
             if item.get('pro'): require(pro, 'The Pro Gold collection is included with Pro.', 402)
-            else: require(w['stars'] >= item['stars'], 'You need more Stars for that.', 402)
+            else: require(w['stars'] >= item['stars'], 'You need more chips for that.', 402)
             if item['stars']: add_stars(c, uid, -item['stars'], 'buy-' + item_id, today)
             grant(c, uid, [item_id], today, equip=item)
             return self.send_json(snapshot(c, uid, today, daily_xp))
@@ -393,7 +401,7 @@ class EconomyRoutes:
             w = wallet(c, uid); owned = json.loads(w['owned'] or '[]')
             missing = [k for k, v in C.CATALOG.items() if v.get('set') == set_id and k not in owned]
             require(missing, 'You already own this whole set.')
-            price = set_price(set_id, owned); require(w['stars'] >= price, 'You need more Stars for that.', 402)
+            price = set_price(set_id, owned); require(w['stars'] >= price, 'You need more chips for that.', 402)
             add_stars(c, uid, -price, 'buy-set-' + set_id, today)
             grant(c, uid, missing, today)
             return self.send_json(snapshot(c, uid, today, daily_xp))
@@ -416,6 +424,13 @@ class EconomyRoutes:
             A.receipt(c, self.user, p, {'trial_ends': trial_ends, 'renews': renews})
             A.track(c, 'trial_start' if trial_ends else 'purchase', None, uid, {'plan': plan_id}, today)
             return self.send_json(snapshot(c, uid, today, daily_xp))
+        if path == '/api/billing/test-chips' and method == 'POST':
+            require(BILLING_MODE == 'test', 'Chip packs are sold through the App Store, Google Play, or the web checkout.', 403)
+            pack_id = str(d.get('pack', '')); pack = CHIP_PACKS.get(pack_id); require(pack, 'Choose a chip pack.')
+            add_stars(c, uid, pack['chips'], 'buy-' + pack_id, today)
+            A.send(c, self.user, 'Your Felt & Fortune chips', f"Thanks for your purchase.\n\n{pack['name']}: {pack['chips']:,} chips for ${pack['price']:.2f}.\nChips buy cosmetics and power-ups in the Store. They have no cash value and can’t be wagered or exchanged.", 'receipt')
+            A.track(c, 'purchase', None, uid, {'pack': pack_id}, today)
+            return self.send_json({'added': pack['chips'], **snapshot(c, uid, today, daily_xp)})
         if path == '/api/billing/cancel' and method == 'POST':
             ent = entitlement(c, uid); require(ent['pro'], 'You don’t have an active plan.')
             require(ent['plan'] != 'pro-lifetime', 'Lifetime access doesn’t renew, so there’s nothing to cancel.')

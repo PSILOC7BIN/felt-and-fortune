@@ -30,7 +30,7 @@ export function chipsHTML(eco, streakOverride) {
     : `<a class="chip energy-chip ${eco.energy <= 5 ? 'low' : ''}" href="/store" title="Practice Energy${eco.energyNextIn ? `: +1 in ${mins(eco.energyNextIn)}` : ''}">${g('bolt')}<b data-energy>${eco.energy}</b><span class="sr">Energy</span></a>`;
   return `<div class="eco-chips">
     <span class="chip streak ${eco.streakToday ? 'lit' : ''}" title="Day streak${eco.freezes ? ` · ${eco.freezes} freeze${eco.freezes > 1 ? 's' : ''} ready` : ''}">${g('flame')}<b>${streak}</b>${eco.freezes ? `<i class="freeze-dot" aria-label="${eco.freezes} streak freezes">${g('snow')}${eco.freezes > 1 ? eco.freezes : ''}</i>` : ''}<span class="sr">day streak</span></span>
-    <a class="chip stars-chip" href="/store" title="Stars">${g('star')}<b data-stars>${eco.stars}</b><span class="sr">Stars</span></a>
+    <a class="chip stars-chip" href="/store" title="Chips">${g('chip')}<b data-stars>${eco.stars}</b><span class="sr">chips</span></a>
     ${energy}</div>`;
 }
 function paintChips() {
@@ -74,7 +74,7 @@ export function outOfEnergy(ctx, eco, after) {
   const { close } = openSheet(`<div class="paywall">${ace('oops', 'ace-md')}<h2>Out of Energy</h2>
     <p class="muted">Practice rounds use Energy. You get 1 back about every hour${eco?.energyNextIn ? `, the next in ${mins(eco.energyNextIn)}` : ''}. Lessons, checkpoints, and Weak Spots never cost Energy.</p>
     <div class="energy-meter big"><span style="width:${Math.round((eco?.energy || 0) / 25 * 100)}%"></span></div>
-    <button type="button" class="primary chunky" id="oe-refill" ${canRefill ? '' : 'disabled'}>${g('star')} Refill for 350 Stars</button>
+    <button type="button" class="primary chunky" id="oe-refill" ${canRefill ? '' : 'disabled'}>${g('chip')} Refill for 350 chips</button>
     <a class="button chunky pro-button" href="/store#plans" data-close>${g('crown')} Unlimited with Pro</a>
     <a class="button ghost" href="/learn" data-close>Do a lesson instead</a></div>`);
   $('#oe-refill')?.addEventListener('click', async () => {
@@ -129,7 +129,7 @@ export function flyStars(fromEl, n = 6) {
   if (!fromEl || !target || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const a = fromEl.getBoundingClientRect(), b = target.getBoundingClientRect();
   for (let i = 0; i < n; i++) {
-    const s = document.createElement('span'); s.className = 'fly-star'; s.innerHTML = g('star');
+    const s = document.createElement('span'); s.className = 'fly-star'; s.innerHTML = g('chip');
     s.style.left = a.left + a.width / 2 + 'px'; s.style.top = a.top + a.height / 2 + 'px';
     document.body.append(s);
     s.animate([{ transform: 'translate(0,0) scale(.6)', opacity: 0 }, { transform: `translate(${(Math.random() - .5) * 80}px, ${-40 - Math.random() * 40}px) scale(1.2)`, opacity: 1, offset: .35 },
@@ -144,7 +144,7 @@ export function celebrateEvents(ctx, events = []) {
     if (e.type === 'freeze-used') { Sound.play('freeze'); ctx.toast(`A Streak Freeze kept your streak alive (${e.days.length} day${e.days.length > 1 ? 's' : ''}).`); }
     if (e.type === 'milestone') {
       confetti(); Sound.play('levelup');
-      openSheet(`<div class="milestone">${g('flame', 'milestone-flame')}<h2>${e.days}-day streak!</h2><p class="muted">Habits are built one day at a time.</p><p class="reward">${g('star')} +${e.stars} Stars${e.freeze ? ` · ${g('snow')} a free Streak Freeze` : ''}</p><button type="button" class="primary chunky" data-close>Keep going</button><button type="button" class="ghost" id="share-milestone">Share it</button></div>`);
+      openSheet(`<div class="milestone">${g('flame', 'milestone-flame')}<h2>${e.days}-day streak!</h2><p class="muted">Habits are built one day at a time.</p><p class="reward">${g('chip')} +${e.stars} chips${e.freeze ? ` · ${g('snow')} a free Streak Freeze` : ''}</p><button type="button" class="primary chunky" data-close>Keep going</button><button type="button" class="ghost" id="share-milestone">Share it</button></div>`);
       document.getElementById('share-milestone')?.addEventListener('click', async () => {
         const [{ shareProgress }, me, sk, path] = await Promise.all([import('./share.js'), ctx.api('/api/me'), ctx.api('/api/skills').catch(() => null), ctx.api('/api/path').catch(() => null)]);
         shareProgress(ctx, { username: me.user?.username || '', streak: e.days, rating: sk?.overall ?? null, tier: sk?.tier, lessons: path?.stats?.done || 0, track: path?.plan?.trackName || '' });
@@ -207,8 +207,8 @@ export async function storePage(ctx, tab = location.hash.slice(1) || 'featured')
     const mine = has(id, it), on = mine && equipped(it.kind, it.value);
     const status = on ? `<span class="own-tag on">${g('check')} Equipped</span>` : mine ? '<span class="own-tag">Owned</span>'
       : it.event ? `<span class="own-tag event">${g('trophy')} Event reward</span>` : it.pro ? `<span class="own-tag pro">${g('crown')} Pro</span>`
-      : `<span class="price ${st.stars >= it.stars ? '' : 'short'}">${g('star')} ${it.stars}</span>`;
-    const short = !mine && !it.event && !it.pro && st.stars < it.stars ? `<small class="to-go">${it.stars - st.stars} more Stars</small>` : '';
+      : `<span class="price ${st.stars >= it.stars ? '' : 'short'}">${g('chip')} ${it.stars}</span>`;
+    const short = !mine && !it.event && !it.pro && st.stars < it.stars ? `<small class="to-go">${it.stars - st.stars} more chips</small>` : '';
     return `<button type="button" class="item-card r-${it.rarity} ${on ? 'equipped' : ''}" data-item="${id}">${artHTML(it.kind, it.value)}<span class="item-name">${esc(it.name)}</span><span class="rarity">${RARITY_LABEL[it.rarity]}</span>${status}${short}</button>`;
   };
   const defaultCard = kind => {
@@ -228,8 +228,8 @@ export async function storePage(ctx, tab = location.hash.slice(1) || 'featured')
     const items = s.items.map(id => [id, st.catalog[id]]);
     const done = s.owned === s.total;
     return `<div class="set-card"><div class="set-arts">${items.map(([, it]) => artHTML(it.kind, it.value)).join('')}</div><div class="set-copy"><h3>${esc(s.name)}</h3>
-      <div class="set-bar"><span style="width:${Math.round(s.owned / s.total * 100)}%"></span></div><small>${s.owned} of ${s.total} collected · Complete it for ${g('star')} ${s.bonus} bonus Stars</small></div>
-      ${done ? `<span class="own-tag on">${g('check')} Complete</span>` : `<button type="button" class="primary" data-set="${s.id}" ${st.stars >= s.price ? '' : 'disabled'}>${g('star')} ${s.price}<small>Get the rest · 20% off</small></button>`}</div>`;
+      <div class="set-bar"><span style="width:${Math.round(s.owned / s.total * 100)}%"></span></div><small>${s.owned} of ${s.total} collected · Complete it for ${g('chip')} ${s.bonus} bonus chips</small></div>
+      ${done ? `<span class="own-tag on">${g('check')} Complete</span>` : `<button type="button" class="primary" data-set="${s.id}" ${st.stars >= s.price ? '' : 'disabled'}>${g('chip')} ${s.price}<small>Get the rest · 20% off</small></button>`}</div>`;
   };
   const planCard = (id, p, best) => {
     const total = `$${p.price.toFixed(2)}`, per = p.period ? `${total} per ${p.period}` : `${total} once`;
@@ -239,12 +239,12 @@ export async function storePage(ctx, tab = location.hash.slice(1) || 'featured')
   const panes = {
     featured: () => {
       const vegas = st.sets.find(s => s.owned < s.total) || st.sets[0];
-      return `<div class="featured-hero">${setCard(vegas)}</div><h3 class="sub-head">${g('star')} This week’s picks <small>New picks ${day(st.featured.ends)}</small></h3><div class="item-grid">${st.featured.items.map(id => itemCard(id, st.catalog[id])).join('')}</div>
+      return `<div class="featured-hero">${setCard(vegas)}</div><h3 class="sub-head">${g('chip')} This week’s picks <small>New picks ${day(st.featured.ends)}</small></h3><div class="item-grid">${st.featured.items.map(id => itemCard(id, st.catalog[id])).join('')}</div>
         ${plan.pro ? '' : `<button type="button" class="pro-banner" data-tab-go="pro">${g('crown')}<span><strong>Pro Gold collection</strong><small>A black-and-gold back, mat, and coach style, free with Pro.</small></span>${g('next')}</button>`}`;
     },
     back: () => kindGrid('back'), felt: () => kindGrid('felt'), coach: () => kindGrid('coach'),
     sets: () => `<p class="muted">Sets bundle a card back, a table mat, and a coach style. Buying the rest of a set costs 20% less than the pieces, and finishing one pays a one-time bonus.</p><div class="set-list">${st.sets.map(setCard).join('')}</div>`,
-    powerups: () => `<div class="shop-grid">${Object.entries(st.powerups).map(([id, it]) => `<div class="shop-item">${artHTML(it.kind)}<div class="shop-copy"><strong>${esc(it.name)}</strong><small>${esc(it.text)}</small></div><button type="button" class="small ${st.stars >= it.stars ? 'primary' : ''}" data-power="${id}" ${st.stars >= it.stars ? '' : 'disabled'}>${g('star')} ${it.stars}</button></div>`).join('')}</div>`,
+    powerups: () => `<div class="shop-grid">${Object.entries(st.powerups).map(([id, it]) => `<div class="shop-item">${artHTML(it.kind)}<div class="shop-copy"><strong>${esc(it.name)}</strong><small>${esc(it.text)}</small></div><button type="button" class="small ${st.stars >= it.stars ? 'primary' : ''}" data-power="${id}" ${st.stars >= it.stars ? '' : 'disabled'}>${g('chip')} ${it.stars}</button></div>`).join('')}</div>`,
     pro: () => `${plan.pro ? `<div class="plan-status"><strong>You have ${esc(st.plans[plan.plan]?.name || 'Pro')}</strong><span class="muted">${plan.trialEnds ? `Free trial ends ${fmtDate(plan.trialEnds)}. We’ll remind you 3 days before.` : plan.status === 'canceled' ? `Canceled. Pro stays on until ${fmtDate(plan.renews)}.` : plan.renews ? `Renews ${fmtDate(plan.renews)}.` : 'Lifetime access.'}</span>${plan.plan !== 'pro-lifetime' && plan.status !== 'canceled' ? '<button type="button" class="small" id="cancel-plan">Cancel subscription</button>' : ''}</div>`
       : `<ul class="perks inline">${PRO_PERKS.map(([ic, t]) => `<li>${g(ic)} ${t}</li>`).join('')}<li>${g('gift')} Pro Gold collection</li><li>${g('target')} 2 quest swaps a day</li></ul><div class="plan-cards">${planCard('pro-monthly', st.plans['pro-monthly'])}${planCard('pro-annual', st.plans['pro-annual'], true)}${planCard('pro-lifetime', st.plans['pro-lifetime'])}</div>`}
       <h3 class="sub-head">${g('crown')} Pro Gold collection <small>${plan.pro ? 'Claim each piece; it stays yours even if Pro ends.' : 'Included with Pro.'}</small></h3><div class="item-grid">${Object.entries(st.catalog).filter(([, it]) => it.pro).map(([id, it]) => itemCard(id, it)).join('')}</div>
@@ -252,7 +252,7 @@ export async function storePage(ctx, tab = location.hash.slice(1) || 'featured')
   };
 
   ctx.$('#page').innerHTML = `<div class="store2">
-    <header class="store-top"><div><h1>Store</h1><p class="muted">Stars are earned by learning, never bought.</p></div><div class="store-wallet sticky-wallet"><span class="chip stars-chip">${g('star')}<b data-stars>${st.stars}</b><span>Stars</span></span><span class="chip">${g('snow')}<b>${st.freezes}/${st.freezeMax}</b></span>${plan.pro ? `<span class="chip pro-chip">${g('crown')}<b>Pro</b></span>` : `<span class="chip energy-chip">${g('bolt')}<b>${st.energy}</b></span>`}<a class="chip earn-chip" href="/quests">${g('target')} Earn Stars</a></div></header>
+    <header class="store-top"><div><h1>Store</h1><p class="muted">Earn chips by learning, or pick up a pack. Chips buy looks and power-ups only.</p></div><div class="store-wallet sticky-wallet"><span class="chip stars-chip">${g('chip')}<b data-stars>${st.stars}</b><span>chips</span></span><span class="chip">${g('snow')}<b>${st.freezes}/${st.freezeMax}</b></span>${plan.pro ? `<span class="chip pro-chip">${g('crown')}<b>Pro</b></span>` : `<span class="chip energy-chip">${g('bolt')}<b>${st.energy}</b></span>`}<a class="chip earn-chip" href="/quests">${g('target')} Earn chips</a></div></header>
     ${test ? '<p class="test-banner">Test mode: purchases are simulated and nothing is charged.</p>' : ''}
     <div class="store-body"><div class="store-main"><nav class="store-tabs" role="tablist" aria-label="Store sections">${TABS.map(([k, ic, label]) => `<button type="button" role="tab" aria-selected="${k === tab}" data-tab="${k}">${g(ic)}<span>${label}</span></button>`).join('')}</nav>
       <section class="store-pane" role="tabpanel">${panes[tab]()}</section></div>
@@ -270,7 +270,7 @@ export async function storePage(ctx, tab = location.hash.slice(1) || 'featured')
     $('#preview').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   };
   const confirmSpend = (title, stars, art, onYes) => {
-    const { close } = openSheet(`<div class="confirm-buy">${art}<h2>${esc(title)}</h2><p class="reward">${g('star')} ${stars} Stars</p><p class="muted">You have ${st.stars} Stars. You’ll have ${st.stars - stars} left.</p><button type="button" class="primary chunky" id="yes-spend">Spend ${stars} Stars</button><button type="button" class="ghost" data-close>Cancel</button></div>`);
+    const { close } = openSheet(`<div class="confirm-buy">${art}<h2>${esc(title)}</h2><p class="reward">${g('chip')} ${stars} chips</p><p class="muted">You have ${st.stars} chips. You’ll have ${st.stars - stars} left.</p><button type="button" class="primary chunky" id="yes-spend">Spend ${stars} chips</button><button type="button" class="ghost" data-close>Cancel</button></div>`);
     $('#yes-spend').onclick = async () => { $('#yes-spend').disabled = true; try { await onYes(); close(); } catch (e) { ctx.toast(e.message); $('#yes-spend').disabled = false; } };
   };
   const equip = async (kind, value) => { setEconomy(await api('/api/store/equip', 'POST', { kind, value })); Sound.play('select'); ctx.toast('Equipped.'); redo(); };
@@ -282,7 +282,7 @@ export async function storePage(ctx, tab = location.hash.slice(1) || 'featured')
     if (mine && ownedAlready) action = equipped(it.kind, it.value) ? '<span class="own-tag on">Equipped</span>' : `<button type="button" class="primary chunky" id="pv-equip">Equip</button>`;
     else if (it.pro) action = plan.pro ? `<button type="button" class="primary chunky" id="pv-claim">${g('crown')} Claim free</button>` : `<button type="button" class="chunky pro-button" data-tab-go="pro">${g('crown')} Get Pro</button>`;
     else if (it.event) action = '<p class="muted small">Finish a monthly Quests event to earn event backs.</p><a class="button" href="/quests">See this month’s event</a>';
-    else action = `<button type="button" class="primary chunky" id="pv-buy" ${st.stars >= it.stars ? '' : 'disabled'}>${g('star')} Buy for ${it.stars}</button>${st.stars < it.stars ? `<a class="button ghost" href="/quests">Earn ${it.stars - st.stars} more Stars</a>` : ''}`;
+    else action = `<button type="button" class="primary chunky" id="pv-buy" ${st.stars >= it.stars ? '' : 'disabled'}>${g('chip')} Buy for ${it.stars}</button>${st.stars < it.stars ? `<a class="button ghost" href="/quests">Earn ${it.stars - st.stars} more chips</a>` : ''}`;
     tryOn(it.kind, it.value, it.name, `<p class="pv-name"><strong>${esc(it.name)}</strong><span class="rarity r-${it.rarity}">${RARITY_LABEL[it.rarity]}</span></p><p class="muted small">${esc(it.text || '')}</p>${action}`);
     $('#pv-equip')?.addEventListener('click', () => equip(it.kind, it.value));
     $('#pv-claim')?.addEventListener('click', async () => { try { setEconomy(await api('/api/store/buy', 'POST', { item: id })); Sound.play('unlock'); confetti({ count: 60 }); redo(); } catch (e) { ctx.toast(e.message); } });
@@ -299,7 +299,7 @@ export async function storePage(ctx, tab = location.hash.slice(1) || 'featured')
   $$('[data-set]').forEach(b => b.onclick = () => {
     const s = st.sets.find(x => x.id === b.dataset.set);
     confirmSpend(`${s.name} set`, s.price, `<div class="set-arts">${s.items.map(id => artHTML(st.catalog[id].kind, st.catalog[id].value)).join('')}</div>`, async () => {
-      setEconomy(await api('/api/store/buy-set', 'POST', { set: s.id })); Sound.play('levelup'); confetti(); ctx.toast(`${s.name} complete! +${s.bonus} bonus Stars`); redo();
+      setEconomy(await api('/api/store/buy-set', 'POST', { set: s.id })); Sound.play('levelup'); confetti(); ctx.toast(`${s.name} complete! +${s.bonus} bonus chips`); redo();
     });
   });
   $$('[data-power]').forEach(b => b.onclick = () => {
@@ -314,7 +314,7 @@ export async function storePage(ctx, tab = location.hash.slice(1) || 'featured')
     $('#confirm-buy').onclick = async () => { try { setEconomy(await api('/api/billing/test-purchase', 'POST', { plan: b.dataset.plan })); close(); confetti(); Sound.play('levelup'); ctx.toast('Welcome to Pro!'); redo('pro'); } catch (e) { ctx.toast(e.message); } };
   });
   $('#cancel-plan')?.addEventListener('click', () => {
-    const { close } = openSheet(`<h2>Cancel Pro?</h2><p class="muted">${plan.trialEnds ? 'Your trial ends now and you won’t be charged.' : 'You keep Pro until the end of the period you paid for.'} Your Stars, streak, progress, and claimed Pro Gold items stay.</p><button type="button" class="danger chunky" id="confirm-cancel">Cancel subscription</button><button type="button" class="primary" data-close>Keep Pro</button>`);
+    const { close } = openSheet(`<h2>Cancel Pro?</h2><p class="muted">${plan.trialEnds ? 'Your trial ends now and you won’t be charged.' : 'You keep Pro until the end of the period you paid for.'} Your chips, streak, progress, and claimed Pro Gold items stay.</p><button type="button" class="danger chunky" id="confirm-cancel">Cancel subscription</button><button type="button" class="primary" data-close>Keep Pro</button>`);
     $('#confirm-cancel').onclick = async () => { try { setEconomy(await api('/api/billing/cancel', 'POST', {})); close(); ctx.toast('Subscription canceled.'); redo('pro'); } catch (e) { ctx.toast(e.message); } };
   });
   $('#restore')?.addEventListener('click', async () => { await loadEconomy(api, ctx.localDate); ctx.toast(cache?.plan.pro ? 'Pro is active on this account.' : 'No purchases found for this account.'); });
@@ -327,7 +327,7 @@ const until = iso => { const ms = new Date(iso + 'T00:00:00') - new Date(); cons
 export function questsCard(eco) {
   if (!eco) return '';
   const n = eco.questsReady || 0;
-  return `<a class="side-card quest-link ${n ? 'ready' : ''}" href="/quests"><span class="tool-icon sm">${g('target')}</span><span><strong>Quests</strong><small>${n ? `${n} reward${n > 1 ? 's' : ''} ready to claim` : 'Daily and weekly goals for Stars'}</small></span>${n ? `<b class="q-badge">${n}</b>` : g('next')}</a>`;
+  return `<a class="side-card quest-link ${n ? 'ready' : ''}" href="/quests"><span class="tool-icon sm">${g('target')}</span><span><strong>Quests</strong><small>${n ? `${n} reward${n > 1 ? 's' : ''} ready to claim` : 'Daily and weekly goals for chips'}</small></span>${n ? `<b class="q-badge">${n}</b>` : g('next')}</a>`;
 }
 export function wireQuests() {}
 
@@ -337,12 +337,12 @@ export async function questsPage(ctx) {
   const quest = q => `<div class="quest-row t-${q.tier || 'weekly'} ${q.claimed ? 'claimed' : q.done ? 'ready' : ''}">
       <span class="quest-tier">${q.tier ? TIER_LABEL[q.tier] : 'Weekly'}</span>
       <div class="quest-copy"><strong>${esc(q.text)}</strong><div class="quest-bar"><span style="width:${Math.round(q.progress / q.goal * 100)}%"></span></div><small>${q.progress} / ${q.goal}</small></div>
-      ${q.claimed ? `<span class="quest-done">${g('check')}</span>` : q.done ? `<button type="button" class="primary claim" data-claim="${q.period[0]}:${q.id}">${g('star')} ${q.stars}</button>` : `<span class="quest-reward">${g('star')} ${q.stars}</span>`}
+      ${q.claimed ? `<span class="quest-done">${g('check')}</span>` : q.done ? `<button type="button" class="primary claim" data-claim="${q.period[0]}:${q.id}">${g('chip')} ${q.stars}</button>` : `<span class="quest-reward">${g('chip')} ${q.stars}</span>`}
       ${q.tier && !q.done && b.rerollsUsed < b.rerollsAllowed ? `<button type="button" class="icon-btn swap" data-reroll="${['easy', 'medium', 'hard'].indexOf(q.tier)}" aria-label="Swap this quest" title="Swap this quest (${b.rerollsAllowed - b.rerollsUsed} left today)">${g('rotr')}</button>` : ''}</div>`;
   const ev = b.event, all = b.allDaily;
   const evPct = Math.round(ev.progress / ev.goal * 100);
   ctx.$('#page').innerHTML = `<div class="quests-page">
-    <header class="page-hero"><div><h1>Quests</h1><p class="muted">Quests reward careful practice, not just time spent. Finish them for Stars, freezes, and event rewards.</p></div><div data-eco-chips>${chipsHTML(cache)}</div></header>
+    <header class="page-hero"><div><h1>Quests</h1><p class="muted">Quests reward careful practice, not just time spent. Finish them for chips, freezes, and event rewards.</p></div><div data-eco-chips>${chipsHTML(cache)}</div></header>
     <section class="event-banner">
       <div class="event-art">${artHTML('back', ev.reward.replace('back-', ''))}${ev.earned ? `<span class="event-badge">${g('check')}</span>` : ''}</div>
       <div class="event-copy"><small>Monthly event · ${ev.daysLeft} day${ev.daysLeft === 1 ? '' : 's'} left</small><h2>${esc(ev.name)}</h2><p>${ev.earned ? `You earned the <b>${esc(ev.rewardName)}</b> card back and this month’s badge!` : `Finish ${ev.goal} quests this month to earn the <b>${esc(ev.rewardName)}</b> card back and a badge. Event items are never sold.`}</p>
@@ -351,13 +351,13 @@ export async function questsPage(ctx) {
     <div class="quest-cols">
       <section class="side-card quest-panel"><div class="side-head"><h3>${g('flame')} Daily quests</h3><span class="muted small">New in ${until(new Date(Date.now() + 864e5).toISOString().slice(0, 10))}</span></div>
         ${b.daily.map(quest).join('')}
-        <div class="quest-row bonus ${all.claimed ? 'claimed' : all.ready ? 'ready' : ''}"><span class="quest-tier">Bonus</span><div class="quest-copy"><strong>Finish all 3 daily quests</strong><div class="quest-bar"><span style="width:${Math.round(b.daily.filter(q => q.done).length / 3 * 100)}%"></span></div><small>${b.daily.filter(q => q.done).length} / 3</small></div>${all.claimed ? `<span class="quest-done">${g('check')}</span>` : all.ready ? `<button type="button" class="primary claim" data-claim="all-daily">${g('star')} ${all.stars}</button>` : `<span class="quest-reward">${g('star')} ${all.stars}</span>`}</div>
+        <div class="quest-row bonus ${all.claimed ? 'claimed' : all.ready ? 'ready' : ''}"><span class="quest-tier">Bonus</span><div class="quest-copy"><strong>Finish all 3 daily quests</strong><div class="quest-bar"><span style="width:${Math.round(b.daily.filter(q => q.done).length / 3 * 100)}%"></span></div><small>${b.daily.filter(q => q.done).length} / 3</small></div>${all.claimed ? `<span class="quest-done">${g('check')}</span>` : all.ready ? `<button type="button" class="primary claim" data-claim="all-daily">${g('chip')} ${all.stars}</button>` : `<span class="quest-reward">${g('chip')} ${all.stars}</span>`}</div>
         <p class="muted small">${b.rerollsAllowed - b.rerollsUsed > 0 ? `You can swap ${b.rerollsAllowed - b.rerollsUsed} unfinished quest${b.rerollsAllowed - b.rerollsUsed > 1 ? 's' : ''} today.` : 'Quest swaps are used up for today.'}</p></section>
       <section class="side-card quest-panel"><div class="side-head"><h3>${g('chart')} Weekly</h3><span class="muted small">Ends in ${until(b.weekEnds)}</span></div>
         ${b.weekly.map(quest).join('')}
         <h4 class="track-title">Daily quests finished this week: ${b.dailiesThisWeek}</h4>
         <div class="week-track"><div class="week-track-bar"><span style="width:${Math.min(100, Math.round(b.dailiesThisWeek / 15 * 100))}%"></span></div>
-          ${b.track.map(t => `<div class="milestone-node ${t.claimed ? 'claimed' : t.reached ? 'ready' : ''}" style="left:${t.at / 15 * 100}%"><span class="m-at">${t.at}</span>${t.claimed ? `<span class="m-reward">${g('check')}</span>` : t.reached ? `<button type="button" class="primary claim small" data-claim="track-${t.at}">${g('gift')}</button>` : `<span class="m-reward">${g('gift')}</span>`}<small>${g('star')}${t.reward.stars}${t.reward.freeze ? ` + ${g('snow')}` : ''}${t.reward.energy ? ` + ${g('bolt')}${t.reward.energy}` : ''}</small></div>`).join('')}</div></section>
+          ${b.track.map(t => `<div class="milestone-node ${t.claimed ? 'claimed' : t.reached ? 'ready' : ''}" style="left:${t.at / 15 * 100}%"><span class="m-at">${t.at}</span>${t.claimed ? `<span class="m-reward">${g('check')}</span>` : t.reached ? `<button type="button" class="primary claim small" data-claim="track-${t.at}">${g('gift')}</button>` : `<span class="m-reward">${g('gift')}</span>`}<small>${g('chip')}${t.reward.stars}${t.reward.freeze ? ` + ${g('snow')}` : ''}${t.reward.energy ? ` + ${g('bolt')}${t.reward.energy}` : ''}</small></div>`).join('')}</div></section>
     </div>
     ${b.badges.length ? `<section class="side-card"><h3>${g('trophy')} Badges</h3><div class="badge-shelf">${b.badges.map(x => `<span class="badge-chip" title="Earned ${esc(x.earned)}">${g(x.badge.startsWith('set-') ? 'gift' : 'trophy')}${esc(x.badge.startsWith('set-') ? x.badge.slice(4).replace(/^./, c => c.toUpperCase()) + ' set' : new Date(x.badge.slice(6) + '-15').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + ' event')}</span>`).join('')}</div></section>` : ''}
   </div>`;
@@ -419,7 +419,7 @@ export function guardContinue(ctx, meter, foot, { quitHref = '/learn', quitLabel
     const { close } = openSheet(`<div class="paywall">${ace('oops', 'ace-md')}<h2>Out of Energy</h2>
       <p class="muted">Every answer uses 1 Energy, and 3 right in a row earns 2 back. Energy refills over time, about 1 every 20 minutes.</p>
       <div class="energy-meter big"><span style="width:0%"></span></div>
-      <button type="button" class="primary chunky" id="oe-refill" ${canRefill ? '' : 'disabled'}>${g('star')} Refill for 350 chips</button>
+      <button type="button" class="primary chunky" id="oe-refill" ${canRefill ? '' : 'disabled'}>${g('chip')} Refill for 350 chips</button>
       <a class="button chunky pro-button" href="/store#pro" data-close>${g('crown')} Unlimited with Pro</a>
       <a class="button ghost" href="${quitHref}" data-close>${quitLabel}</a></div>`);
     $('#oe-refill')?.addEventListener('click', async () => {
