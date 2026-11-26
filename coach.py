@@ -22,7 +22,7 @@ SURVEY = [
         ['counter', 'I’ve tried counting cards'],
         ['pro', 'I count seriously and want to sharpen up'],
     ]},
-    {'id': 'goal', 'prompt': 'What do you want out of this?', 'options': [
+    {'id': 'goal', 'multi': True, 'prompt': 'What do you want out of this?', 'options': [
         ['understand', 'Understand the game and the math'],
         ['smarter', 'Play smarter and lose less'],
         ['count', 'Learn to count cards'],
@@ -67,14 +67,14 @@ SURVEY = [
         ['8', '$8'], ['77', '$77'], ['770', '$770'], ['unsure', 'Not sure']]},
     {'id': 'p_ror', 'kind': 'placement', 'stage': 5, 'prompt': 'Your risk of ruin is 10%. You double your bankroll and keep the same bets. Risk of ruin becomes about…', 'options': [
         ['5', '5%'], ['1', '1%'], ['20', '20%'], ['unsure', 'Not sure']]},
-    {'id': 'challenge', 'prompt': 'What feels hardest right now?', 'options': [
+    {'id': 'challenge', 'multi': True, 'prompt': 'What feels hardest right now?', 'options': [
         ['chart', 'Remembering the right play'],
         ['speed', 'Keeping up with the cards'],
         ['betting', 'Knowing how much to bet'],
         ['discipline', 'Staying disciplined and calm'],
         ['unsure', 'Not sure yet'],
     ]},
-    {'id': 'game', 'prompt': 'Where do you play, or plan to?', 'options': [
+    {'id': 'game', 'multi': True, 'prompt': 'Where do you play, or plan to?', 'options': [
         ['shoe', 'Six- or eight-deck shoe games'],
         ['pitch', 'Single- or double-deck games'],
         ['online', 'Online, or not in casinos yet'],
@@ -125,14 +125,26 @@ def public_survey():
     return [{k: v for k, v in q.items()} for q in SURVEY]
 
 
+# Multi-select questions (goals and preferences only; knowledge questions stay single-choice). The primary answer
+# drives ordering; every selected answer shapes focus areas and notes.
+GOAL_RANK = ['pro', 'count', 'smarter', 'understand']
+
+
 def validate_answers(answers):
     if not isinstance(answers, dict):
         raise ValueError('Survey answers must be an object.')
     clean = {}
     for q in SURVEY:
         value = str(answers.get(q['id'], ''))
-        if q.get('kind') == 'placement' and value in ('', 'skip'): value = 'skip'   # the test stopped before this stage
-        elif value not in {o[0] for o in q['options']}:
+        opts = {o[0] for o in q['options']}
+        if q.get('multi'):
+            parts = [p for p in dict.fromkeys(value.split(',')) if p]
+            if not parts or any(p not in opts for p in parts): raise ValueError('Please answer every survey question.')
+            if 'unsure' in parts and len(parts) > 1: parts.remove('unsure')
+            clean[q['id'] + '_all'] = parts
+            value = min(parts, key=GOAL_RANK.index) if q['id'] == 'goal' else parts[0]
+        elif q.get('kind') == 'placement' and value in ('', 'skip'): value = 'skip'   # the test stopped before this stage
+        elif value not in opts:
             raise ValueError('Please answer every survey question.')
         clean[q['id']] = value
     return clean
@@ -532,7 +544,8 @@ def build_plan(answers, today=None, track=None):
     for qid in missed:
         st = next(q['stage'] for q in SURVEY if q['id'] == qid); weak |= STAGE_SKILLS.get(st, set())
     for nxt in (level + 1, level + 2): weak |= STAGE_SKILLS.get(nxt, set())   # the areas you're about to reach
-    weak |= {'chart': {'strategy'}, 'speed': {'counting', 'truecount'}, 'betting': {'betting', 'bankroll'}, 'discipline': {'bankroll'}}.get(a['challenge'], set())
+    for ch in a.get('challenge_all') or [a['challenge']]:
+        weak |= {'chart': {'strategy'}, 'speed': {'counting', 'truecount'}, 'betting': {'betting', 'bankroll'}, 'discipline': {'bankroll'}}.get(ch, set())
     focus = []
     for skill in sorted(weak):
         u = next((u for u in todo if u['skill'] == skill), None)
@@ -547,9 +560,10 @@ def build_plan(answers, today=None, track=None):
 
     notes = {}
     first_of = lambda skill: next((u['id'] for u in todo if u['skill'] == skill), None)
-    if a['game'] == 'pitch' and first_of('betting'): notes[first_of('betting')] = 'Pitch games are often beaten with smaller spreads, like 1–4 or 1–8, because the count swings faster.'
-    if a['game'] == 'shoe' and first_of('betting'): notes[first_of('betting')] = 'Shoe games usually need a bigger spread, such as 1–12, or back-counting.'
-    if a['game'] == 'online' and first_of('counting'): notes[first_of('counting')] = 'Most online blackjack reshuffles every hand, so counting won’t help there. Learn it for live games.'
+    games = a.get('game_all') or [a['game']]
+    if 'pitch' in games and first_of('betting'): notes[first_of('betting')] = 'Pitch games are often beaten with smaller spreads, like 1–4 or 1–8, because the count swings faster.'
+    if 'shoe' in games and 'pitch' not in games and first_of('betting'): notes[first_of('betting')] = 'Shoe games usually need a bigger spread, such as 1–12, or back-counting.'
+    if 'online' in games and first_of('counting'): notes[first_of('counting')] = 'Most online blackjack reshuffles every hand, so counting won’t help there. Learn it for live games.'
     for f in focus: notes.setdefault(f, 'This is one of your focus areas, so you’ll get an extra review lesson here.')
 
     meta = TRACK_META[key]; months = max(1, round(days / 30))

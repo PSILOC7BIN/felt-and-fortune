@@ -448,6 +448,16 @@ class EconomyRoutes:
             look = {**DEFAULT_LOOK, **json.loads(w['look'] or '{}'), kind: value}
             c.execute('UPDATE wallets SET look=? WHERE user_id=?', (json.dumps(look), uid))
             return self.send_json(snapshot(c, uid, today, daily_xp))
+        if path == '/api/store/equip-set' and method == 'POST':
+            # Wear a whole set in one tap: its card back, table mat, and coach outfit together.
+            sid = str(d.get('set', '')); require(sid in C.SETS, 'Unknown set.')
+            items = [k for k, it in C.CATALOG.items() if it.get('set') == sid]
+            w = wallet(c, uid); owned = json.loads(w['owned'] or '[]')
+            require(items and all(i in owned for i in items), 'Collect the whole set first.')
+            look = {**DEFAULT_LOOK, **json.loads(w['look'] or '{}')}
+            for i in items: look[C.CATALOG[i]['kind']] = C.CATALOG[i]['value']
+            c.execute('UPDATE wallets SET look=? WHERE user_id=?', (json.dumps(look), uid))
+            return self.send_json(snapshot(c, uid, today, daily_xp))
         if path == '/api/billing/test-purchase' and method == 'POST':
             require(BILLING_MODE == 'test', 'Purchases go through the App Store, Google Play, or the web checkout.', 403)
             plan_id = str(d.get('plan', '')); p = PLANS.get(plan_id); require(p, 'Choose a plan.')

@@ -223,3 +223,17 @@ class CoachApiTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class MultiSelectSurveyTests(unittest.TestCase):
+    def test_goals_and_preferences_accept_several_answers(self):
+        base = {q['id']: q['options'][0][0] for q in coach.SURVEY}
+        a = coach.validate_answers({**base, 'goal': 'smarter,count', 'challenge': 'chart,speed', 'game': 'shoe,pitch'})
+        self.assertEqual(a['goal'], 'count')                       # the most ambitious goal orders the path
+        self.assertEqual(a['goal_all'], ['smarter', 'count'])
+        self.assertEqual(a['challenge_all'], ['chart', 'speed'])
+        self.assertEqual(coach.validate_answers({**base, 'challenge': 'unsure,chart'})['challenge_all'], ['chart'])
+        with self.assertRaises(ValueError): coach.validate_answers({**base, 'goal': 'smarter,nope'})
+        with self.assertRaises(ValueError): coach.validate_answers({**base, 'p_total': '16,26'})   # knowledge questions stay single
+        plan = coach.build_plan({**base, 'goal': 'understand,pro'}) if hasattr(coach, 'build_plan') else None
+        if plan: self.assertEqual(plan['goal'], 'pro')

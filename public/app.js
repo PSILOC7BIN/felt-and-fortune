@@ -8,6 +8,7 @@ import {reportPage} from './report.js';
 import {testoutPage,certificatePage} from './testout.js';
 import {casinoPage} from './casino.js';
 import {backcountPage} from './backcount.js';
+import {chartsPage} from './charts.js';
 import {createSimulator} from './simulator.js';
 import {createDirectory} from './directory.js';
 import {storePage,questsPage,loadEconomy,paywall} from './economy.js';
@@ -103,9 +104,10 @@ $('#app').innerHTML=navbar()+`<main id="main" class="landing"><section class="he
 const TABS=[['learn','path','Learn','/learn'],['practice','dumbbell','Practice','/practice'],['tools','wrench','Tools','/tools'],['quests','target','Quests','/quests'],['store','gem','Store','/store'],['community','users','Community','/community'],['profile','person','Profile','/profile']];
 function appShell(tab){
  if($('#app .app-shell')){$$('.rail-link').forEach(a=>{const on=a.dataset.tab===tab;a.classList.toggle('active',on);on?a.setAttribute('aria-current','page'):a.removeAttribute('aria-current');});$('#page').innerHTML='<div class="loading"><span class="spinner"></span>Loading…</div>';return;}
- $('#app').innerHTML=`<div class="app-shell"><aside class="learn-rail" aria-label="Main navigation">${brand()}<nav>${TABS.map(([k,gl,label,href])=>`<a href="${href}" data-tab="${k}" class="rail-link ${tab===k?'active':''}" ${tab===k?'aria-current="page"':''}>${g(gl)}<span>${label}</span></a>`).join('')}</nav><div class="rail-foot"><button type="button" class="icon-btn" id="feedback-btn" aria-label="Send feedback" title="Send feedback">${g('chat')}</button><button type="button" class="icon-btn sound-toggle" aria-pressed="${Sound.on}" aria-label="${Sound.on?'Turn sound off':'Turn sound on'}">${g(Sound.on?'speaker':'mute')}</button></div></aside><main id="main" class="app-content"><div id="page"><div class="loading"><span class="spinner"></span>Loading…</div></div></main></div>`;
+ $('#app').innerHTML=`<div class="app-shell"><aside class="learn-rail" aria-label="Main navigation">${brand()}<nav>${TABS.map(([k,gl,label,href])=>`<a href="${href}" data-tab="${k}" class="rail-link ${tab===k?'active':''}" ${tab===k?'aria-current="page"':''}>${g(gl)}<span>${label}</span></a>`).join('')}</nav><div class="rail-foot"><button type="button" class="icon-btn" id="feedback-btn" aria-label="Send feedback" title="Send feedback">${g('chat')}</button><button type="button" class="icon-btn sound-toggle" aria-pressed="${Sound.on}" aria-label="${Sound.on?'Turn sound off':'Turn sound on'}">${g(Sound.on?'speaker':'mute')}</button></div></aside><main id="main" class="app-content"><div class="eco-dock" data-eco-chips aria-label="Streak, chips, and Energy"></div><div id="page"><div class="loading"><span class="spinner"></span>Loading…</div></div></main></div>`;
  $$('.sound-toggle').forEach(b=>b.onclick=()=>{const on=Sound.toggle();b.setAttribute('aria-pressed',on);b.innerHTML=g(on?'speaker':'mute');});
  $('#feedback-btn').onclick=()=>openFeedback();
+ loadEconomy(api,localDate);
 }
 function openFeedback(area){const tab=location.pathname.split('/')[1];const guess=area||({learn:'lesson',practice:'practice',track:'track',community:'community'}[tab]||'other');modal('Send feedback',`<p class="muted">This goes straight to the developer. Thank you for helping test Felt &amp; Fortune!</p><div class="field"><span class="label-like">How easy was it to use?</span><div class="rating-row" role="radiogroup" aria-label="Rating from 1 to 5">${[1,2,3,4,5].map(n=>`<label class="rating-pick"><input type="radio" name="rating" value="${n}" required><span>${n}</span></label>`).join('')}</div><p class="field-hint">1 = very hard · 5 = very easy</p></div>${select('area','What were you doing?',[['signup','Signing up / the survey'],['lesson','A lesson'],['practice','A practice tool'],['track','Tracking results'],['community','Community'],['other','Something else']],guess)}${textarea('comment','What worked, and what got in your way?','','maxlength="2000" rows="4" placeholder="Anything confusing, slow, or broken?"')}`,async data=>{await api('/api/feedback','POST',{rating:Number(data.rating),area:data.area,comment:data.comment,page:location.pathname});toast('Thanks! Feedback sent.');},'Send');}
 function subTabs(items,active){return `<nav class="segmented page-tabs" aria-label="Sections">${items.map(([href,label])=>`<a href="${href}" role="tab" aria-selected="${href===active}" ${href===active?'aria-current="page"':''}>${label}</a>`).join('')}</nav>`;}
@@ -134,7 +136,7 @@ function responsiblePage(){
  $('#end-break')?.addEventListener('click',()=>{api('/api/prefs','POST',{breakDays:0}).catch(()=>{});localStorage.removeItem('ff-break-until');responsiblePage();});
 }
 
-function badgeShelf(b){if(!b)return '';const card=(x,locked)=>`<li class="badge-card t-${x.tier} ${locked?'locked':''}" title="${esc(x.desc)}"><span class="badge-medal">${g(locked?'lock':x.icon)}</span><strong>${esc(x.name)}</strong><small>${esc(locked?x.desc:x.tier==='event'?x.desc:x.earned?'Earned '+new Date(x.earned+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'')}</small></li>`;
+function badgeShelf(b){if(!b)return '';const card=(x,locked)=>`<li class="badge-card t-${x.tier} ${locked?'locked':''}" role="button" tabindex="0" aria-haspopup="dialog" data-badge="${esc(x.name)}" data-how="${esc(x.desc)}" data-when="${locked?'':esc(x.earned||'')}" data-locked="${locked?1:0}"><span class="badge-medal">${g(locked?'lock':x.icon)}</span><strong>${esc(x.name)}</strong><small>${esc(locked?x.desc:x.tier==='event'?x.desc:x.earned?'Earned '+new Date(x.earned+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}):'')}</small></li>`;
  return `<section class="panel badge-panel"><div class="side-head"><h3>${g('trophy')} Badges</h3><span class="muted small">${b.earned.length} earned${b.events?` · ${b.events} event exclusive${b.events>1?'s':''}`:''}</span></div>${b.earned.length?`<ul class="badge-grid">${b.earned.map(x=>card(x,false)).join('')}</ul>`:'<p class="muted">Finish lessons, pass checkpoints, and complete monthly events to earn badges.</p>'}${b.locked.length?`<details class="badge-locked"><summary>${b.locked.length} more to earn</summary><ul class="badge-grid">${b.locked.map(x=>card(x,true)).join('')}</ul></details>`:''}</section>`;}
 async function profilePage(){
  const [stats,pathState,skillSum,bdg]=await Promise.all([api('/api/practice/stats'),api('/api/path?day='+localDate()),api('/api/skills?day='+localDate()).catch(()=>null),api('/api/badges?day='+localDate()).catch(()=>null)]);
@@ -210,6 +212,7 @@ async function render(){
   else if(path==='/tools/simulator'){if(await proOnly('simulator'))await simulator();}
   else if(path==='/tools/edge')await edgePage(ctxBase);
   else if(path==='/tools/builder')await builderPage(ctxBase);
+  else if(path==='/tools/charts')chartsPage();
   else if(path==='/practice/daily')await dailyPage(ctxBase);
   else if(path==='/practice/report')await reportPage(ctxBase);
   else if(path==='/practice/review')await reviewPage(ctxBase);
@@ -217,7 +220,7 @@ async function render(){
   else if(path==='/track'||path==='/track/bankrolls'){withTabs([['/track','Sessions'],['/track/bankrolls','Bankrolls']],path);if(path==='/track')await resultsPage('results');else await bankrollPage();}
   else if(['/community','/community/directory','/community/reports','/community/messages','/community/friends'].includes(path)){withTabs([['/community','Forum'],['/community/friends','Friends'],['/community/directory','Casino Map ★'],['/community/messages','Messages']],path);if(path==='/community')await forumPage();else if(path==='/community/friends')await friendsPage(ctxBase);else if(path==='/community/directory'){if(await proOnly('map'))await casinoDirectory();}else if(path==='/community/reports')await directoryPage();else await messagesPage();}
   else if(path==='/store')await storePage(ctxBase);
-  else if(path==='/quests')await questsPage(ctxBase);
+  else if(path==='/quests'||path==='/quests/leaderboard')await questsPage(ctxBase);
   else if(path==='/profile')await profilePage();
   else notFound();
  }catch(error){fail(error);}
@@ -229,4 +232,12 @@ async function proOnly(key){const eco=await loadEconomy(api,localDate);if(eco?.p
  $('#page').innerHTML=`<section class="pro-gate"><div class="pro-gate-art">${g(ic)}<span class="pro-gate-crown">${g('crown')}</span></div><span class="pill">${g('crown')} Pro</span><h1>${title}</h1><p>${text}</p><ul class="pro-gate-list">${perks.map(p=>`<li>${g('check')}<span>${p}</span></li>`).join('')}</ul><div class="pro-gate-cta"><a class="button primary chunky" href="/store#plans">See Pro plans</a><button type="button" class="button ghost" id="pro-gate-more">What else is in Pro?</button></div></section>`;
  $('#pro-gate-more').onclick=()=>paywall({api},`${title} is part of Pro.`);return false;}
 async function boot(){try{configInfo=await api('/api/me');user=configInfo.user;if(user)loadEconomy(api,localDate);}catch(error){toast('The server could not be reached. Reload to try again.');}await render();}
+// Badges: tap one to see what it was earned for (one interaction that works on phones and computers alike).
+function closeBadgePop(){$$('.badge-pop').forEach(p=>p.remove());}
+function openBadgePop(el){closeBadgePop();const r=el.getBoundingClientRect(),locked=el.dataset.locked==='1',when=el.dataset.when;const pop=document.createElement('div');pop.className='badge-pop';pop.setAttribute('role','dialog');pop.setAttribute('aria-label',el.dataset.badge);
+ pop.innerHTML=`<strong>${esc(el.dataset.badge)}</strong><p>${locked?'How to earn it: ':'Earned for: '}${esc(el.dataset.how)}</p>${!locked&&when?`<small>${new Date(when+'T12:00:00').toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}</small>`:''}`;
+ document.body.append(pop);const w=pop.offsetWidth;pop.style.left=Math.max(8,Math.min(innerWidth-w-8,r.left+r.width/2-w/2))+'px';pop.style.top=(r.bottom+window.scrollY+8)+'px';Sound.play('select');}
+document.addEventListener('click',e=>{const b=e.target.closest('.badge-card');if(b){e.stopPropagation();if(document.querySelector('.badge-pop')&&b.dataset.open==='1'){b.dataset.open='';closeBadgePop();return;}$$('.badge-card').forEach(x=>x.dataset.open='');b.dataset.open='1';openBadgePop(b);return;}if(!e.target.closest('.badge-pop'))closeBadgePop();});
+document.addEventListener('keydown',e=>{const b=e.target.closest?.('.badge-card');if(b&&(e.key==='Enter'||e.key===' ')){e.preventDefault();openBadgePop(b);}if(e.key==='Escape')closeBadgePop();});
+window.addEventListener('popstate',closeBadgePop);
 document.documentElement.classList.toggle('lefty',localStorage.getItem('ff-hand')==='left');fitCoachScreens();boot();

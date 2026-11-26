@@ -1,4 +1,5 @@
-import { whyHTML } from './ev.js';
+import { conceptParts, renderPart, wireReplay } from './concepts.js';
+import { whyHTML, explain } from './explain.js';
 // The trainers: question generators shared by the Practice tools and the lessons.
 // A question renders into a container, tells the runner when it can be checked, and grades itself.
 import { react } from './reactions.js';
@@ -46,7 +47,7 @@ export function strategyQ({ pool = 'any', h17 = false, surrender = false, das = 
       el.innerHTML = `<div class="q"><p class="q-eyebrow">${h17 ? 'Dealer hits soft 17' : 'Dealer stands on soft 17'}${surrender ? ' · Surrender allowed' : ''}</p><h1 class="q-title">${esc(prompt || `You have ${bj.handLabel(cards)} against ${bj.upName(dealer) === 'ace' ? 'an ace' : 'a ' + bj.upName(dealer)}.`)}</h1>${tableHTML({ dealer, cards })}${actionButtons(acts)}</div>`;
       wireActions(el, q, ctx);
     },
-    check(el) { q.given = q.chosen; markActions(el, q.chosen, answer); return { ok: q.chosen === answer, answer: bj.ACTIONS[answer], explain: bj.strategyReason(cards, dealer, answer, rules), why: { cards, dealer, rules, given: q.chosen } }; },
+    check(el) { q.given = q.chosen; markActions(el, q.chosen, answer); return { ok: q.chosen === answer, answer: bj.ACTIONS[answer], explain: explain(cards, dealer, rules).short, why: { cards, dealer, rules, given: q.chosen } }; },
   };
   return q;
 }
@@ -269,11 +270,14 @@ export function choiceQ(step) {
 }
 
 export function teachQ(step) {
+  // A "New idea" is shown as up to three short parts, each with its own animation; Continue steps through them.
+  const parts = conceptParts(step);
+  let i = 0, host = null;
+  const show = () => { renderPart(host, step, parts, i, chartHTML); wireReplay(host, step, parts, i); };
   return {
     kind: 'teach', teach: true,
-    render(el) {
-      el.innerHTML = `<div class="q teach"><span class="pill">New idea</span><h1 class="q-title">${esc(step.title)}</h1>${step.cards || step.dealer ? tableHTML({ dealer: step.dealer, cards: step.cards, holeCard: !!step.dealer && !!step.cards }) : ''}${step.chart ? chartHTML(step.chart) : ''}<p class="teach-text">${esc(step.text)}</p>${step.tip ? `<p class="teach-tip">${g('star')}<span>${esc(step.tip)}</span></p>` : ''}</div>`;
-    },
+    render(el) { host = el; i = 0; show(); },
+    inner() { if (i >= parts.length - 1) return false; i++; Sound.play('tap'); show(); return true; },
   };
 }
 
@@ -328,7 +332,7 @@ export function createRunner({ body, foot, next, onResult, onEmpty, onKeyExtra }
     else setFoot(`<span class="foot-hint">${q.hint || 'Press Enter to check'}</span><button type="button" class="primary chunky" id="run-primary" disabled>Check</button>`);
     q.render(body, ctx);
     body.scrollTop = 0;
-    if (primary()) primary().onclick = () => (q.teach ? advance() : check());
+    if (primary()) primary().onclick = () => (q.teach ? (q.inner?.() ? null : advance()) : check());
   }
   async function check() {
     if (checked || q.teach) return;
@@ -339,10 +343,14 @@ export function createRunner({ body, foot, next, onResult, onEmpty, onKeyExtra }
     r.record = { kind: q.recKind || q.kind, data: q.data, given: q.given ?? null, explain: r.explain || '' };
     Sound.play(r.ok ? 'correct' : 'wrong');
     streak = r.ok ? streak + 1 : 0;
+    // Ace, dealing at the table, reacts to your answer.
+    const da = body.querySelector('.dealer-ace');
+    if (da) { da.innerHTML = ace(r.ok ? (streak >= 3 ? 'cheer' : 'wow') : 'oops', 'ace-dealer'); da.classList.remove('hop', 'shake'); void da.offsetWidth; da.classList.add(r.ok ? 'hop' : 'shake'); }
     react(r.ok, { streak, anchor: body.querySelector('.felt-table, .deal-table, .tray-row, .choice-grid, .answers') || body });
-    setFoot(`<div class="verdict">${ace(r.ok ? 'wow' : 'oops', 'ace-xs')}<div><strong>${r.ok ? PRAISE[Math.floor(Math.random() * PRAISE.length)] : 'Correct answer: ' + esc(r.answer)}</strong><p>${esc(r.explain || '')}${r.why ? ` <button type="button" class="why-btn" id="run-why" aria-expanded="false">${r.ok ? 'Why?' : 'Why? See the math'}</button>` : ''}</p></div></div><button type="button" class="primary chunky" id="run-primary">Continue</button>`, r.ok ? 'ok' : 'bad');
+    setFoot(`<div class="verdict">${ace(r.ok ? 'wow' : 'oops', 'ace-xs')}<div><strong>${r.ok ? PRAISE[Math.floor(Math.random() * PRAISE.length)] : 'Correct answer: ' + esc(r.answer)}</strong><p>${esc(r.explain || '')}${r.why ? ` <button type="button" class="why-btn" id="run-why" aria-expanded="false">${r.ok ? 'Why?' : 'Here’s why'}</button>` : ''}</p></div></div><button type="button" class="primary chunky" id="run-primary">Continue</button>`, r.ok ? 'ok' : 'bad');
     primary().onclick = advance; primary().focus({ preventScroll: true });
     const wb = $('#run-why', foot);
+    if (wb && !r.ok) setTimeout(() => { if (wb.isConnected && !$('.why-wrap', body)) wb.click(); }, 350);
     if (wb) wb.onclick = () => { let p = $('.why-wrap', body); if (p) { p.remove(); body.classList.remove('why-open'); wb.setAttribute('aria-expanded', 'false'); return; } body.classList.add('why-open'); body.insertAdjacentHTML('beforeend', `<div class="why-wrap">${whyHTML(r.why.cards, r.why.dealer, r.why.rules, r.why.given)}</div>`); wb.setAttribute('aria-expanded', 'true'); Sound.play('select'); };
     onResult?.(q, r);
   }

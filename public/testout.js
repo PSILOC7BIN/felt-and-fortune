@@ -17,16 +17,16 @@ export async function testoutPage(ctx) {
     <div class="round-bar rush-clock" aria-hidden="true"><span id="to-clock"></span></div><section class="coach-body" id="coach-body"></section><footer class="coach-foot" id="coach-foot"></footer></main>`;
   const body = $('#coach-body'), foot = $('#coach-foot');
   let run = null;
-  $('#to-quit').onclick = () => { if (run && !confirm('Leave the test-out? This month’s attempt will count as failed.')) return; go('/tools'); };
+  $('#to-quit').onclick = () => { if (run && !confirm('Leave the test-out? Today’s attempt will count as failed.')) return; go('/tools'); };
 
   const st = await api('/api/testout?day=' + localDate());
   body.innerHTML = `<div class="coach-intro testout-intro">${ace('think', 'ace-lg bob')}<h1>Casino-ready test-out</h1><p>The test serious counters take before playing for real money, at casino speed. Every answer is timed, and you see your results only at the end. Pass every section to earn a certificate you can share.</p>
     <ol class="to-sections">${st.sections.map(s => `<li><b>${esc(s.name)}</b><span>${s.items} question${s.items === 1 ? '' : 's'} · pass ${s.need}/${s.items}${s.name.startsWith('Running') ? ' · cards flash fast' : ` · ${s.seconds}s each`}</span></li>`).join('')}</ol>
     ${st.attempts.length ? `<h3 class="sim-sub">Your attempts</h3><ul class="to-attempts">${st.attempts.map(a => `<li><span>${esc(a.day)}</span><b class="${a.passed ? 'ok' : 'bad'}">${a.passed ? 'Passed' : a.finished ? 'Not yet' : 'Left early'}</b>${a.passed ? `<a href="/certificate/${a.id}">Certificate</a>` : ''}</li>`).join('')}</ul>` : ''}</div>`;
   foot.className = 'coach-foot';
-  if (!st.pro) { foot.innerHTML = `<span class="foot-hint">One attempt a month with Pro.</span><button type="button" class="primary chunky" id="to-pro">${g('crown')} Get Pro</button>`; $('#to-pro').onclick = () => paywall(ctx, 'The casino-ready test-out and its certificate are part of Pro.'); return; }
-  if (!st.available) { foot.innerHTML = `<span class="foot-hint">You’ve used this month’s attempt. The next opens ${esc(st.nextAttempt)}.</span><a class="button primary chunky" href="/practice">Keep practicing</a>`; return; }
-  foot.innerHTML = `<span class="foot-hint">One attempt this month. Find a quiet spot.</span><button type="button" class="primary chunky" id="to-go">Start the test</button>`;
+  if (!st.pro) { foot.innerHTML = `<span class="foot-hint">One attempt a day with Pro.</span><button type="button" class="primary chunky" id="to-pro">${g('crown')} Get Pro</button>`; $('#to-pro').onclick = () => paywall(ctx, 'The casino-ready test-out and its certificate are part of Pro.'); return; }
+  if (!st.available) { foot.innerHTML = `<span class="foot-hint">You’ve used today’s attempt. Come back tomorrow.</span><a class="button primary chunky" href="/practice">Keep practicing</a>`; return; }
+  foot.innerHTML = `<span class="foot-hint">One attempt today. Find a quiet spot.</span><button type="button" class="primary chunky" id="to-go">Start the test</button>`;
   $('#to-go').onclick = async () => {
     try { run = await api('/api/testout/start', 'POST', { day: localDate() }); } catch (e) { ctx.toast(e.message); return; }
     ask(run.item);
@@ -79,7 +79,7 @@ export async function testoutPage(ctx) {
     Sound.play(res.passed ? 'complete' : 'reveal'); if (res.passed) confetti({ count: 120 });
     body.innerHTML = `<div class="lesson-done">${ace(res.passed ? 'wow' : 'happy', 'ace-xl pop')}<h1>${res.passed ? 'You passed. You’re casino-ready.' : 'Not this time'}</h1>
       <ul class="to-results">${res.results.map(r => `<li class="${r.passed ? 'ok' : 'bad'}">${g(r.passed ? 'check' : 'close')}<span>${esc(r.name)}</span><b>${r.right}/${r.of}</b><small>need ${r.need}</small></li>`).join('')}</ul>
-      <p class="muted">${res.passed ? 'Your certificate is ready to share.' : 'Practice the sections you missed. Your next attempt opens next month.'}</p></div>`;
+      <p class="muted">${res.passed ? 'Your certificate is ready to share.' : 'Practice the sections you missed. You can try again tomorrow.'}</p></div>`;
     foot.className = 'coach-foot'; foot.innerHTML = res.passed ? `<a class="button ghost" href="/tools">Back to Tools</a><a class="button primary chunky" href="/certificate/${res.certificate}">See your certificate</a>` : `<a class="button ghost" href="/tools">Back to Tools</a><a class="button primary chunky" href="/practice">Practice</a>`;
   }
 }

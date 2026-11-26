@@ -2,7 +2,7 @@
 import { esc, $, $$, g, ace, Sound, tableHTML, cardHTML } from './ui.js';
 import { react } from './reactions.js';
 import { paywall } from './economy.js';
-import { whyHTML } from './ev.js';
+import { whyHTML } from './explain.js';
 
 const TIER_COLOR = { Beginner: '#8E8E93', Learner: '#0A84FF', Solid: '#34C759', Sharp: '#AF52DE', Expert: '#FF9F0A' };
 const ACTIONS = [['H', 'Hit'], ['S', 'Stand'], ['D', 'Double'], ['P', 'Split'], ['R', 'Surrender']];

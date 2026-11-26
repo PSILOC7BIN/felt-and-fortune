@@ -1,7 +1,7 @@
 // Daily Hand, Blackjack Rush, and Count Storm. The server picks, times, and grades every question.
 import { esc, $, $$, g, ace, Sound, tableHTML, cardHTML, mountNumber } from './ui.js';
 import { react } from './reactions.js';
-import { whyHTML } from './ev.js';
+import { whyHTML } from './explain.js';
 import { paywall, confetti } from './economy.js';
 import * as bj from './bj.js';
 
@@ -30,8 +30,7 @@ export async function dailyPage(ctx) {
       <section class="daily-wrap"><div class="q"><p class="q-eyebrow">${esc(rulesLine(r.rules))}</p><h1 class="q-title">You have ${esc(bj.handLabel(r.cards))} against ${vs(r.dealer)}.</h1>${tableHTML({ dealer: r.dealer, cards: r.cards })}
         ${done ? '' : actionRow(r.actions)}</div>
         ${done ? `<div class="daily-result ${r.ok ? 'ok' : 'bad'}"><h2>${r.ok ? `${g('check')} Right: ${ACT[r.answer]}` : `Not quite: ${ACT[r.answer]}`}${r.xp ? ` <span class="chip">+${r.xp} XP</span>` : ''}</h2>
-          <p>${esc(bj.strategyReason(r.cards, r.dealer, r.answer, r.rules))}</p>
-          ${r.cards.length === 2 ? whyHTML(r.cards, r.dealer, r.rules, r.given) : ''}
+          ${whyHTML(r.cards, r.dealer, r.rules, r.given)}
           <h3 class="sim-sub">How ${r.n} player${r.n === 1 ? '' : 's'} played it</h3>
           <ul class="daily-split">${split.map(([a, p]) => `<li class="${a === r.answer ? 'best' : ''}${a === r.given ? ' mine' : ''}"><span>${ACT[a]}${a === r.given ? ' (you)' : ''}</span><span class="bar"><i style="width:${p}%"></i></span><b>${p}%</b></li>`).join('')}</ul>
           <p class="muted small">${(r.split?.[r.answer] ?? 0) < 60 ? 'Most people miss this one. That’s why it’s today’s hand.' : 'Most players got this one.'} A new hand arrives at midnight.</p>

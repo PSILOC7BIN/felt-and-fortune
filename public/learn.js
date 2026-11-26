@@ -5,6 +5,8 @@ import { openSheet, loadEconomy, setEconomy, chipsHTML, questsCard, wireQuests, 
 import { Sound, ace, g, tableHTML } from './ui.js';
 import { dailyCard } from './arcade.js';
 import { createRunner, questionsForStep, choiceQ } from './trainers.js';
+import { openChartSheet } from './charts.js';
+import * as bj from './bj.js';
 
 export { Sound, ace, g };
 
@@ -27,7 +29,7 @@ export function createLearn(ctx) {
     document.addEventListener('keydown', fn);
     ctx.onCleanup(() => document.removeEventListener('keydown', fn));
   }
-  const choiceTiles = (options, selected) => `<div class="choice-list" role="radiogroup">${options.map((o, i) => `<button type="button" class="choice-tile ${selected === i ? 'selected' : ''}" role="radio" aria-checked="${selected === i}" data-i="${i}"><kbd>${i + 1}</kbd><span>${esc(o)}</span></button>`).join('')}</div>`;
+  const choiceTiles = (options, selected, multi = false) => { const on = i => (Array.isArray(selected) ? selected.includes(i) : selected === i); return `${multi ? '<p class="multi-hint">Choose all that apply</p>' : ''}<div class="choice-list" role="${multi ? 'group' : 'radiogroup'}">${options.map((o, i) => `<button type="button" class="choice-tile ${on(i) ? 'selected' : ''}" role="${multi ? 'checkbox' : 'radio'}" aria-checked="${on(i)}" data-i="${i}"><kbd>${i + 1}</kbd><span>${esc(o)}</span></button>`).join('')}</div>`; };
   const fmtDate = iso => new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
 
   // -------------------------------------------------------------------------
@@ -62,11 +64,20 @@ export function createLearn(ctx) {
         return;
       }
       if (phase === 'question') {
-        const q = questions[state.i], selected = q.options.findIndex(o => o[0] === state.answers[q.id]);
+        const q = questions[state.i], picked = new Set(String(state.answers[q.id] || '').split(',').filter(Boolean));
+        const selected = q.multi ? (picked.size ? 0 : -1) : q.options.findIndex(o => o[0] === state.answers[q.id]);
         const stageNote = q.kind === 'placement' && state.passed?.[q.stage - 1] && questions[state.i - 1]?.stage !== q.stage ? `<p class="stage-note">${g('check')} ${esc(STAGE_NAMES[q.stage - 1])} passed. Harder questions now.</p>` : '';
-        body.innerHTML = `<div class="coach-q">${stageNote}${q.kind === 'placement' ? `<span class="pill">Placement · Level ${q.stage} of 5 · ${esc(STAGE_NAMES[q.stage])}</span>` : `<span class="pill quiet">Question ${state.i + 1} of ${questions.length}</span>`}<div class="speech">${ace(q.kind === 'placement' ? 'think' : 'happy', 'ace-sm')}<div class="bubble"><h1>${esc(q.prompt)}</h1></div></div>${table(q)}${choiceTiles(q.options.map(o => o[1]), selected)}</div>`;
+        body.innerHTML = `<div class="coach-q">${stageNote}${q.kind === 'placement' ? `<span class="pill">Placement · Level ${q.stage} of 5 · ${esc(STAGE_NAMES[q.stage])}</span>` : `<span class="pill quiet">Question ${state.i + 1} of ${questions.length}</span>`}<div class="speech">${ace(q.kind === 'placement' ? 'think' : 'happy', 'ace-sm')}<div class="bubble"><h1>${esc(q.prompt)}</h1></div></div>${table(q)}${choiceTiles(q.options.map(o => o[1]), q.multi ? [...picked].map(v => q.options.findIndex(o => o[0] === v)) : selected, q.multi)}</div>`;
         foot.innerHTML = `<button type="button" class="ghost" id="coach-back" ${state.i === 0 ? 'disabled' : ''}>${g('back')} Back</button><button type="button" class="primary chunky" id="coach-next" ${selected < 0 ? 'disabled' : ''}>${state.i === questions.length - 1 ? 'Build my plan' : 'Continue'}</button>`;
         const choose = i => {
+          if (q.multi) {
+            // Choose all that apply; "Not sure" stands alone.
+            const v = q.options[i][0];
+            if (picked.has(v)) picked.delete(v); else { if (v === 'unsure') picked.clear(); else picked.delete('unsure'); picked.add(v); }
+            state.answers[q.id] = [...picked].join(','); persist(); Sound.play('select');
+            $$('.choice-tile').forEach((b, j) => { const on = picked.has(q.options[j][0]); b.classList.toggle('selected', on); b.setAttribute('aria-checked', on); });
+            $('#coach-next').disabled = !picked.size; return;
+          }
           state.answers[q.id] = q.options[i][0]; persist(); Sound.play('select');
           $$('.choice-tile').forEach((b, j) => { b.classList.toggle('selected', i === j); b.setAttribute('aria-checked', i === j); });
           $('#coach-next').disabled = false;
@@ -297,7 +308,7 @@ export function createLearn(ctx) {
     let pos = -1, firstTry = 0, combo = 0, finished = false;
     const results = [];
 
-    $('#app').innerHTML = `<main id="main" class="coach-screen lesson c-${lesson.unit.color}"><header class="coach-top"><button type="button" class="icon-btn" id="lesson-quit" aria-label="Quit lesson">${g('close')}</button><div class="progress" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100"><span></span></div><span class="combo" aria-live="polite"></span><span id="energy-live"></span>${soundButton()}</header><section class="coach-body" id="coach-body"></section><footer class="coach-foot" id="coach-foot"></footer><div class="sheet-shade" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="quit-title">${ace('oops', 'ace-sm')}<h2 id="quit-title">Quit this lesson?</h2><p>You’ll lose your progress in this lesson.</p><button type="button" class="primary chunky" id="keep-going">Keep learning</button><button type="button" class="ghost danger-text" id="quit-now">Quit</button></div></div></main>`;
+    $('#app').innerHTML = `<main id="main" class="coach-screen lesson c-${lesson.unit.color}"><header class="coach-top"><button type="button" class="icon-btn" id="lesson-quit" aria-label="Quit lesson">${g('close')}</button><div class="progress" role="progressbar" aria-label="Lesson progress" aria-valuemin="0" aria-valuemax="100"><span></span></div>${lesson.id.endsWith('-checkpoint') ? '' : `<button type="button" class="pill-btn" id="lesson-chart">${g('book')} Chart</button>`}<span class="combo" aria-live="polite"></span><span id="energy-live"></span>${soundButton()}</header><section class="coach-body" id="coach-body"></section><footer class="coach-foot" id="coach-foot"></footer><div class="sheet-shade" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="quit-title">${ace('oops', 'ace-sm')}<h2 id="quit-title">Quit this lesson?</h2><p>You’ll lose your progress in this lesson.</p><button type="button" class="primary chunky" id="keep-going">Keep learning</button><button type="button" class="ghost danger-text" id="quit-now">Quit</button></div></div></main>`;
     wireSound();
     const shade = $('.sheet-shade');
     const meter = energyMeter($('#energy-live'));
@@ -334,6 +345,11 @@ export function createLearn(ctx) {
       },
     });
     ctx.onCleanup(() => runner.destroy());
+    // Charts are always open in regular lessons (never in checkpoints).
+    $('#lesson-chart')?.addEventListener('click', () => {
+      const q = runner.current, cards = q?.cards || q?.data?.cards, up = q?.dealer ?? q?.data?.dealer;
+      openChartSheet($('#main'), { rules: q?.rules || {}, highlight: cards && up ? { row: bj.chartRow(cards), up } : null });
+    });
     runner.start();
 
     async function finish() {

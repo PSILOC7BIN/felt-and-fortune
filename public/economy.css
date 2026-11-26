@@ -238,3 +238,41 @@ button.chip { border: 0; cursor: pointer; font: inherit; }
 .refill-row > button { flex: none !important; width: auto !important; min-width: 0; padding: 8px 14px; white-space: nowrap; }
 .refill-row .refill-copy { min-width: 0; }
 .energy-panel > .ghost, .energy-panel > #ep-go, .energy-panel > a.button { width: 100%; }
+
+/* Quests / Leaderboard tabs */
+.q-tabs { display: flex; gap: 8px; margin: 0 0 16px; }
+.q-tabs a { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 99px; font: 800 15px var(--round); color: var(--muted); border: 2px solid var(--border); }
+.q-tabs a .glyph { width: 18px; height: 18px; }
+.q-tabs a.active { background: #0A84FF; border-color: #0A84FF; color: #fff; }
+.lb-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.lb-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.lb-list li { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; padding: 8px 10px; border-radius: 12px; font-weight: 700; }
+.lb-list li.promo .rank { color: #1E7B34; } .lb-list li.me { background: rgba(10, 132, 255, .14); }
+.lb-list .rank { font: 900 15px var(--round); color: var(--muted); }
+.lb-list li.lb-cut { display: block; text-align: center; font-size: 12px; color: #1E7B34; border-top: 2px dashed #34C759; border-radius: 0; padding: 4px; }
+
+/* Weekly gift reveal */
+.gift-shade { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; background: rgba(6, 10, 24, .82); backdrop-filter: blur(6px); animation: gift-fade .2s; touch-action: pan-y; }
+.gift-shade.out { opacity: 0; transition: opacity .25s; }
+@keyframes gift-fade { from { opacity: 0; } }
+.gift-stage { display: flex; flex-direction: column; align-items: center; gap: 16px; color: #fff; text-align: center; padding: 20px; }
+.gift-box { width: 150px; height: 150px; border-radius: 28px; background: linear-gradient(135deg, #FF9F0A, #FF375F); border: 0; display: grid; place-items: center; box-shadow: 0 20px 50px rgba(255, 55, 95, .45); animation: gift-wiggle 1.4s ease-in-out infinite; cursor: pointer; }
+.gift-box .glyph { width: 84px; height: 84px; color: #fff; }
+.gift-box.opening { animation: gift-pop .7s forwards; }
+@keyframes gift-wiggle { 0%, 70%, 100% { transform: rotate(0); } 75% { transform: rotate(-8deg) scale(1.04); } 85% { transform: rotate(8deg) scale(1.04); } 92% { transform: rotate(-4deg); } }
+@keyframes gift-pop { 30% { transform: scale(.9) rotate(-6deg); } 60% { transform: scale(1.25) rotate(6deg); } 100% { transform: scale(0); opacity: 0; } }
+.gift-card { width: min(320px, 82vw); padding: 30px 22px; border-radius: 26px; background: #fff; color: #1C1C1E; display: flex; flex-direction: column; align-items: center; gap: 8px; animation: gift-card .45s cubic-bezier(.2, .9, .3, 1.25); box-shadow: 0 24px 60px rgba(0, 0, 0, .4); }
+@keyframes gift-card { from { transform: translateX(60px) rotate(6deg) scale(.8); opacity: 0; } }
+.gift-ic { width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; background: #FFF4D6; color: #C77700; }
+.gift-ic .glyph { width: 48px; height: 48px; }
+.gift-card strong { font: 900 30px var(--round); } .gift-card span:last-child { color: #6B7280; font-weight: 600; }
+.gift-dots { display: flex; gap: 6px; } .gift-dots i { width: 8px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.35); } .gift-dots i.on { background: #fff; width: 22px; }
+.gift-hint { margin: 0; font-weight: 700; opacity: .8; }
+@media (prefers-reduced-motion: reduce) { .gift-box, .gift-card { animation: none; } }
+
+.badge-card { cursor: pointer; }
+.badge-card:focus-visible { outline: 3px solid #0A84FF; outline-offset: 2px; }
+.badge-pop { position: absolute; z-index: 300; width: 240px; padding: 12px 14px; border-radius: 16px; background: #1C1C1E; color: #fff; box-shadow: 0 14px 34px rgba(0, 0, 0, .35); animation: gift-card .25s ease; }
+.badge-pop strong { display: block; font: 900 16px var(--round); } .badge-pop p { margin: 4px 0; font-size: 14px; line-height: 1.4; } .badge-pop small { opacity: .7; }
+.gift-shade .gift-box { background: linear-gradient(135deg, #FF9F0A, #FF375F) !important; border: 0 !important; box-shadow: 0 20px 50px rgba(255, 55, 95, .45) !important; color: #fff !important; }
+.badge-pop { border: 2px solid rgba(255, 255, 255, .18); } [data-theme="light"] .badge-pop, :root:not([data-theme="dark"]) .badge-pop { border-color: transparent; }

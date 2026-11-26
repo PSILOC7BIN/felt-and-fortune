@@ -54,19 +54,20 @@
 /* Mats: print and emblem layered over the felt. */
 .felt-table, .deal-table, .mat-art {
   background:
-    var(--felt-mark, none) center 46% / auto 58% no-repeat,
+    var(--felt-mark, none) center 56% / auto 15% no-repeat,
     var(--felt-tile, none) 0 0 / auto repeat,
     radial-gradient(circle at 20% 30%, rgba(255, 255, 255, .035) 1px, transparent 1.5px) 0 0 / 5px 5px,
     radial-gradient(ellipse 120% 90% at 50% 0%, var(--felt-hi), var(--felt-lo)) !important;
 }
 .pc.back, .back-art { background: var(--back-bg) !important; }
 /* Event exclusives: a holographic sheen that sweeps across the card. */
-.back-art[class*="bk-event-"], :root[data-back^="event-"] .pc.back { position: relative; overflow: hidden; }
-.back-art[class*="bk-event-"]::after, :root[data-back^="event-"] .pc.back::after {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; mix-blend-mode: screen;
-  background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .55) 45%, rgba(147, 197, 253, .35) 50%, rgba(244, 114, 182, .35) 55%, transparent 70%) 0 0 / 250% 100%;
-  animation: holo 3.2s ease-in-out infinite;
+.back-art[class*="bk-event-"], .pc.back[class*="bk-event-"], :root[data-back^="event-"] .pc.back { position: relative; overflow: hidden; }
+/* One clean sweep, then the band waits off the card until the next one: it never stops on the card. */
+.back-art[class*="bk-event-"]::after, .pc.back[class*="bk-event-"]::after, :root[data-back^="event-"] .pc.back::after {
+  content: ""; position: absolute; top: -25%; bottom: -25%; left: 0; width: 55%; pointer-events: none; mix-blend-mode: screen;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55) 40%, rgba(147, 197, 253, .4) 52%, rgba(244, 114, 182, .35) 62%, transparent);
+  transform: translateX(-130%) skewX(-18deg); animation: holo 5s cubic-bezier(.45, .05, .35, 1) infinite;
 }
-@keyframes holo { 0% { background-position: 120% 0; } 60%, 100% { background-position: -120% 0; } }
-@media (prefers-reduced-motion: reduce) { .back-art[class*="bk-event-"]::after, :root[data-back^="event-"] .pc.back::after { animation: none; background-position: 50% 0; } }
+@keyframes holo { 0% { transform: translateX(-130%) skewX(-18deg); } 32%, 100% { transform: translateX(260%) skewX(-18deg); } }
+@media (prefers-reduced-motion: reduce) { .back-art[class*="bk-event-"]::after, .pc.back[class*="bk-event-"]::after, :root[data-back^="event-"] .pc.back::after { animation: none; opacity: 0; } }
 

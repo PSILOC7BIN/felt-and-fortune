@@ -158,3 +158,31 @@
   .fp-hands:has(.fp-hand:nth-child(2)) .fp-hand { zoom: .72; }
   .fp-hands:has(.fp-hand:nth-child(3)) .fp-hand { zoom: .58; }
 }
+
+/* ---- Table print, corrected sitewide ------------------------------------------------------------
+   On a real table the insurance line is a "smile" that runs parallel to the players' curved rail, the
+   payout line is printed inside it, the dealer stands at the straight edge, and each player's spot is near the
+   rail. So: arc curves down, the Dealer label sits above the dealer's cards, You sits below your cards, and the
+   middle of the felt stays clear for the print. */
+.felt-table::after, .deal-table::after, .mat-art::after { border-top: 0 !important; border-bottom: 2px solid var(--felt-ink); border-radius: 0 0 50% 50% / 0 0 100% 100% !important; padding-top: 0; }
+.bj-table.has-dealer { min-height: 430px; }
+.bj-table::after { top: 44%; height: 16%; left: 14%; right: 14%; opacity: .5; }
+.bj-table::before { bottom: auto; top: 50%; font-size: 10px; letter-spacing: .28em; opacity: .9; }
+.mat-art::after { top: 22%; height: 34%; left: 14%; right: 14%; }
+.mat-art::before { bottom: auto; top: 44%; }
+.bj-table .dealer-hand, .bj-table .seat.dealer { flex-direction: column-reverse; }
+.bj-table .you-hand { flex-direction: column-reverse; }
+.bj-table .hand-label { background: rgba(0, 0, 0, .22); padding: 2px 9px; border-radius: 99px; color: rgba(255, 255, 255, .82); }
+.deal-table.bj-table::before, .deal-table.bj-table::after { display: none; }
+.review-card .bj-table::before { top: 46%; }
+
+/* ---- Ace comes alive: blinks everywhere, sways while dealing, and reacts to answers ---- */
+.ace .ace-eyes{transform-box:fill-box;transform-origin:center;animation:ace-blink 5.5s infinite}
+@keyframes ace-blink{0%,93%,100%{transform:none}95%{transform:scaleY(.12)}}
+.bj-table .dealer-ace .ace{transform-origin:50% 100%;animation:ace-idle 4s ease-in-out infinite}
+@keyframes ace-idle{0%,100%{transform:translateY(0) rotate(0)}25%{transform:translateY(-3px) rotate(-2deg)}50%{transform:translateY(0) rotate(0)}75%{transform:translateY(-2px) rotate(2deg)}}
+.bj-table .dealer-ace.hop .ace{animation:ace-hop .7s cubic-bezier(.3,1.6,.5,1)}
+.bj-table .dealer-ace.shake .ace{animation:ace-shake .55s}
+@keyframes ace-hop{0%{transform:none}35%{transform:translateY(-18px) scale(1.08)}70%{transform:translateY(0) scale(.96,1.04)}100%{transform:none}}
+@keyframes ace-shake{0%,100%{transform:none}20%{transform:rotate(-8deg)}40%{transform:rotate(7deg)}60%{transform:rotate(-5deg)}80%{transform:rotate(3deg)}}
+@media(prefers-reduced-motion:reduce){.ace .ace-eyes,.bj-table .dealer-ace .ace{animation:none !important}}

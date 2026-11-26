@@ -15,6 +15,28 @@ export function bestGame(c) {
   return known.length ? known.reduce((a, b) => (b.edge < a.edge ? b : a)) : c.games[0] || null;
 }
 
+
+// The casino's best game, in plain words: what each rule means for you, good or bad.
+function bestCard(c) {
+  const b = bestGame(c);
+  if (!b) return '';
+  const chip = (good, text, why) => `<li class="rule ${good === true ? 'good' : good === false ? 'bad' : 'meh'}"><span class="mark">${good === true ? '✓' : good === false ? '✗' : '•'}</span><span><b>${text}</b>${why ? `<small>${why}</small>` : ''}</span></li>`;
+  const rules = [
+    b.payout ? chip(b.payout === '3:2', `Blackjack pays ${b.payout}`, b.payout === '3:2' ? 'The full payout' : 'Costs you about $1.40 of every $100 bet') : null,
+    b.soft17 ? chip(b.soft17 === 'S17', b.soft17 === 'S17' ? 'Dealer stands on soft 17' : 'Dealer hits soft 17', b.soft17 === 'S17' ? 'Better for you' : 'Costs about 20¢ per $100') : null,
+    b.decks ? chip(b.decks <= 2 ? true : null, `${b.decks} deck${b.decks === 1 ? '' : 's'}`, b.decks <= 2 ? 'Fewer decks help you' : 'Standard shoe game') : null,
+    b.double ? chip(b.double === 'any', b.double === 'any' ? 'Double on any two cards' : `Double on ${b.double} only`, b.double === 'any' ? '' : 'Fewer chances to double') : null,
+    b.das != null ? chip(b.das, b.das ? 'Double after splitting' : 'No doubling after a split', b.das ? '' : 'Costs about 14¢ per $100') : null,
+    b.surrender ? chip(b.surrender !== 'none', b.surrender === 'none' ? 'No surrender' : `${b.surrender === 'early' ? 'Early' : 'Late'} surrender`, b.surrender === 'none' ? '' : 'You can give up half on bad hands') : null,
+    b.rsa ? chip(true, 'Resplit aces allowed', '') : null,
+    b.csm ? chip(null, 'Continuous shuffler', 'Card counting won’t work here') : null,
+  ].filter(Boolean).join('');
+  const cents = b.edge != null ? Math.round(b.edge * 100) : null;
+  const limits = [b.min, b.max].filter(Boolean).map(x => String(x).split(' ')[0]);
+  return `<section class="dir-best-card"><h3>Best blackjack here</h3><p class="dir-best-name">${esc(b.name)}</p>
+    ${cents != null ? `<div class="dir-edge g-${grade(c)}"><strong>${b.edgeSource === 'estimate' ? '≈ ' : ''}${b.edge.toFixed(2)}%</strong><span>With perfect basic strategy, the house keeps about <b>${cents}¢ of every $100</b> you bet.</span></div>` : ''}
+    <ul class="dir-rules">${rules}</ul>${limits.length ? `<p class="dir-limits">${g('chip')} Bets ${limits.join(' to ')}</p>` : ''}</section>`;
+}
 const rank = c => (bestGame(c)?.edge ?? 9) + (c.warning ? 5 : 0);
 
 export function grade(c) {
@@ -150,10 +172,12 @@ export function createDirectory(ctx) {
         ${c.warning ? `<p class="dir-warn">${g('shield')} ${esc(c.warning)}</p>` : ''}
         ${c.update ? `<p class="dir-update"><strong>Latest report:</strong> ${esc(c.update)}</p>` : ''}
         ${c.special ? `<p class="muted small"><strong>Specialty games:</strong> ${esc(c.special)}</p>` : ''}
+        ${bestCard(c)}
+        <details class="dir-all"><summary>All ${c.games.length} game${c.games.length === 1 ? '' : 's'} and details</summary>
         <div class="table-wrap"><table class="dir-games"><thead><tr><th>Game</th><th>Decks</th><th>Pays</th><th>Soft 17</th><th>DAS</th><th>Surr.</th><th>Edge</th><th>Limits</th></tr></thead><tbody>
         ${c.games.map(gm => `<tr><td>${esc(gm.name)}${gm.notes ? `<small class="muted">${esc(gm.notes)}</small>` : ''}</td><td>${gm.decks ?? '?'}</td><td class="${gm.payout === '6:5' ? 'bad' : ''}">${gm.payout || '?'}</td><td>${gm.soft17 || '?'}</td><td>${cell(gm.das)}</td><td>${gm.surrender === 'none' ? 'No' : gm.surrender ? 'Yes' : '?'}</td><td>${gm.edge != null ? `${gm.edgeSource === 'estimate' ? '≈' : ''}${gm.edge.toFixed(2)}%` : '?'}</td><td>${esc([gm.min, gm.max].filter(Boolean).join(' – ') || '?')}</td></tr>`).join('')}
         </tbody></table></div>
-        <p class="muted small">“?” means no current source confirmed it. A 6:5 payout costs about 1.4% more than 3:2.</p>
+        <p class="muted small">“?” means no current source confirmed it. A 6:5 payout costs about 1.4% more than 3:2.</p></details>
         <h3>Sources</h3><ul class="dir-sources">${c.sources.map(s => `<li><a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">${esc(new URL(s.url).hostname.replace(/^www\./, ''))}</a>${s.date ? ` <span class="muted">(${esc(s.date)})</span>` : ''}</li>`).join('') || '<li class="muted">No public source; rules unverified.</li>'}</ul>
         ${c.website && !native ? `<p class="muted small">Casino site: ${esc(new URL(c.website).hostname)}</p>` : ''}
         <h3>Player reports</h3><div id="player-reports" class="muted small">Loading…</div>

@@ -27,6 +27,7 @@ const SKILL_INFO = {
 const SKILL_GROUPS = [['Basic strategy', ['strategy-hard', 'strategy-soft', 'strategy-pair']], ['Counting', ['count', 'decks', 'truecount']], ['Playing the count', ['index', 'insurance', 'bet']]];
 const NEXT_TIER = [[900, 'Learner'], [1100, 'Solid'], [1300, 'Sharp'], [1500, 'Expert']];
 const EXTRA_TOOLS = [
+  { id: 'charts', name: 'Strategy charts', glyph: 'book', color: 'blue', purpose: 'Basic strategy for any rules, the count-based plays, and the bet ramp.' },
   { id: 'rush', name: 'Blackjack Rush', glyph: 'bolt', color: 'orange', purpose: 'Three strikes, a shrinking clock, and harder hands every few answers. Weekly leaderboard.' },
   { id: 'storm', name: 'Count Storm', glyph: 'count', color: 'purple', purpose: 'Keep the running count as cards arrive faster. Three strikes.' },
   { id: 'backcount', name: 'Back-count two tables', glyph: 'count', color: 'teal', purpose: 'Watch two shoes at once, keep both counts, and pick the table worth sitting down at.' },
@@ -110,19 +111,19 @@ export function createPractice(ctx) {
       const s = stats.tools[t.id];
       if (t.id === 'challenge') return s?.sessions ? `Best score ${s.best} · ${s.sessions} run${s.sessions === 1 ? '' : 's'}` : 'Not played yet';
       if (t.id === 'simulator') return pro ? 'EV, swings, risk of ruin, SCORE' : 'Part of Pro';
-      if (t.id === 'edge') return 'Free for everyone';
+      if (t.id === 'edge' || t.id === 'charts') return 'Free for everyone';
       if (t.id === 'rush' || t.id === 'storm') return pro ? 'Unlimited runs' : '1 free run a day';
       if (t.id === 'builder') return 'Build free · save and packs with Pro';
       if (t.id === 'backcount') { const s = stats.tools.backcount; return s?.questions ? `${Math.round(s.correct / s.questions * 100)}% of counts right` : 'Not used yet'; }
-      if (t.id === 'casino') return pro ? 'Every dealer and condition' : 'Dealer of the month free';
-      if (t.id === 'testout') return pro ? 'One attempt a month' : 'Part of Pro';
+      if (t.id === 'casino') return pro ? 'Every dealer and condition' : 'Part of Pro';
+      if (t.id === 'testout') return pro ? 'One attempt a day' : 'Part of Pro';
       return s?.questions ? `${Math.round(s.correct / s.questions * 100)}% accurate · best streak ${s.best_streak}` : 'Not used yet';
     };
     const all = [...TOOLS, EDGE_TOOL, ...EXTRA_TOOLS];
-    const group = (title, ids) => `<h2 class="hub-group">${title}</h2><div class="tool-cards">${ids.map(id => all.find(t => t.id === id)).map(t => `<a class="tool-card c-${t.color}" href="/tools/${t.id}"><span class="tool-icon">${g(t.glyph)}</span><span class="tool-copy"><strong>${t.name}${t.id === 'simulator' && !pro ? ` <span class="pro-tag">${g('crown')} Pro</span>` : ''}</strong><span>${t.purpose}</span><small>${line(t)}</small></span>${g('next', 'tool-go')}</a>`).join('')}</div>`;
+    const group = (title, ids) => `<h2 class="hub-group">${title}</h2><div class="tool-cards">${ids.map(id => all.find(t => t.id === id)).map(t => `<a class="tool-card c-${t.color}" href="/tools/${t.id}"><span class="tool-icon">${g(t.glyph)}</span><span class="tool-copy"><strong>${t.name}${['simulator', 'casino', 'testout'].includes(t.id) && !pro ? ` <span class="pro-tag">${g('crown')} Pro</span>` : ''}</strong><span>${t.purpose}</span><small>${line(t)}</small></span>${g('next', 'tool-go')}</a>`).join('')}</div>`;
     $('#page').innerHTML = `<header class="page-hero"><div><h1>Tools</h1><p>Set up drills with any rules and speed, play real hands, and run the numbers on a game. Practice trains one skill rating at a time; Tools let you set things up your way.</p></div><div data-eco-chips>${chipsHTML(eco)}</div></header>`
       + group('Arcade', ['rush', 'storm'])
-      + group('Calculators', ['edge', 'simulator'])
+      + group('Charts and calculators', ['charts', 'edge', 'simulator'])
       + group('Configurable trainers', ['builder', 'strategy', 'count', 'backcount', 'decks', 'truecount', 'index'])
       + group('Play and prove it', ['casino', 'table', 'challenge', 'testout']);
   }

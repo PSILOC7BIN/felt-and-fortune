@@ -71,10 +71,9 @@ def grade(state):
 
 def testout_status(c, uid, today):
     import economy
-    month = today[:7]
-    used = c.execute('SELECT COUNT(*) FROM testouts WHERE user_id=? AND month=?', (uid, month)).fetchone()[0]
+    used = c.execute('SELECT COUNT(*) FROM testouts WHERE user_id=? AND month=?', (uid, today)).fetchone()[0]   # the column holds the attempt's day
     rows = c.execute('SELECT id, started, results, passed, finished FROM testouts WHERE user_id=? ORDER BY started DESC LIMIT 6', (uid,)).fetchall()
-    nxt = (date.fromisoformat(month + '-01') + timedelta(days=32)).replace(day=1).isoformat()
+    nxt = (date.fromisoformat(today) + timedelta(days=1)).isoformat()
     return {'pro': economy.is_pro(c, uid), 'available': used == 0, 'nextAttempt': nxt if used else None,
             'attempts': [{'id': r['id'], 'day': date.fromtimestamp(r['started']).isoformat(), 'passed': bool(r['passed']), 'finished': bool(r['finished']),
                           'results': json.loads(r['results'] or '[]')} for r in rows],
@@ -145,11 +144,11 @@ def handle(h, path, method, require, ApiError):
     if path == '/api/testout' and method == 'GET': return h.send_json(testout_status(c, uid, today))
     if path == '/api/testout/start' and method == 'POST':
         require(economy.is_pro(c, uid), 'The casino-ready test-out is part of Pro.', 402)
-        require(testout_status(c, uid, today)['available'], 'You get one test-out attempt a month. Keep practicing for the next one.', 429)
+        require(testout_status(c, uid, today)['available'], 'You get one test-out attempt a day. Practice the sections you missed and try again tomorrow.', 429)
         rng = random.Random(secrets.randbits(32)); items = exam_items(rng)
         state = {'items': items, 'answers': [], 'asked': time.time()}
         tid = secrets.token_hex(10)
-        c.execute('INSERT INTO testouts(id,user_id,month,state,started) VALUES(?,?,?,?,?)', (tid, uid, today[:7], json.dumps(state), time.time()))
+        c.execute('INSERT INTO testouts(id,user_id,month,state,started) VALUES(?,?,?,?,?)', (tid, uid, today, json.dumps(state), time.time()))
         return h.send_json({'id': tid, 'item': public_item(items[0], 0, len(items))})
     if path == '/api/testout/answer' and method == 'POST':
         row = c.execute('SELECT * FROM testouts WHERE id=? AND user_id=?', (str(d.get('id', '')), uid)).fetchone()

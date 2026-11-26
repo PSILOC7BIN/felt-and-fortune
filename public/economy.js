@@ -297,7 +297,7 @@ export async function storePage(ctx, startTab = location.hash.slice(1) || 'shop'
     const done = s.owned === s.total;
     return `<div class="set-card"><div class="set-arts">${s.items.map(id => artHTML(st.catalog[id].kind, st.catalog[id].value)).join('')}</div><div class="set-copy"><h3>${esc(s.name)}</h3>
       <div class="set-bar"><span style="width:${Math.round(s.owned / s.total * 100)}%"></span></div><small>${s.owned} of ${s.total} collected · finish it for ${g('chip')} ${s.bonus} bonus chips</small></div>
-      ${done ? `<span class="own-tag on">${g('check')} Complete</span>` : `<button type="button" class="${S.arming === 'set:' + s.id ? 'danger' : 'primary'}" data-set="${s.id}" ${st.stars >= s.price ? '' : 'disabled'}>${S.arming === 'set:' + s.id ? 'Tap to confirm' : `${g('chip')} ${s.price.toLocaleString()}`}<small>${S.arming === 'set:' + s.id ? `${s.price.toLocaleString()} chips` : 'the rest, 20% off'}</small></button>`}</div>`;
+      ${done ? (s.items.every(id => equipped(st.catalog[id].kind, st.catalog[id].value)) ? `<span class="own-tag on">${g('check')} Wearing this set</span>` : `<button type="button" class="primary" data-equipset="${s.id}">${g('star')} Equip set<small>back, mat, and outfit</small></button>`) : `<button type="button" class="${S.arming === 'set:' + s.id ? 'danger' : 'primary'}" data-set="${s.id}" ${st.stars >= s.price ? '' : 'disabled'}>${S.arming === 'set:' + s.id ? 'Tap to confirm' : `${g('chip')} ${s.price.toLocaleString()}`}<small>${S.arming === 'set:' + s.id ? `${s.price.toLocaleString()} chips` : 'the rest, 20% off'}</small></button>`}</div>`;
   };
   const pc = st.proContent || { units: 0, lessons: 0 };
   const COMPARE = [['Basic strategy, money management, and casino skills', true, true], ['Practice trainers and Free Play table', 'Energy', 'Unlimited'],
@@ -374,6 +374,8 @@ export async function storePage(ctx, startTab = location.hash.slice(1) || 'shop'
   const celebrate = (msg, big) => { Sound.play(big ? 'levelup' : 'unlock'); confetti({ count: big ? 120 : 60 }); ctx.toast(msg); };
 
   page.onclick = async e => {
+    const es = e.target.closest('[data-equipset]');
+    if (es) { try { apply(await api('/api/store/equip-set', 'POST', { set: es.dataset.equipset })); Sound.play('select'); ctx.toast('Set equipped.'); render(); } catch (err) { ctx.toast(err.message); } return; }
     const t = e.target.closest('[data-tab],[data-look],[data-pick],[data-filter],[data-item],[data-act],[data-set],[data-power],[data-pack],[data-plan],#cancel-plan,#restore');
     if (!t) return;
     if (t.dataset.tab) { const [tb, lk] = OLD_TAB[t.dataset.tab] || [t.dataset.tab]; S.tab = tb; if (lk) S.look = lk; S.arming = null; history.replaceState(null, '', '/store#' + S.tab); Sound.play('tap'); render(false); window.scrollTo({ top: 0 }); return; }
@@ -449,7 +451,45 @@ export function questsCard(eco) {
 }
 export function wireQuests() {}
 
+/** Weekly gift: a box that shakes, pops open, and shows each reward one at a time (tap or swipe to go on). */
+export function giftReveal(reward) {
+  const items = [['chip', `${reward.stars} chips`, 'Spend them in the Store'], ...(reward.xp ? [['bolt', `${reward.xp} XP`, 'Counts toward your league this week']] : []), ...(reward.freeze ? [['snow', 'Streak freeze', 'Saves your streak on a day you miss']] : []), ...(reward.energy ? [['bolt', `${reward.energy} Energy`, 'More practice rounds today']] : [])];
+  return new Promise(resolve => {
+    const wrap = document.createElement('div'); wrap.className = 'gift-shade'; wrap.setAttribute('role', 'dialog'); wrap.setAttribute('aria-modal', 'true'); wrap.setAttribute('aria-label', 'Your gift');
+    wrap.innerHTML = `<div class="gift-stage"><button type="button" class="gift-box" aria-label="Open your gift"><span class="lid">${g('gift')}</span></button><p class="gift-hint">Tap to open</p></div>`;
+    document.body.append(wrap);
+    let i = -1, x0 = null;
+    const show = () => {
+      if (i >= items.length) { wrap.classList.add('out'); setTimeout(() => { wrap.remove(); resolve(); }, 250); return; }
+      const [ic, title, sub] = items[i];
+      Sound.play(ic === 'chip' ? 'coin' : ic === 'snow' ? 'freeze' : 'levelup');
+      wrap.querySelector('.gift-stage').innerHTML = `<div class="gift-card" style="--k:${i}"><span class="gift-ic">${g(ic)}</span><strong>${title}</strong><span>${sub}</span></div><div class="gift-dots">${items.map((_, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('')}</div><p class="gift-hint">${i < items.length - 1 ? 'Tap or swipe for the next one' : 'Tap to finish'}</p>`;
+    };
+    const next = () => { i++; show(); };
+    wrap.querySelector('.gift-box').onclick = e => { e.stopPropagation(); const box = e.currentTarget; box.classList.add('opening'); Sound.play('whoosh'); setTimeout(() => { confetti({ count: 60 }); next(); }, 700); };
+    wrap.addEventListener('click', () => { if (i >= 0) next(); });
+    wrap.addEventListener('pointerdown', e => { x0 = e.clientX; });
+    wrap.addEventListener('pointerup', e => { if (x0 != null && i >= 0 && Math.abs(e.clientX - x0) > 40) { e.stopPropagation(); next(); } x0 = null; });
+    const key = e => { if (['Enter', ' ', 'ArrowRight'].includes(e.key)) { e.preventDefault(); if (i < 0) wrap.querySelector('.gift-box')?.click(); else next(); } if (!document.body.contains(wrap)) document.removeEventListener('keydown', key); };
+    document.addEventListener('keydown', key);
+  });
+}
+
+/** The XP leaderboard: your league this week, and your friends. */
+async function leaderboardPage(ctx) {
+  const { api } = ctx;
+  const [lg, fr] = await Promise.all([api('/api/league?day=' + ctx.localDate()).catch(() => null), api('/api/friends?day=' + ctx.localDate()).catch(() => null)]);
+  const ends = lg ? Math.max(0, Math.ceil((new Date(lg.endsOn + 'T00:00:00') - new Date()) / 86400000)) : 0;
+  const n = lg?.players?.length || 0, up = Math.max(1, Math.floor(n / 5));
+  ctx.$('#page').innerHTML = `<div class="quests-page"><header class="page-hero"><div><h1>Leaderboard</h1><p class="muted">XP from accurate lessons, practice, quests, and gifts. The top fifth of your league moves up each week.</p></div></header>${questTabs('leaderboard')}
+    <div class="lb-grid">${lg ? `<section class="side-card"><div class="side-head"><h3><span class="league-gem" style="--lc:${LEAGUE_COLORS[lg.tier]}">${g('gem')}</span>${esc(lg.name)} League</h3><span class="muted small">${ends} day${ends === 1 ? '' : 's'} left</span></div>
+      <ol class="lb-list">${lg.players.map((p, k) => `<li class="${p.me ? 'me' : ''}${k < up ? ' promo' : ''}"><span class="rank">${k + 1}</span><span class="who">${esc(p.username)}${p.me ? ' (you)' : ''}</span><b>${p.xp} XP</b></li>${k === up - 1 && n > up ? '<li class="lb-cut">Promotion zone above</li>' : ''}`).join('')}</ol></section>` : ''}
+      <section class="side-card"><div class="side-head"><h3>${g('users')} Friends this week</h3></div>${fr?.board?.length > 1 ? `<ol class="lb-list">${fr.board.map((p, k) => `<li class="${p.me ? 'me' : ''}"><span class="rank">${k + 1}</span><span class="who">${esc(p.username)}${p.me ? ' (you)' : ''}</span><b>${p.weekXp} XP</b></li>`).join('')}</ol>` : `<p class="muted">Follow friends to race them each week.</p>`}<a class="small-link" href="/community/friends">${g('users')} Find friends</a></section></div></div>`;
+}
+const questTabs = on => `<nav class="sub-tabs q-tabs" aria-label="Quests sections"><a href="/quests" class="${on === 'quests' ? 'active' : ''}" ${on === 'quests' ? 'aria-current="page"' : ''}>${g('target')} Quests</a><a href="/quests/leaderboard" class="${on === 'leaderboard' ? 'active' : ''}" ${on === 'leaderboard' ? 'aria-current="page"' : ''}>${g('trophy')} Leaderboard</a></nav>`;
+
 export async function questsPage(ctx) {
+  if (location.pathname === '/quests/leaderboard') return leaderboardPage(ctx);
   const { api } = ctx;
   const [b] = await Promise.all([api('/api/quests?day=' + ctx.localDate()), loadEconomy(api, ctx.localDate)]);
   const quest = q => `<div class="quest-row t-${q.tier || 'weekly'} ${q.claimed ? 'claimed' : q.done ? 'ready' : ''}">
@@ -460,7 +500,7 @@ export async function questsPage(ctx) {
   const ev = b.event, all = b.allDaily;
   const evPct = Math.round(ev.progress / ev.goal * 100);
   ctx.$('#page').innerHTML = `<div class="quests-page">
-    <header class="page-hero"><div><h1>Quests</h1><p class="muted">Quests reward careful practice, not just time spent. Finish them for chips, freezes, and event rewards.</p></div><div data-eco-chips>${chipsHTML(cache)}</div></header>
+    <header class="page-hero"><div><h1>Quests</h1><p class="muted">Quests reward careful practice, not just time spent. Finish them for chips, freezes, and event rewards.</p></div><div data-eco-chips>${chipsHTML(cache)}</div></header>${questTabs('quests')}
     <section class="event-banner">
       <div class="event-art">${artHTML('back', ev.reward.replace('back-', ''))}${ev.outfit ? artHTML('coach', ev.outfit.replace('coach-', '')) : ''}${ev.earned ? `<span class="event-badge">${g('check')}</span>` : ''}</div>
       <div class="event-copy"><small>Monthly event · ${ev.daysLeft} day${ev.daysLeft === 1 ? '' : 's'} left</small><h2>${esc(ev.name)}</h2><p>${ev.earned ? `You earned the <b>${esc(ev.rewardName)}</b> card back and this month’s badge!` : `Finish ${ev.goal} quests this month to earn the <b>${esc(ev.rewardName)}</b> card back and a badge. Event items are never sold.`}</p>
@@ -475,15 +515,16 @@ export async function questsPage(ctx) {
         ${b.weekly.map(quest).join('')}
         <h4 class="track-title">Daily quests finished this week: ${b.dailiesThisWeek}</h4>
         <div class="week-track"><div class="week-track-bar"><span style="width:${Math.min(100, Math.round(b.dailiesThisWeek / 15 * 100))}%"></span></div>
-          ${b.track.map(t => `<div class="milestone-node ${t.claimed ? 'claimed' : t.reached ? 'ready' : ''}" style="left:${t.at / 15 * 100}%"><span class="m-at">${t.at}</span>${t.claimed ? `<span class="m-reward">${g('check')}</span>` : t.reached ? `<button type="button" class="primary claim small" data-claim="track-${t.at}">${g('gift')}</button>` : `<span class="m-reward">${g('gift')}</span>`}<small>${g('chip')}${t.reward.stars}${t.reward.freeze ? ` + ${g('snow')}` : ''}${t.reward.energy ? ` + ${g('bolt')}${t.reward.energy}` : ''}</small></div>`).join('')}</div></section>
+          ${b.track.map(t => `<div class="milestone-node ${t.claimed ? 'claimed' : t.reached ? 'ready' : ''}" style="left:${t.at / 15 * 100}%"><span class="m-at">${t.at}</span>${t.claimed ? `<span class="m-reward">${g('check')}</span>` : t.reached ? `<button type="button" class="primary claim small" data-claim="track-${t.at}">${g('gift')}</button>` : `<span class="m-reward">${g('gift')}</span>`}<small>${t.claimed ? 'Opened' : t.reached ? 'Open me!' : 'Mystery gift'}</small></div>`).join('')}</div></section>
     </div>
-    ${b.badges.length ? `<section class="side-card"><h3>${g('trophy')} Badges</h3><div class="badge-shelf">${b.badges.map(x => `<span class="badge-chip" title="Earned ${esc(x.earned)}">${g(x.badge.startsWith('set-') ? 'gift' : 'trophy')}${esc(x.badge.startsWith('set-') ? x.badge.slice(4).replace(/^./, c => c.toUpperCase()) + ' set' : new Date(x.badge.slice(6) + '-15').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) + ' event')}</span>`).join('')}</div></section>` : ''}
   </div>`;
   $$('[data-claim]').forEach(btn => btn.onclick = async () => {
     btn.disabled = true;
     try {
       const r = await api('/api/quests/claim', 'POST', { quest: btn.dataset.claim, day: ctx.localDate() });
-      setEconomy(r); flyStars(btn, Math.min(8, 3 + Math.round(r.reward.stars / 20))); Sound.play('coin');
+      setEconomy(r);
+      if (btn.dataset.claim.startsWith('track-')) { await giftReveal(r.reward); questsPage(ctx); return; }
+      flyStars(btn, Math.min(8, 3 + Math.round(r.reward.stars / 20))); Sound.play('coin');
       if (r.reward.freeze) setTimeout(() => Sound.play('freeze'), 500);
       setTimeout(() => questsPage(ctx), 1000);
     } catch (e) { ctx.toast(e.message); btn.disabled = false; }

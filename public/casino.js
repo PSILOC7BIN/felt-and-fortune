@@ -16,19 +16,20 @@ export const DEALERS = [
 export const dealerOfMonth = () => DEALERS[new Date().getMonth() % DEALERS.length];
 const ramp = tc => Math.max(1, Math.min(12, tc - 1));
 const BETS = [1, 2, 3, 4, 6, 8, 10, 12];
+// A shrinking bar so you can see how long you have.
+const timerBar = sec => `<div class="cf-timer" role="timer" aria-label="${Math.round(sec)} seconds"><i style="animation-duration:${sec}s"></i></div>`;
 
-// ---- ambience: brown noise, chip clinks, and dealer lines (speech synthesis) -----------------------------------
+// ---- ambience: brown noise and chip clinks; the dealer talks in chat bubbles, never out loud -----------------------------------
 function ambience(level) {
-  if (!Sound.on || !level) return { say() {}, stop() {} };
-  const C = window.AudioContext || window.webkitAudioContext; if (!C) return { say() {}, stop() {} };
+  if (!Sound.on || !level) return { stop() {} };
+  const C = window.AudioContext || window.webkitAudioContext; if (!C) return { stop() {} };
   const ac = new C(), len = ac.sampleRate * 2, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
   let last = 0; for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
   const src = ac.createBufferSource(); src.buffer = buf; src.loop = true; const gain = ac.createGain(); gain.gain.value = 0.05 * level; src.connect(gain).connect(ac.destination); src.start();
   const clink = () => { const o = ac.createOscillator(), g2 = ac.createGain(); o.type = 'triangle'; o.frequency.value = 2400 + Math.random() * 1800; g2.gain.setValueAtTime(0.03 * level, ac.currentTime); g2.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.12); o.connect(g2).connect(ac.destination); o.start(); o.stop(ac.currentTime + 0.13); };
   const t = setInterval(() => { if (Math.random() < 0.35 * level) clink(); }, 700);
   return {
-    say(text) { try { if (!('speechSynthesis' in window)) return; const u = new SpeechSynthesisUtterance(text); u.rate = 1.05; u.volume = Math.min(1, 0.5 + 0.2 * level); speechSynthesis.speak(u); } catch { /* no voice */ } },
-    stop() { clearInterval(t); try { src.stop(); ac.close(); speechSynthesis.cancel(); } catch { /* closed */ } },
+    stop() { clearInterval(t); try { src.stop(); ac.close(); } catch { /* closed */ } },
   };
 }
 
@@ -39,7 +40,7 @@ export async function casinoPage(ctx) {
   let saved = {}; try { saved = JSON.parse(localStorage.getItem('ff-casino') || '{}'); } catch { saved = {}; }
   const cfg = { dealer: free.id, seats: 4, rph: 75, distraction: 1, errors: true, betting: true, checks: true, ...(pro ? saved : {}) };
   if (!pro) Object.assign(cfg, { dealer: free.id, seats: 4, rph: 75, distraction: 1, errors: true, betting: true, checks: true });
-  let amb = { say() {}, stop() {} }, alive = true, keyHandler = null;
+  let amb = { stop() {} }, alive = true, keyHandler = null;
   const onKey = e => keyHandler?.(e); document.addEventListener('keydown', onKey);
   onCleanup(() => { alive = false; amb.stop(); document.removeEventListener('keydown', onKey); });
 
@@ -52,6 +53,11 @@ export async function casinoPage(ctx) {
   // ---- setup ------------------------------------------------------------------------------------------------
   function setup() {
     keyHandler = null;
+    if (!pro) {
+      body.innerHTML = `<div class="coach-intro">${ace('think', 'ace-lg')}<h1>Casino Floor is part of Pro</h1><p>A full table at real speed: other players, casino noise and chatter, five dealers with personalities, mistakes to catch, surprise count checks, and a pit boss watching your bets.</p></div>`;
+      foot.className = 'coach-foot'; foot.innerHTML = `<a class="button ghost" href="/tools">Back to Tools</a><button type="button" class="primary chunky" id="cf-pro">${g('crown')} See Pro</button>`;
+      $('#cf-pro').onclick = () => paywall(ctx, 'The Casino Floor is part of Pro.'); return;
+    }
     const lock = pro ? '' : 'disabled';
     const seg = (k, label, opts) => `<div class="seg-group"><span>${label}</span><div class="segmented" role="radiogroup" aria-label="${label}">${opts.map(([v, t]) => `<button type="button" role="radio" data-cf="${k}" data-v="${v}" aria-checked="${String(cfg[k]) === String(v)}" ${lock}>${t}</button>`).join('')}</div></div>`;
     body.innerHTML = `<div class="cf-setup"><h1>Pick your table</h1><p class="muted">${pro ? 'Every dealer and every condition is open to you.' : `This month’s free dealer is <b>${esc(free.name)}</b>. Pro opens every dealer and lets you set the conditions.`}</p>
@@ -61,7 +67,7 @@ export async function casinoPage(ctx) {
     $$('[data-dealer]').forEach(b => b.onclick = () => { if (b.dataset.locked) { paywall(ctx, 'Every Casino Floor dealer is part of Pro.'); return; } cfg.dealer = b.dataset.dealer; save(); setup(); });
     $$('[data-cf]').forEach(b => b.onclick = () => { const v = b.dataset.v; cfg[b.dataset.cf] = v === 'true' ? true : v === 'false' ? false : Number(v); save(); setup(); });
     $('#cf-pro')?.addEventListener('click', () => paywall(ctx, 'Pro opens every Casino Floor dealer and condition.'));
-    foot.className = 'coach-foot'; foot.innerHTML = `<span class="foot-hint">Sound on for the full experience. Play as long as you like, then end the session for your report.</span><button type="button" class="primary chunky" id="cf-go">Sit down</button>`;
+    foot.className = 'coach-foot'; foot.innerHTML = `<span class="foot-hint">Turn sound on for casino noise. Play as long as you like, then end the session for your report.</span><button type="button" class="primary chunky" id="cf-go">Sit down</button>`;
     $('#cf-go').onclick = start;
   }
   const save = () => { if (pro) localStorage.setItem('ff-casino', JSON.stringify(cfg)); };
@@ -73,7 +79,7 @@ export async function casinoPage(ctx) {
     amb.stop(); amb = ambience(cfg.distraction);
     session = { D, shoe: newShoe(), rc: 0, rounds: 0, started: Date.now(), plays: 0, playsRight: 0, bets: 0, betsRight: 0, checks: 0, checksRight: 0, errors: 0, caught: 0, falseCalls: 0, heat: 0, lastBet: 1, nextCheck: 3 + Math.floor(Math.random() * 4), backedOff: false, notes: [] };
     $('#cf-sub').textContent = `${D.name} · ${cfg.seats + 1} players · ${cfg.rph} rounds/hour`;
-    amb.say(`Welcome to my table. I’m ${D.name.replace('Dealer-Error ', '')}.`);
+    chat(`Welcome to my table. I’m ${D.name.replace('Dealer-Error ', '')}.`);
     round();
   }
   const draw = () => { const c = session.shoe.pop(); session.rc += bj.hilo(c); return c; };
@@ -85,7 +91,7 @@ export async function casinoPage(ctx) {
   async function round() {
     if (!alive || !session) return;
     const s = session; stats();
-    if (s.shoe.length < 78) { s.shoe = newShoe(); s.rc = 0; amb.say('Shuffle.'); await banner('Shuffle. New shoe: the count starts at 0.'); }
+    if (s.shoe.length < 78) { s.shoe = newShoe(); s.rc = 0; chat('Shuffle.'); await banner('Shuffle. New shoe: the count starts at 0.'); }
     // 1. bet
     let bet = 1;
     if (cfg.betting) bet = await askBet();
@@ -105,7 +111,7 @@ export async function casinoPage(ctx) {
     for (let i = 0; i < seats; i++) { hands[i].push(draw()); put(i, hands[i][1]); await step(); }
     const hole = s.shoe.pop(); dealer.push(hole); put('d', 0, true); await step();
     if (!alive || !session) return;
-    if (Math.random() < s.D.chat * (0.5 + cfg.distraction / 2)) amb.say(bj.pick(s.D.lines));
+    if (Math.random() < s.D.chat * (0.5 + cfg.distraction / 2)) chat(bj.pick(s.D.lines));
     const up = dealer[0], dealerBJ = bj.total(dealer).total === 21;
     const myHands = [{ cards: hands[me], bet, done: false }];
     if (!dealerBJ) {
@@ -130,17 +136,24 @@ export async function casinoPage(ctx) {
       else if (net > 0) { const wrong = net === 1.5 * bet ? bet : Math.max(0.5, net - 1); pendingError = { truth: `you should be paid ${net} units, not ${wrong}` }; sayPay = `You win ${wrong} unit${wrong === 1 ? '' : 's'}.`; }
       else { const was = net; pendingError = { truth: was < 0 ? 'you lost this hand, the dealer paid it by mistake' : 'it was a push' }; sayPay = `You win ${bet} unit${bet === 1 ? '' : 's'}.`; }
     }
-    $('#cf-dtotal').textContent = sayTotal.replace('.', ''); say(`${sayTotal} ${sayPay}`); amb.say(`${sayTotal} ${sayPay}`);
+    $('#cf-dtotal').textContent = sayTotal.replace('.', ''); say(`${sayTotal} ${sayPay}`);
     await sleep(cfg.errors ? 3200 : 1400);
     if (pendingError && !pendingError.caught) { s.notes.push(`Missed a dealer mistake: ${pendingError.truth}.`); status(`The dealer slipped: ${pendingError.truth}.`, 'bad'); await sleep(1600); }
     pendingError = null;
     s.rounds++; s.heat = Math.max(0, s.heat - 7); stats();
-    if (s.D.heat && s.heat >= 100) { s.backedOff = true; amb.say('Sir, you can play anything but blackjack.'); summary(); return; }
+    if (s.D.heat && s.heat >= 100) { s.backedOff = true; chat('Sir, you can play anything but blackjack.'); summary(); return; }
     // 5. surprise count check
     if (cfg.checks && s.rounds >= s.nextCheck) { s.nextCheck = s.rounds + 3 + Math.floor(Math.random() * 5); await countCheck(); }
     if (alive && session) round();
   }
 
+  // Chat bubbles from the dealer (no voice). They stack briefly above the table.
+  function chat(text) {
+    const host = $('#cf-chat') || (() => { body.insertAdjacentHTML('beforebegin', '<div id="cf-chat" class="cf-chat" aria-live="polite"></div>'); return $('#cf-chat'); })();
+    const b = document.createElement('div'); b.className = 'cf-bubble'; b.innerHTML = `<strong>${esc(session?.D.name || 'Dealer')}</strong>${esc(text)}`;
+    host.append(b); while (host.children.length > 2) host.firstChild.remove();
+    setTimeout(() => b.classList.add('out'), 3200); setTimeout(() => b.remove(), 3600);
+  }
   function say(text) { const b = $('#cf-say'); if (b) { b.hidden = false; b.textContent = text; } }
   function status(html, cls = '') { const p = $('#cf-status'); if (p) { p.className = 'cf-status ' + cls; p.innerHTML = html; } }
   async function banner(text) { body.innerHTML = `<div class="coach-intro">${ace(session.D.mood, 'ace-lg')}<h2>${esc(text)}</h2></div>`; foot.innerHTML = '<span></span>'; await sleep(1800); }
@@ -151,6 +164,7 @@ export async function casinoPage(ctx) {
       body.innerHTML = `<div class="q cf-bet"><p class="q-eyebrow">${esc(s.D.name)} · ${decksLeft()} decks left${s.D.heat ? ' · Pete is watching' : ''}</p><h1 class="q-title">Place your bet</h1><p class="muted">Ramp: 1 unit at +1 or lower, then true count − 1, up to 12. Keep the count in your head.</p><div class="cf-chips">${BETS.map(b => `<button type="button" class="fp-disc d${b <= 2 ? 10 : b <= 4 ? 25 : b <= 8 ? 50 : 100}" data-bet="${b}">${b}</button>`).join('')}</div></div>`;
       foot.className = 'coach-foot'; foot.innerHTML = '<span class="foot-hint">Tap a bet. The dealer won’t wait long.</span>';
       let done = false;
+      foot.insertAdjacentHTML('beforeend', timerBar(Math.max(3500, 9000 / s.D.speed) / 1000));
       const pick = b => {
         if (done) return; done = true; keyHandler = null; s.bets++; if (b === right) s.betsRight++; else s.notes.push(`Bet ${b} at true count ${bj.signed(tc())}; the ramp says ${right}.`);
         if (s.D.heat) { if (b >= 3 * s.lastBet && b >= 4) s.heat += 22 + 4 * (b / s.lastBet); if (b === 12) s.heat += 6; }
@@ -171,6 +185,7 @@ export async function casinoPage(ctx) {
           const want = bj.basic(h.cards, up, { split: myHands.length === 1 });
           status(`Your hand${myHands.length > 1 ? ` ${hi + 1}` : ''}: ${esc(bj.handLabel(h.cards))}`);
           foot.querySelector('.cf-acts')?.remove();
+          foot.querySelector('.cf-timer')?.remove(); foot.insertAdjacentHTML('beforeend', timerBar(Math.max(4000, 9000 / s.D.speed) / 1000));
           foot.insertAdjacentHTML('afterbegin', `<div class="action-row cf-acts">${acts.map(a => `<button type="button" class="act act-${a}" data-act="${a}"><span>${bj.ACTIONS[a]}</span><kbd>${a}</kbd></button>`).join('')}</div>`);
           const a = await new Promise(r => {
             let t = setTimeout(() => r('S'), Math.max(4000, 9000 / s.D.speed));
@@ -178,7 +193,7 @@ export async function casinoPage(ctx) {
             $$('.cf-acts [data-act]', foot).forEach(b => b.onclick = () => fire(b.dataset.act));
             keyHandler = e => { const k = e.key.toUpperCase(); if (acts.includes(k)) { e.preventDefault(); fire(k); } };
           });
-          foot.querySelector('.cf-acts')?.remove();
+          foot.querySelector('.cf-acts')?.remove(); foot.querySelector('.cf-timer')?.remove();
           s.plays++; if (a === want) s.playsRight++; else s.notes.push(`${bj.handLabel(h.cards)} vs ${bj.upName(up)}: you chose ${bj.ACTIONS[a].toLowerCase()}, the chart says ${bj.ACTIONS[want].toLowerCase()}.`);
           status(a === want ? `${g('check')} ${bj.ACTIONS[a]}` : `${bj.ACTIONS[a]} · the chart says ${bj.ACTIONS[want]}`, a === want ? 'ok' : 'bad');
           if (a === 'S') break;
@@ -195,7 +210,7 @@ export async function casinoPage(ctx) {
     const s = session, right = s.rc;
     return new Promise(resolve => {
       body.innerHTML = `<div class="q"><p class="q-eyebrow">Surprise count check</p><h1 class="q-title">What’s the running count?</h1><div class="answer-slot"></div></div>`;
-      foot.className = 'coach-foot'; foot.innerHTML = '<span class="foot-hint">Type it, then Enter. Eight seconds.</span><button type="button" class="primary chunky" id="cf-check" disabled>Check</button>';
+      foot.className = 'coach-foot'; foot.innerHTML = `<span class="foot-hint">Type it, then Enter.</span><button type="button" class="primary chunky" id="cf-check" disabled>Check</button>${timerBar(8)}`;
       let done = false;
       const n = mountNumber($('.answer-slot', body), { label: 'Running count', onChange: v => { $('#cf-check').disabled = v === null; } });
       const finish = async () => {

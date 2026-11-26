@@ -56,7 +56,7 @@ WEEKLY = {
     'weak3': ('Clear 3 Weak Spots rounds', 3, 'weak'),
 }
 WEEKLY_STARS = 40
-WEEKLY_TRACK = [(5, {'stars': 30}), (10, {'stars': 60, 'freeze': 1}), (15, {'stars': 100, 'energy': 10})]
+WEEKLY_TRACK = [(5, {'stars': 30, 'xp': 10}), (10, {'stars': 60, 'freeze': 1, 'xp': 20}), (15, {'stars': 100, 'energy': 10, 'xp': 30})]
 
 EVENT_GOAL = 20
 EVENTS = {   # month -> event; each event card back can only be earned, never bought.
@@ -150,7 +150,7 @@ def board(c, uid, today, daily_xp=15):
 
     # Weekly track: daily quests completed this week.
     dailies_week = c.execute("SELECT COUNT(*) FROM quest_done WHERE user_id=? AND period>=? AND period<? ", (uid, 'd:' + wk, 'd:' + wk_end)).fetchone()[0]
-    track = [{'at': at, 'reward': rw, 'reached': dailies_week >= at, 'claimed': f'track-{at}' in claim_keys} for at, rw in WEEKLY_TRACK]
+    track = [{'at': at, 'reward': rw if f'track-{at}' in claim_keys else None, 'reached': dailies_week >= at, 'claimed': f'track-{at}' in claim_keys} for at, rw in WEEKLY_TRACK]
     all_bonus = {'stars': ALL_DAILY_BONUS, 'ready': all(q['done'] for q in daily), 'claimed': 'all-daily' in claim_keys}
 
     # Monthly event: quests completed this month.
@@ -194,7 +194,9 @@ def claim(c, uid, today, key, daily_xp, add_stars, wallet_add):
     if key.startswith('track-'):
         t = next((t for t in b['track'] if f"track-{t['at']}" == key), None)
         if not t or not t['reached'] or t['claimed'] or not mark(wperiod, key): return None
-        rw = t['reward']; add_stars(rw['stars'], 'quest-' + key); wallet_add(rw); return dict(rw)
+        rw = dict(WEEKLY_TRACK)[t['at']]; add_stars(rw['stars'], 'quest-' + key); wallet_add(rw)
+        if rw.get('xp'): c.execute('INSERT INTO xp_log(user_id,day,xp,lesson_id,created) VALUES(?,?,?,?,?)', (uid, today, rw['xp'], 'quest-gift', time.time()))
+        return dict(rw)
     return None
 
 

@@ -1,4 +1,5 @@
 import { explainPlay } from './ev.js';
+import { explain } from './explain.js';
 // Free Play: real hands of blackjack against Ace from a six-deck shoe. Play however you like;
 // every decision is checked against basic strategy and Ace tells you when a play was wrong.
 // Wagers use a practice bankroll kept on this device. It is not chips and can't be bought.
@@ -140,15 +141,15 @@ export async function freePlayPage(ctx, meta) {
     busy = true;
     const want = bj.basic(h.cards, up(), { h17: rules.h17, das: true, surrender: o.R, split: o.P });
     const ok = a === want, before = h.cards.slice();
-    results.push({ kind: 'strategy', data: { cards: before, dealer: up(), h17: rules.h17, surrender: o.R, das: true, split: o.P }, given: a, explain: ok ? '' : bj.strategyReason(before, up(), want, rules) });
+    results.push({ kind: 'strategy', data: { cards: before, dealer: up(), h17: rules.h17, surrender: o.R, das: true, split: o.P }, given: a, explain: ok ? '' : explain(before, up(), rules).short });
     session.decisions++;
     if (ok) { session.correct++; session.streak++; session.best = Math.max(session.best, session.streak); session.roundBest = Math.max(session.roundBest, session.streak); }
     else session.streak = 0;
     meter.answer(ok); paintStats();
-    if (ok) { Sound.play('correct'); say(`${g('check')}<span><b>${bj.ACTIONS[a]} is right.</b> ${bj.strategyReason(before, up(), a, rules)}</span>`, 'ok'); }
+    if (ok) { Sound.play('correct'); say(`${g('check')}<span><b>${bj.ACTIONS[a]} is right.</b> ${explain(before, up(), rules).short}</span>`, 'ok'); }
     else {
       Sound.play('wrong'); react(false, { anchor: coachBox });
-      say(`${ace('oops', 'ace-sm')}<span><b>Basic strategy says ${bj.ACTIONS[want]}, not ${bj.ACTIONS[a]}.</b> ${bj.strategyReason(before, up(), want, rules)}${(() => { const c = explainPlay(before, up(), rules, a).cost; return c >= 0.0005 ? ` ${bj.ACTIONS[a]} costs about ${(c * 100).toFixed(1)}% of your bet here.` : ' The two plays are nearly equal here.'; })()} You can keep playing your way.</span>`, 'bad');
+      say(`${ace('oops', 'ace-sm')}<span><b>Basic strategy says ${bj.ACTIONS[want]}, not ${bj.ACTIONS[a]}.</b> ${explain(before, up(), rules).short}${(() => { const c = explainPlay(before, up(), rules, a).cost; return c >= 0.0005 ? ` ${bj.ACTIONS[a]} costs about ${(c * 100).toFixed(1)}% of your bet here.` : ' The two plays are nearly equal here.'; })()} You can keep playing your way.</span>`, 'bad');
     }
     if (a === 'H') { h.cards.push(draw()); Sound.play('deal'); if (tot(h.cards).total >= 21) h.done = true; }
     else if (a === 'S') h.done = true;

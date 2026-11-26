@@ -163,7 +163,7 @@ class EconomyTests(unittest.TestCase):
         with server.db() as c:
             for i in range(20): c.execute('INSERT INTO quest_done VALUES(?,?,?,?)', (uid, f'd:{DAY()}x{i}', f'q{i}', DAY()))
         r = client.call('/api/quests/claim', 'POST', {'quest': 'track-10'})[1]
-        self.assertEqual(r['reward'], {'stars': 60, 'freeze': 1})
+        self.assertEqual(r['reward'], {'stars': 60, 'freeze': 1, 'xp': 20})
         self.assertEqual(r['freezes'], 1)
         ev = r['board']['event']
         self.assertTrue(ev['earned'])

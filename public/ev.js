@@ -90,3 +90,46 @@ export function whyHTML(cards, up, rules = {}, given = null) {
     : close ? 'A close call: the top two plays are within 1% of each other.' : `${ACTIONS[answer]} is clearly best here.`;
   return `<div class="why-panel"><p class="why-head">Average result per bet for each play</p><ul class="why-list">${rows}</ul><p class="why-note">${verdict}</p></div>`;
 }
+
+// ---- Win / push / lose chances for each play, for plain-language explanations ----------------------------
+/** Dealer's chance of busting (and each final total) from an upcard, given no dealer blackjack. */
+export function dealerOutcomes(up, h17 = false) { return dealer(Math.min(up, 10), h17); }
+
+/** For Stand, Hit (then best play), and Double: chance to win, push, and lose, out of 1. Surrender: lose half, always. */
+export function outcomeChances(cards, up, rules = {}) {
+  up = Math.min(up, 10);
+  const { h17 = false, surrender = false } = rules;
+  const d = dealer(up, h17);
+  const vsDealer = t => {
+    if (t > 21) return { w: 0, p: 0, l: 1 };
+    let w = d[22], p = 0, l = 0;
+    for (let dt = 17; dt <= 21; dt++) { if (t > dt) w += d[dt]; else if (t === dt) p += d[dt]; else l += d[dt]; }
+    return { w, p, l };
+  };
+  const ev = t => { const o = vsDealer(t); return o.w - o.l; };
+  const memo = new Map();
+  // Final total distribution when you keep playing the better of hit/stand from here.
+  const play = (t, soft) => {
+    if (t > 21) return new Map([[22, 1]]);
+    const k = t + (soft ? 's' : 'h'); if (memo.has(k)) return memo.get(k);
+    const hit = new Map();
+    for (const v of VALUES) { const [nt, ns] = add(t, soft, v); for (const [ft, p] of play(nt, ns)) hit.set(ft, (hit.get(ft) || 0) + P(v) * p); }
+    const evHit = [...hit].reduce((a, [ft, p]) => a + p * ev(ft), 0);
+    const r = ev(t) >= evHit ? new Map([[t, 1]]) : hit; memo.set(k, r); return r;
+  };
+  const sum = dist => { const o = { w: 0, p: 0, l: 0 }; for (const [ft, p] of dist) { const x = vsDealer(ft); o.w += p * x.w; o.p += p * x.p; o.l += p * x.l; } return o; };
+  const { total: t, soft } = total(cards);
+  const hitDist = new Map(), dblDist = new Map();
+  for (const v of VALUES) {
+    const [nt, ns] = add(t, soft, v);
+    for (const [ft, p] of play(nt, ns)) hitDist.set(ft, (hitDist.get(ft) || 0) + P(v) * p);
+    dblDist.set(nt > 21 ? 22 : nt, (dblDist.get(nt > 21 ? 22 : nt) || 0) + P(v));
+  }
+  const out = { S: vsDealer(t), H: sum(hitDist) };
+  if (cards.length === 2) out.D = sum(dblDist);
+  if (surrender && cards.length === 2) out.R = { w: 0, p: 0, l: 1, half: true };
+  // Chance the very next card busts you, and the dealer's bust chance.
+  out.bustNext = soft ? 0 : VALUES.reduce((a, v) => a + (t + v > 21 ? P(v) : 0), 0);
+  out.dealerBust = d[22];
+  return out;
+}
