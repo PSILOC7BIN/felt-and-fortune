@@ -418,3 +418,19 @@ class ProgressTests(unittest.TestCase):
             ts = monday.replace(hour=10).timestamp()
             n1 = progress.weekly_emails(c, ts); n2 = progress.weekly_emails(c, ts)
         self.assertGreaterEqual(n1, 1); self.assertEqual(n2, 0)
+
+    def test_pack_progress_follows_the_account(self):
+        client, _, _ = self.signup(NEW)
+        self.assertEqual(client.call('/api/packs')[1]['progress'], {})
+        self.assertEqual(client.call('/api/packs', 'POST', {'pack': 'stiffs', 'level': 2})[0], 200)
+        client.call('/api/packs', 'POST', {'pack': 'stiffs', 'level': 1})                       # never goes backwards
+        self.assertEqual(client.call('/api/packs')[1]['progress'], {'stiffs': 2})
+        self.assertEqual(client.call('/api/packs', 'POST', {'pack': 'nope', 'level': 1})[0], 400)
+
+    def test_backcount_logs_server_graded_counts(self):
+        client, _, _ = self.signup(NEW)
+        rid = client.call('/api/energy/start', 'POST', {'tool': 'backcount'})[1]['round']
+        items = [{'kind': 'count', 'data': {'cards': [2, 3, 10], 'start': 4}, 'given': 5}, {'kind': 'count', 'data': {'cards': [1, 10], 'start': -1}, 'given': 0}]
+        self.assertEqual(client.call('/api/practice/log', 'POST', {'tool': 'backcount', 'round': rid, 'results': items})[0], 200)
+        s = client.call('/api/practice/stats')[1]['tools']['backcount']
+        self.assertEqual((s['questions'], s['correct']), (2, 1))

@@ -29,6 +29,7 @@ const NEXT_TIER = [[900, 'Learner'], [1100, 'Solid'], [1300, 'Sharp'], [1500, 'E
 const EXTRA_TOOLS = [
   { id: 'rush', name: 'Blackjack Rush', glyph: 'bolt', color: 'orange', purpose: 'Three strikes, a shrinking clock, and harder hands every few answers. Weekly leaderboard.' },
   { id: 'storm', name: 'Count Storm', glyph: 'count', color: 'purple', purpose: 'Keep the running count as cards arrive faster. Three strikes.' },
+  { id: 'backcount', name: 'Back-count two tables', glyph: 'count', color: 'teal', purpose: 'Watch two shoes at once, keep both counts, and pick the table worth sitting down at.' },
   { id: 'casino', name: 'Casino Floor', glyph: 'pin', color: 'green', purpose: 'A full table at real speed: other players, noise, a dealer with a personality, mistakes to catch, and surprise count checks.' },
   { id: 'testout', name: 'Casino-ready test-out', glyph: 'trophy', color: 'gold', purpose: 'Five timed sections at casino speed. Pass them all for a shareable certificate.' },
   { id: 'builder', name: 'Drill builder', glyph: 'gear', color: 'blue', purpose: 'Pick exact hands, upcards, and rules, or work through leveled drill packs.' },
@@ -112,6 +113,7 @@ export function createPractice(ctx) {
       if (t.id === 'edge') return 'Free for everyone';
       if (t.id === 'rush' || t.id === 'storm') return pro ? 'Unlimited runs' : '1 free run a day';
       if (t.id === 'builder') return 'Build free · save and packs with Pro';
+      if (t.id === 'backcount') { const s = stats.tools.backcount; return s?.questions ? `${Math.round(s.correct / s.questions * 100)}% of counts right` : 'Not used yet'; }
       if (t.id === 'casino') return pro ? 'Every dealer and condition' : 'Dealer of the month free';
       if (t.id === 'testout') return pro ? 'One attempt a month' : 'Part of Pro';
       return s?.questions ? `${Math.round(s.correct / s.questions * 100)}% accurate · best streak ${s.best_streak}` : 'Not used yet';
@@ -121,7 +123,7 @@ export function createPractice(ctx) {
     $('#page').innerHTML = `<header class="page-hero"><div><h1>Tools</h1><p>Set up drills with any rules and speed, play real hands, and run the numbers on a game. Practice trains one skill rating at a time; Tools let you set things up your way.</p></div><div data-eco-chips>${chipsHTML(eco)}</div></header>`
       + group('Arcade', ['rush', 'storm'])
       + group('Calculators', ['edge', 'simulator'])
-      + group('Configurable trainers', ['builder', 'strategy', 'count', 'decks', 'truecount', 'index'])
+      + group('Configurable trainers', ['builder', 'strategy', 'count', 'backcount', 'decks', 'truecount', 'index'])
       + group('Play and prove it', ['casino', 'table', 'challenge', 'testout']);
   }
 
@@ -213,7 +215,7 @@ export function createPractice(ctx) {
       try { r = await api('/api/practice/log', 'POST', { tool, round, results, bestStreak: stats.best, seconds: Math.round((Date.now() - stats.started) / 1000), day: localDate() }); } catch { /* still show the summary */ }
       const eco = await loadEconomy(api, localDate);
       const pct = Math.round(stats.correct / stats.questions * 100);
-      if (tool === 'drill' && stats.questions >= size && markPack(spec, pct)) ctx.toast('Level passed! The next level is unlocked.');
+      if (tool === 'drill' && stats.questions >= size && markPack(spec, pct, api)) ctx.toast('Level passed! The next level is unlocked.');
       Sound.play(pct >= 90 ? 'complete' : 'reveal'); if (pct >= 90) confetti({ count: 70 });
       const pro = eco?.plan?.pro, cost = tool === 'weak' ? 0 : 1;
       sheet.className = 'sheet';

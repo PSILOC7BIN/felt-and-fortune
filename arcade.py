@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS daily_answers(user_id TEXT REFERENCES users(id), day 
 CREATE TABLE IF NOT EXISTS rush_runs(id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), mode TEXT, day TEXT, score INTEGER DEFAULT 0,
     strikes INTEGER DEFAULT 0, finished INTEGER DEFAULT 0, state TEXT, started REAL, ended REAL);
 CREATE INDEX IF NOT EXISTS rush_by_mode ON rush_runs(mode, finished, score);
+CREATE TABLE IF NOT EXISTS pack_progress(user_id TEXT REFERENCES users(id), pack TEXT, level INTEGER, PRIMARY KEY(user_id, pack));
 CREATE TABLE IF NOT EXISTS custom_drills(id TEXT PRIMARY KEY, user_id TEXT REFERENCES users(id), name TEXT, tag TEXT, spec TEXT, created REAL);
 '''
 
@@ -193,6 +194,13 @@ def handle(h, path, method, require, ApiError):
         c.execute('UPDATE rush_runs SET score=?, strikes=?, state=? WHERE id=?', (score, strikes, json.dumps(st), row['id']))
         result['q'] = public_q(mode, st['q'])
         return h.send_json(result)
+    if path == '/api/packs' and method == 'GET':
+        return h.send_json({'progress': dict(c.execute('SELECT pack, level FROM pack_progress WHERE user_id=?', (uid,)).fetchall())})
+    if path == '/api/packs' and method == 'POST':
+        pack = str(d.get('pack', ''))[:20]; level = int(d.get('level', 0))
+        require(pack in ('stiffs', 'doubles', 'pairs', 'rules') and 1 <= level <= 3, 'Unknown pack level.')
+        c.execute('INSERT INTO pack_progress VALUES(?,?,?) ON CONFLICT(user_id,pack) DO UPDATE SET level=MAX(level, excluded.level)', (uid, pack, level))
+        return h.send_json({'ok': True})
     if path == '/api/drills' and method == 'GET':
         rows = c.execute('SELECT id, name, tag, spec, created FROM custom_drills WHERE user_id=? ORDER BY created DESC', (uid,)).fetchall()
         return h.send_json({'drills': [{**dict(r), 'spec': json.loads(r['spec'])} for r in rows], 'pro': economy.is_pro(c, uid)})

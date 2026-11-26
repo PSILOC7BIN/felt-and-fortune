@@ -571,3 +571,17 @@ a.weak-card:active { transform: translateY(4px); box-shadow: none; }
 .cf-body { overflow-x: hidden; }
 .coach-foot .cf-acts { display: flex; flex-wrap: nowrap; gap: 8px; flex: 1 1 auto; max-width: 560px; }
 .coach-foot .cf-acts .act { flex: 1; min-width: 0; }
+
+/* Back-count two tables */
+.bc-tables { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; width: 100%; }
+.bc-table { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 240px; padding: 18px; }
+.bc-table::after { display: none; }
+.bc-name { font: 900 14px var(--round); letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.8); }
+.bc-card { min-height: 130px; display: grid; place-items: center; }
+.bc-left { font: 800 12px var(--round); color: rgba(255,255,255,.7); }
+.bc-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.bc-inputs label { display: flex; flex-direction: column; align-items: center; gap: 6px; font-weight: 700; }
+.bc-pick { justify-content: center; }
+.bc-body { max-width: 860px !important; }
+@media (max-width: 560px) { .bc-tables, .bc-inputs { grid-template-columns: 1fr 1fr; gap: 8px; } .bc-table { min-height: 190px; padding: 10px; } }
+.bc-table::before { display: none !important; }

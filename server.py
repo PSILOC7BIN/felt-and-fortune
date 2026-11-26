@@ -421,7 +421,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             c.execute('INSERT INTO feedback(user_id,rating,area,page,comment,created) VALUES(?,?,?,?,?,?)',(uid,rating,area,textfield(d,'page',100,False),textfield(d,'comment',2000,False),time.time()))
             return self.send_json({'ok':True},201)
         if path.startswith(('/api/testout','/api/rush/battle/','/api/skillscore','/api/report')): return progress.handle(self,path,method,require,ApiError)
-        if path.startswith('/api/daily') or path.startswith('/api/rush/') or path.startswith('/api/drills'): return arcade.handle(self,path,method,require,ApiError)
+        if path.startswith('/api/daily') or path.startswith('/api/rush/') or path.startswith('/api/drills') or path=='/api/packs': return arcade.handle(self,path,method,require,ApiError)
         if path.startswith('/api/practice/') or path.startswith('/api/challenge/'): return self.practice_api(path,method,require,num,ApiError)
         if path=='/api/casinos' and method=='GET':
             # The casino map's data is a Pro feature: never served as a public file.

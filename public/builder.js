@@ -33,10 +33,12 @@ export const PACKS = [
 ];
 
 const progress = () => { try { return JSON.parse(localStorage.getItem('ff-packs') || '{}'); } catch { return {}; } };
-export function markPack(spec, pct) {
+export function markPack(spec, pct, api) {
   if (!spec?.pack || pct < 90) return false;
   const p = progress(); const [id, lvl] = spec.pack.split(':'); p[id] = Math.max(p[id] || 0, Number(lvl) + 1);
-  localStorage.setItem('ff-packs', JSON.stringify(p)); return true;
+  localStorage.setItem('ff-packs', JSON.stringify(p));
+  api?.('/api/packs', 'POST', { pack: id, level: p[id] }).catch(() => {});   // saved to the account too, so it follows you
+  return true;
 }
 
 export async function builderPage(ctx) {
@@ -44,6 +46,7 @@ export async function builderPage(ctx) {
   let saved = { drills: [], pro: false };
   try { saved = await api('/api/drills'); } catch { /* optional */ }
   const pro = saved.pro;
+  try { const srv = (await api('/api/packs')).progress, loc = progress(); for (const k in srv) loc[k] = Math.max(loc[k] || 0, srv[k]); localStorage.setItem('ff-packs', JSON.stringify(loc)); } catch { /* offline: local progress */ }
   let st = { cells: new Set(['H12', 'H13', 'H14', 'H15', 'H16']), ups: new Set(UPS), h17: 'off', surrender: 'off', das: 'on', size: 10 };
   try { const last = JSON.parse(localStorage.getItem('ff-builder') || 'null'); if (last) st = { ...st, ...last, cells: new Set(last.cells), ups: new Set(last.ups) }; } catch { /* default */ }
   const keep = () => localStorage.setItem('ff-builder', JSON.stringify({ ...st, cells: [...st.cells], ups: [...st.ups] }));

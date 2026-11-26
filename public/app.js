@@ -7,6 +7,7 @@ import {dailyPage,rushPage} from './arcade.js';
 import {reportPage} from './report.js';
 import {testoutPage,certificatePage} from './testout.js';
 import {casinoPage} from './casino.js';
+import {backcountPage} from './backcount.js';
 import {createSimulator} from './simulator.js';
 import {createDirectory} from './directory.js';
 import {storePage,questsPage,loadEconomy,paywall} from './economy.js';
@@ -195,6 +196,7 @@ async function render(){
   if(path==='/practice/workout'){await practice.toolPage('workout');return;}
   if(path==='/tools/testout'){await testoutPage(ctxBase);return;}
   if(path==='/tools/casino'){await casinoPage(ctxBase);return;}
+  if(path==='/tools/backcount'){await backcountPage(ctxBase);return;}
   if(path==='/tools/rush'||path==='/tools/storm'){await rushPage(ctxBase,path.slice(7));return;}
   if((m=path.match(/^\/practice\/skill\/([a-z-]+)$/))){await practice.toolPage('skill-'+m[1]);return;}
   if(path==='/responsible'){appShell('profile');responsiblePage();return;}
