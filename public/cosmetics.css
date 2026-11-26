@@ -165,7 +165,7 @@
    rail. So: arc curves down, the Dealer label sits above the dealer's cards, You sits below your cards, and the
    middle of the felt stays clear for the print. */
 .felt-table::after, .deal-table::after, .mat-art::after { border-top: 0 !important; border-bottom: 2px solid var(--felt-ink); border-radius: 0 0 50% 50% / 0 0 100% 100% !important; padding-top: 0; }
-.bj-table.has-dealer { min-height: 430px; }
+.bj-table.has-dealer { min-height: 470px; }
 .bj-table::after { top: 40%; height: 19%; left: 10%; right: 10%; opacity: .55; }
 .bj-table::before { bottom: auto; top: 45%; font-size: 10px; letter-spacing: .28em; opacity: .9; }
 .mat-art::after { top: 22%; height: 34%; left: 14%; right: 14%; }
@@ -186,3 +186,19 @@
 @keyframes ace-hop{0%{transform:none}35%{transform:translateY(-18px) scale(1.08)}70%{transform:translateY(0) scale(.96,1.04)}100%{transform:none}}
 @keyframes ace-shake{0%,100%{transform:none}20%{transform:rotate(-8deg)}40%{transform:rotate(7deg)}60%{transform:rotate(-5deg)}80%{transform:rotate(3deg)}}
 @media(prefers-reduced-motion:reduce){.ace .ace-eyes,.bj-table .dealer-ace .ace{animation:none !important}}
+
+/* ---- Printed felt (SVG): curved text and a strong insurance band, like a real layout ---- */
+.bj-table.has-print::before, .bj-table.has-print::after { display: none !important; }
+.felt-print { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
+.bj-table.has-print > :not(.felt-print) { position: relative; z-index: 1; }
+.bj-table.has-print > .dealer-ace { position: absolute; z-index: 2; }
+.felt-print text { fill: var(--felt-ink, rgba(255,255,255,.6)); font-family: var(--round); font-weight: 900; }
+.felt-print .fp-big { font-size: 19px; letter-spacing: 4px; }
+.felt-print .fp-small { font-size: 11.5px; letter-spacing: 2.2px; opacity: .85; }
+.felt-print .fp-ins { font-size: 14px; letter-spacing: 3.5px; }
+.felt-print .fp-line { fill: none; stroke: var(--felt-ink, rgba(255,255,255,.6)); stroke-width: 3.2; stroke-linecap: round; opacity: .9; }
+.felt-print .fp-spot { fill: none; stroke: var(--felt-ink, rgba(255,255,255,.6)); stroke-width: 2.4; opacity: .45; }
+:root[data-felt="neon"] .felt-print text, :root[data-felt="neon"] .felt-print .fp-line { filter: drop-shadow(0 0 3px #EC4899); }
+.fp-table.bj-table.has-dealer { min-height: 0; }
+.fp-table .felt-print .fp-spot { opacity: .3; }
+@media (max-width: 600px) { .felt-print .fp-spot { display: none; } }

@@ -4,7 +4,7 @@ import { explain } from './explain.js';
 // every decision is checked against basic strategy and Ace tells you when a play was wrong.
 // Wagers use a practice bankroll kept on this device. It is not chips and can't be bought.
 import * as bj from './bj.js';
-import { $, $$, Sound, ace, g, cardHTML } from './ui.js';
+import { $, $$, Sound, ace, g, cardHTML, feltPrint } from './ui.js';
 import { react } from './reactions.js';
 import { startRound, energyMeter, outOfEnergy, economyState, loadEconomy } from './economy.js';
 
@@ -46,7 +46,7 @@ export async function freePlayPage(ctx, meta) {
       <button type="button" class="ghost small" id="fp-reset">Reset practice bankroll</button>
       <p class="field-hint fp-shuffle">How the cards are dealt: a real six-deck shoe, shuffled with your browser’s random number generator and reshuffled at about 75% penetration, the same as a casino cut card. Nothing about the shoe changes based on your bets or play.</p></div>
     <section class="coach-body fp-body" id="coach-body">
-      <div class="felt-table bj-table has-dealer fp-table">
+      <div class="felt-table bj-table has-dealer fp-table has-print">${feltPrint({ h17: rules.h17, text: false })}
         <div class="dealer-ace" aria-hidden="true">${ace('happy', 'ace-dealer')}</div>
         <div class="hand dealer-hand"><div class="cards" id="fp-dealer"></div><span class="hand-label" id="fp-dtotal">Dealer</span></div>
         <p class="fp-rules">Blackjack pays 3 to 2 · Dealer ${rules.h17 ? 'hits' : 'stands on'} soft 17</p>
@@ -244,7 +244,7 @@ export async function freePlayPage(ctx, meta) {
     const k = b.dataset.k, v = b.dataset.v;
     if (k === 'h17') rules.h17 = v === 'h17'; else rules[k] = v === 'on';
     $$(`[data-k="${k}"]`).forEach(x => x.setAttribute('aria-checked', String(x === b)));
-    $('.fp-rules').textContent = `Blackjack pays 3 to 2 · Dealer ${rules.h17 ? 'hits' : 'stands on'} soft 17`;
+    { const fp = $('.fp-table .felt-print'); if (fp) fp.outerHTML = feltPrint({ h17: rules.h17, text: false }); } $('.fp-rules').textContent = `Blackjack pays 3 to 2 · Dealer ${rules.h17 ? 'hits' : 'stands on'} soft 17`;
     save(); paintShoe(); Sound.play('select');
     if (phase === 'play') actionFoot();
   });

@@ -210,10 +210,28 @@ export function cardHTML(c, i = 0, { back = false, cls = '' } = {}) {
   return `<span class="pc ${red ? 'red' : ''} ${cls}" style="--i:${i}" aria-label="${r === 'A' ? 'Ace' : r} of ${names[s]}"><b>${r}<i>${s}</i></b><em>${c >= 11 ? r : s}</em></span>`;
 }
 
-export function tableHTML({ dealer, cards, labels = true, holeCard = true }) {
+// ---- the printed felt --------------------------------------------------------------------------------
+// Like a real layout (and what regulators require printed on it): "Blackjack pays 3 to 2", the dealer's draw rule,
+// and "Insurance pays 2 to 1" in a band, all curving parallel to the players' rail, plus a betting spot per seat.
+let feltId = 0;
+export function feltPrint({ h17 = false, spots = true, text = true } = {}) {
+  const id = 'fp' + (++feltId);
+  const rule = h17 ? 'DEALER MUST HIT SOFT 17' : 'DEALER MUST DRAW TO 16 AND STAND ON ALL 17’S';
+  const seats = [[150, 322], [235, 354], [320, 374], [480, 374], [565, 354], [650, 322]];   // the middle spot is under your cards
+  return `<svg class="felt-print" viewBox="0 0 800 440" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <defs><path id="${id}a" d="M220 190 Q400 218 580 190"/><path id="${id}b" d="M210 212 Q400 240 590 212"/><path id="${id}c" d="M120 240 Q400 284 680 240"/></defs>
+    ${text ? `<text class="fp-big"><textPath href="#${id}a" startOffset="50%" text-anchor="middle">BLACKJACK PAYS 3 TO 2</textPath></text>
+    <text class="fp-small"><textPath href="#${id}b" startOffset="50%" text-anchor="middle">${rule}</textPath></text>
+    <path class="fp-line" d="M110 220 Q400 264 690 220"/><path class="fp-line" d="M130 262 Q400 298 670 262"/>
+    <text class="fp-ins"><textPath href="#${id}c" startOffset="50%" text-anchor="middle">INSURANCE PAYS 2 TO 1</textPath></text>` : ''}
+    ${spots ? seats.map(([x, y]) => `<circle class="fp-spot" cx="${x}" cy="${y + 28}" r="22"/>`).join('') : ''}
+  </svg>`;
+}
+
+export function tableHTML({ dealer, cards, labels = true, holeCard = true, rules = null }) {
   const d = dealer ? `<div class="hand dealer-hand"><div class="cards">${cardHTML(dealer, 0)}${holeCard ? cardHTML(0, 0, { back: true }) : ''}</div>${labels ? '<span class="hand-label">Dealer</span>' : ''}</div>` : '';
   const y = cards ? `<div class="hand you-hand">${labels ? '<span class="hand-label">You</span>' : ''}<div class="cards">${cards.map((c, i) => cardHTML(c, i + 1)).join('')}</div></div>` : '';
-  return `<div class="felt-table bj-table${dealer ? ' has-dealer' : ''}">${dealer ? `<div class="dealer-ace" aria-hidden="true">${ace('happy', 'ace-dealer')}</div>` : ''}${d}${y}</div>`;
+  return `<div class="felt-table bj-table has-print${dealer ? ' has-dealer' : ''}">${feltPrint({ h17: !!rules?.h17 })}${dealer ? `<div class="dealer-ace" aria-hidden="true">${ace('happy', 'ace-dealer')}</div>` : ''}${d}${y}</div>`;
 }
 
 // ---- the 3D discard tray -------------------------------------------------------------------

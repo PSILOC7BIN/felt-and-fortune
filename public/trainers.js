@@ -44,7 +44,7 @@ export function strategyQ({ pool = 'any', h17 = false, surrender = false, das = 
   const q = {
     kind: 'strategy', cards, dealer, rules, instant: true, data: { cards, dealer, h17, surrender, das },
     render(el, ctx) {
-      el.innerHTML = `<div class="q"><p class="q-eyebrow">${h17 ? 'Dealer hits soft 17' : 'Dealer stands on soft 17'}${surrender ? ' · Surrender allowed' : ''}</p><h1 class="q-title">${esc(prompt || `You have ${bj.handLabel(cards)} against ${bj.upName(dealer) === 'ace' ? 'an ace' : 'a ' + bj.upName(dealer)}.`)}</h1>${tableHTML({ dealer, cards })}${actionButtons(acts)}</div>`;
+      el.innerHTML = `<div class="q"><p class="q-eyebrow">${h17 ? 'Dealer hits soft 17' : 'Dealer stands on soft 17'}${surrender ? ' · Surrender allowed' : ''}</p><h1 class="q-title">${esc(prompt || `You have ${bj.handLabel(cards)} against ${bj.upName(dealer) === 'ace' ? 'an ace' : 'a ' + bj.upName(dealer)}.`)}</h1>${tableHTML({ dealer, cards, rules })}${actionButtons(acts)}</div>`;
       wireActions(el, q, ctx);
     },
     check(el) { q.given = q.chosen; markActions(el, q.chosen, answer); return { ok: q.chosen === answer, answer: bj.ACTIONS[answer], explain: explain(cards, dealer, rules).short, why: { cards, dealer, rules, given: q.chosen } }; },

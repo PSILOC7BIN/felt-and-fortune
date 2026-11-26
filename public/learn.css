@@ -410,3 +410,4 @@
 @media(prefers-reduced-motion:reduce){.worked-steps li,.worked-cards .wc,.worked-acts .act.pick{animation:none;opacity:1}}
 .worked .bj-table.has-dealer{min-height:330px}.worked{gap:12px}
 [data-theme="dark"] .worked-cards b{color:#B9B8FF}
+.practice-top .pr-title{min-width:0;flex:1 1 auto;overflow:hidden}.practice-top .pr-title>div{min-width:0}.practice-top .pr-title strong,.practice-top .pr-title small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
