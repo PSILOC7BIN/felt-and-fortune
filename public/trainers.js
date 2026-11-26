@@ -331,6 +331,7 @@ export function createRunner({ body, foot, next, onResult, onEmpty, onKeyExtra }
     else if (q.instant) setFoot(`<span class="foot-hint">Tap an answer or press its key</span>`);
     else setFoot(`<span class="foot-hint">${q.hint || 'Press Enter to check'}</span><button type="button" class="primary chunky" id="run-primary" disabled>Check</button>`);
     q.render(body, ctx);
+    if (q.guided) $('.q', body)?.insertAdjacentHTML('afterbegin', `<span class="pill guided-pill">${g('target')} Your turn · same idea as the example</span>`);
     body.scrollTop = 0;
     if (primary()) primary().onclick = () => (q.teach ? (q.inner?.() ? null : advance()) : check());
   }

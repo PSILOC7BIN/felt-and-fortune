@@ -59,6 +59,8 @@
     radial-gradient(circle at 20% 30%, rgba(255, 255, 255, .035) 1px, transparent 1.5px) 0 0 / 5px 5px,
     radial-gradient(ellipse 120% 90% at 50% 0%, var(--felt-hi), var(--felt-lo)) !important;
 }
+/* Game tables keep the felt and its print but not the center emblem, so the payout line and insurance curve read cleanly. */
+.bj-table { background-size: 0 0, auto, 5px 5px, auto !important; }
 .pc.back, .back-art { background: var(--back-bg) !important; }
 /* Event exclusives: a holographic sheen that sweeps across the card. */
 .back-art[class*="bk-event-"], .pc.back[class*="bk-event-"], :root[data-back^="event-"] .pc.back { position: relative; overflow: hidden; }

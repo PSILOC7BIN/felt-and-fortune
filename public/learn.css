@@ -394,3 +394,19 @@
 
 .multi-hint{margin:0 0 8px;font:800 13px var(--round);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 @media(max-width:600px){#lesson-chart{font-size:0;padding:6px 9px;gap:0}#lesson-chart .glyph{width:18px;height:18px}}
+/* Worked examples */
+.worked-pill{background:#FFF4D6;color:#8A6100}.guided-pill{background:#E3F6E8;color:#1E7B34;align-self:flex-start}
+[data-theme="dark"] .worked-pill{background:#3A2E0A;color:#FFD166}[data-theme="dark"] .guided-pill{background:#0F2E19;color:#6EE38D}
+.worked-steps{list-style:none;margin:4px 0 0;padding:0;display:grid;gap:8px}
+.worked-steps li{display:flex;gap:10px;align-items:flex-start;font-size:17px;line-height:1.45;opacity:0;animation:sc-pop .35s both;animation-delay:calc(.6s + var(--i) * 1.1s)}
+.worked-steps .n{flex:none;width:26px;height:26px;border-radius:99px;display:grid;place-items:center;background:#0A84FF;color:#fff;font:900 13px var(--round)}
+.worked-acts{pointer-events:none}.worked-acts .act{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:12px;border-radius:16px;font:800 17px var(--round);color:#fff}
+.worked-acts .act.dim{opacity:.3}.worked-acts .act.pick{animation:wk-pick 1s 3.6s both}
+@keyframes wk-pick{0%{transform:none}40%{transform:scale(1.08);box-shadow:0 0 0 4px #FFD60A}100%{transform:none;box-shadow:0 0 0 4px #FFD60A}}
+.worked-cards{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}.worked-cards .wc{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0;animation:sc-in .4s both;animation-delay:calc(var(--i)*.45s)}
+.worked-cards em{font:900 13px var(--round);font-style:normal;padding:1px 8px;border-radius:99px;color:#fff}.worked-cards em.p{background:#34C759}.worked-cards em.m{background:#FF3B30}.worked-cards em.z{background:#8E8E93}
+.worked-cards b{font:900 15px var(--round);color:#5856D6}
+.choice-tile.dimmed{opacity:.45}
+@media(prefers-reduced-motion:reduce){.worked-steps li,.worked-cards .wc,.worked-acts .act.pick{animation:none;opacity:1}}
+.worked .bj-table.has-dealer{min-height:330px}.worked{gap:12px}
+[data-theme="dark"] .worked-cards b{color:#B9B8FF}

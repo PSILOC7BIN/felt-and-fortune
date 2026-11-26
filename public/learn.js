@@ -6,6 +6,7 @@ import { Sound, ace, g, tableHTML } from './ui.js';
 import { dailyCard } from './arcade.js';
 import { createRunner, questionsForStep, choiceQ } from './trainers.js';
 import { openChartSheet } from './charts.js';
+import { addWorkedExamples } from './worked.js';
 import * as bj from './bj.js';
 
 export { Sound, ace, g };
@@ -303,7 +304,9 @@ export function createLearn(ctx) {
     }
     // Checkpoint choices come without answers; each one is checked on the server.
     lesson.steps.forEach(s => { if (s.check) s.checkAnswer = (prompt, given) => api(`/api/path/lesson/${encodeURIComponent(id)}/check`, 'POST', { prompt, given }); });
-    const queue = lesson.steps.flatMap(s => questionsForStep(s).map(q => Object.assign(q, { step: s, tries: 0 })));
+    const base = lesson.steps.flatMap(s => questionsForStep(s).map(q => Object.assign(q, { step: s, tries: 0 })));
+    // After each new idea: a worked example, then a guided first try (not in checkpoints, which test without help).
+    const queue = lesson.id.endsWith('-checkpoint') ? base : addWorkedExamples(base);
     const questions = queue.filter(q => !q.teach).length;
     let pos = -1, firstTry = 0, combo = 0, finished = false;
     const results = [];
