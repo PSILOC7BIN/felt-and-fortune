@@ -22,6 +22,13 @@ class EconomyTests(unittest.TestCase):
 
     def complete(self, client, lesson_id, day, ok=True):
         steps = client.call(f'/api/path/lesson/{lesson_id}?day={day}')[1]['lesson']['steps']
+        if lesson_id.endswith('-checkpoint'):
+            # Checkpoint answers aren't sent to the browser: answer each choice through /check, like the app does.
+            truth = {x['prompt']: x['answer'] for x in coach.find_lesson(lesson_id)[1]['steps'] if x['type'] == 'choice'}
+            steps = [{**x, 'answer': truth[x['prompt']]} if x['type'] == 'choice' else x for x in steps]
+            for x in steps:
+                if x['type'] == 'choice':
+                    client.call(f'/api/path/lesson/{lesson_id}/check?day={day}', 'POST', {'prompt': x['prompt'], 'given': x['answer'] if ok else (x['answer'] + 1) % len(x['options'])})
         return client.call(f'/api/path/lesson/{lesson_id}/complete', 'POST', {'results': lesson_transcript(steps, ok), 'day': day})
 
     def test_adults_only(self):
@@ -434,3 +441,46 @@ class ProgressTests(unittest.TestCase):
         self.assertEqual(client.call('/api/practice/log', 'POST', {'tool': 'backcount', 'round': rid, 'results': items})[0], 200)
         s = client.call('/api/practice/stats')[1]['tools']['backcount']
         self.assertEqual((s['questions'], s['correct']), (2, 1))
+
+
+class CheckpointSecrecyTests(unittest.TestCase):
+    setUpClass = EconomyTests.__dict__['setUpClass']
+    tearDownClass = EconomyTests.__dict__['tearDownClass']
+    setUp = EconomyTests.setUp
+    signup = EconomyTests.signup
+
+    finish = EconomyTests.finish
+    uid = EconomyTests.uid
+
+    def _open_checkpoint(self, client):
+        uid = self.uid(client)
+        client.call('/api/billing/test-purchase', 'POST', {'plan': 'pro-monthly'})
+        for l in coach.UNIT_BY_ID['sm1']['lessons']: self.finish(client, l['id'])
+        with server.db() as c: c.execute("INSERT OR REPLACE INTO skill_rating VALUES(?,?,?,?,?)", (uid, 'strategy-hard', 1700, 40, 0))
+        return 'sm1-checkpoint'
+
+    def test_checkpoint_answers_stay_on_the_server(self):
+        client, _, _ = self.signup(NEW)
+        cp = self._open_checkpoint(client)
+        steps = client.call(f'/api/path/lesson/{cp}')[1]['lesson']['steps']
+        choices = [x for x in steps if x['type'] == 'choice']
+        self.assertTrue(choices); self.assertTrue(all('answer' not in x and 'explain' not in x and x['check'] for x in choices))
+        truth = {x['prompt']: x['answer'] for x in coach.find_lesson(cp)[1]['steps'] if x['type'] == 'choice'}
+        first = choices[0]; wrong = (truth[first['prompt']] + 1) % len(first['options'])
+        r = client.call(f'/api/path/lesson/{cp}/check', 'POST', {'prompt': first['prompt'], 'given': wrong})[1]
+        self.assertFalse(r['ok']); self.assertEqual(r['answer'], truth[first['prompt']])
+        # Asking again with the right answer doesn't change what counts.
+        client.call(f'/api/path/lesson/{cp}/check', 'POST', {'prompt': first['prompt'], 'given': truth[first['prompt']]})
+        with server.db() as c: self.assertEqual(c.execute('SELECT given FROM checkpoint_checks WHERE lesson_id=? AND prompt=?', (cp, first['prompt'])).fetchone()[0], wrong)
+        self.assertEqual(client.call(f'/api/path/lesson/{cp}/check', 'POST', {'prompt': 'made up', 'given': 0})[0], 400)
+        self.assertEqual(client.call('/api/path/lesson/sm1-1/check', 'POST', {'prompt': 'x', 'given': 0})[0], 400)
+
+    def test_unchecked_choices_count_as_wrong(self):
+        client, _, _ = self.signup(NEW)
+        cp = self._open_checkpoint(client)
+        steps = client.call(f'/api/path/lesson/{cp}')[1]['lesson']['steps']
+        truth = {x['prompt']: x['answer'] for x in coach.find_lesson(cp)[1]['steps'] if x['type'] == 'choice'}
+        steps = [{**x, 'answer': truth[x['prompt']]} if x['type'] == 'choice' else x for x in steps]
+        r = client.call(f'/api/path/lesson/{cp}/complete', 'POST', {'results': lesson_transcript(steps, True), 'day': DAY()})[1]
+        self.assertFalse(r['checkpoint']['passed'])        # right answers in the transcript alone don't pass
+

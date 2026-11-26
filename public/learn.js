@@ -290,6 +290,8 @@ export function createLearn(ctx) {
       $('#app').innerHTML = `<main id="main" class="coach-screen"><section class="coach-body"><div class="coach-intro">${ace(/tomorrow|day/.test(error.message) ? 'happy' : 'oops', 'ace-lg')}<h1>${/tomorrow|day/.test(error.message) ? 'Back tomorrow' : 'Can’t open this lesson'}</h1><p>${esc(error.message)}</p><a class="button primary chunky" href="${paths.learn}">Back to my path</a></div></section></main>`;
       return;
     }
+    // Checkpoint choices come without answers; each one is checked on the server.
+    lesson.steps.forEach(s => { if (s.check) s.checkAnswer = (prompt, given) => api(`/api/path/lesson/${encodeURIComponent(id)}/check`, 'POST', { prompt, given }); });
     const queue = lesson.steps.flatMap(s => questionsForStep(s).map(q => Object.assign(q, { step: s, tries: 0 })));
     const questions = queue.filter(q => !q.teach).length;
     let pos = -1, firstTry = 0, combo = 0, finished = false;

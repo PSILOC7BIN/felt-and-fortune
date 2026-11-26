@@ -61,6 +61,7 @@ def initialize():
         c.executescript(social.SCHEMA)
         c.executescript(arcade.SCHEMA)
         c.executescript(progress.SCHEMA)
+        c.execute('CREATE TABLE IF NOT EXISTS checkpoint_checks(user_id TEXT, lesson_id TEXT, prompt TEXT, given INTEGER, created REAL, PRIMARY KEY(user_id, lesson_id, prompt))')
 
 def password_hash(password,salt=None):
     salt=salt or secrets.token_hex(16)
@@ -540,7 +541,7 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             plan.update(minutes=minutes,lessonsPerDay=per,dailyXp=per*15,remainingLessons=remaining,days=days,finish=(date.today()+timedelta(days=days)).isoformat())
             c.execute('UPDATE plans SET plan=?,updated=? WHERE user_id=?',(json.dumps(plan),time.time(),uid))
             return self.send_json(self.path_state(plan))
-        m=re.fullmatch(r'/api/path/lesson/([a-z0-9-]{2,24})(/complete)?',path)
+        m=re.fullmatch(r'/api/path/lesson/([a-z0-9-]{2,24})(/complete|/check)?',path)
         require(m,'Endpoint not found.',404)
         plan=self.load_plan();require(plan,'Build your plan first.',409)
         unit,lesson=coach.find_lesson(m[1]);require(lesson and m[1] in coach.lesson_order(plan),'Lesson not found.',404)
@@ -560,11 +561,29 @@ class Handler(BaseHTTPRequestHandler, PracticeRoutes, EconomyRoutes):
             require(method=='GET','Method not allowed.',405)
             if not economy.has_energy(c,uid): return self.send_json({'error':'You’re out of Energy for now.','outOfEnergy':True},402)
             steps=coach.resolve_steps(lesson['steps'],style=plan.get('style','mix'))
+            if m[1].endswith('-checkpoint'):
+                # Checkpoint answers never reach the browser: each choice is checked on the server, and a new attempt starts clean.
+                c.execute('DELETE FROM checkpoint_checks WHERE user_id=? AND lesson_id=?',(uid,m[1]))
+                steps=[{k:v for k,v in s.items() if k not in ('answer','explain')}|{'check':True} if s.get('type')=='choice' else s for s in steps]
             return self.send_json({'lesson':{'id':lesson['id'],'title':lesson['title'],'unit':{'id':unit['id'],'title':unit['title'],'color':unit['color'],'tool':unit['tool']},'steps':steps}})
         require(method=='POST','Method not allowed.',405)
+        if m[2]=='/check':
+            require(m[1].endswith('-checkpoint'),'Only checkpoints are checked one answer at a time.',400)
+            self.throttle('checkpoint-check',300)
+            step=next((s for s in lesson['steps'] if s['type']=='choice' and s['prompt']==d.get('prompt')),None);require(step,'Unknown question.',400)
+            given=d.get('given');require(isinstance(given,int) and not isinstance(given,bool) and 0<=given<len(step['options']),'Choose one of the answers.')
+            # Only the first answer to each question counts, so asking again can't be used to find the right one.
+            c.execute('INSERT OR IGNORE INTO checkpoint_checks VALUES(?,?,?,?,?)',(uid,m[1],step['prompt'],given,time.time()))
+            return self.send_json({'ok':given==step['answer'],'answer':step['answer'],'explain':step.get('explain','')})
         self.throttle('lesson-complete',120)
         # The server re-grades every answer; the browser's own score is not trusted.
         choices={s['prompt']:s['answer'] for s in lesson['steps'] if s['type']=='choice'}
+        if m[1].endswith('-checkpoint') and isinstance(d.get('results'),list):
+            # Grade each checkpoint choice by the first answer the server recorded, not by what the browser sends now.
+            firsts=dict(c.execute('SELECT prompt,given FROM checkpoint_checks WHERE user_id=? AND lesson_id=?',(uid,m[1])).fetchall())
+            for it in d['results']:
+                if isinstance(it,dict) and it.get('kind')=='choice' and not it.get('retry'):
+                    it['given']=firsts.get((it.get('data') or {}).get('prompt'),-1)
         try: originals,first,_,skills=grade_transcript(d.get('results'),choices)
         except BadTranscript as e: raise ApiError(str(e))
         require(originals==coach.expected_questions(lesson['steps'],plan.get('style','mix')),'These lesson results are incomplete. Please finish the lesson again.')

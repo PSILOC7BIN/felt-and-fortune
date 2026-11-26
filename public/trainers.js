@@ -254,8 +254,15 @@ export function choiceQ(step) {
     },
     check(el) {
       q.data = { prompt: step.prompt, options: step.options, cards: step.cards || null }; q.given = selected;
-      $$('.choice-tile', el).forEach((b, j) => { b.disabled = true; b.classList.remove('selected'); if (j === step.answer) b.classList.add('right'); else if (j === selected) b.classList.add('wrong'); });
-      return { ok: selected === step.answer, answer: step.options[step.answer], explain: step.explain || '' };
+      const mark = (answer, explain) => {
+        $$('.choice-tile', el).forEach((b, j) => { b.disabled = true; b.classList.remove('selected'); if (j === answer) b.classList.add('right'); else if (j === selected) b.classList.add('wrong'); });
+        return { ok: selected === answer, answer: step.options[answer], explain: explain || '' };
+      };
+      if (!step.check || step.answer !== undefined) return mark(step.answer, step.explain);
+      // Checkpoints: the answer lives on the server. Remember it so a retry of this question can show it.
+      $$('.choice-tile', el).forEach(b => { b.disabled = true; });
+      return step.checkAnswer(step.prompt, selected).then(r => { step.answer = r.answer; step.explain = r.explain; return mark(r.answer, r.explain); })
+        .catch(() => { $$('.choice-tile', el).forEach(b => { b.disabled = false; }); throw new Error('check failed'); });
     },
   };
   return q;
@@ -323,10 +330,12 @@ export function createRunner({ body, foot, next, onResult, onEmpty, onKeyExtra }
     body.scrollTop = 0;
     if (primary()) primary().onclick = () => (q.teach ? advance() : check());
   }
-  function check() {
+  async function check() {
     if (checked || q.teach) return;
     checked = true;
-    const r = q.check(body);
+    let r;
+    try { r = await q.check(body); } catch { checked = false; return; }
+    if (!body.isConnected) return;
     r.record = { kind: q.recKind || q.kind, data: q.data, given: q.given ?? null, explain: r.explain || '' };
     Sound.play(r.ok ? 'correct' : 'wrong');
     streak = r.ok ? streak + 1 : 0;
