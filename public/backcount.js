@@ -1,6 +1,6 @@
 // Back-counting two tables: watch two shoes at once without playing, keep both running counts, and decide which
 // table (if either) is worth sitting down at. The skill behind wonging. Count answers are graded on the server.
-import { esc, $, $$, g, ace, Sound, cardHTML, mountNumber } from './ui.js';
+import { esc, $, $$, g, ace, Sound, cardHTML, mountNumber, feltPrint } from './ui.js';
 import { startRound, loadEconomy, confetti } from './economy.js';
 import * as bj from './bj.js';
 
@@ -44,7 +44,7 @@ export async function backcountPage(ctx) {
       $('#bc-n').textContent = `${r + 1}/${ROUNDS}`; $('#bc-fill').style.width = `${r / ROUNDS * 100}%`;
       const starts = T.map(t => t.rc);
       const deals = T.map(() => 6 + Math.floor(Math.random() * 8 + r));
-      body.innerHTML = `<div class="bc-tables">${T.map((t, i) => `<div class="bc-table felt-table" data-t="${i}"><span class="bc-name">Table ${'AB'[i]}</span><div class="bc-card"></div><span class="bc-left">${bj.halves(Math.round(t.shoe.length / 26) / 2)} decks left</span></div>`).join('')}</div>`;
+      body.innerHTML = `<div class="bc-tables">${T.map((t, i) => `<div class="bc-table felt-table" data-t="${i}">${feltPrint({ spots: false })}<span class="bc-name">Table ${'AB'[i]}</span><div class="bc-card"></div><span class="bc-left">${bj.halves(Math.round(t.shoe.length / 26) / 2)} decks left</span></div>`).join('')}</div>`;
       foot.innerHTML = '<span class="foot-hint">Keep both counts</span>';
       const seen = [[], []], order = [];
       for (let i = 0; i < Math.max(...deals); i++) for (let k = 0; k < 2; k++) if (i < deals[k]) order.push(k);

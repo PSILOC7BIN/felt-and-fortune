@@ -77,3 +77,40 @@ export function whyHTML(cards, up, rules = {}, given = null) {
   }).join('');
   return `<div class="why-panel"><p class="why-text">${why}</p><p class="why-head">Out of 100 hands like this, betting $10 each</p><ul class="why-list plain">${rows}</ul><p class="why-legend"><span class="k w"></span>win <span class="k p"></span>tie <span class="k l"></span>lose · the last column is how much you’d be up or down after all 100 hands. Doubles risk $20 a hand.</p></div>`;
 }
+
+/** The coach's walkthrough: short steps, each pointing at one thing on the table (you, the dealer, or a play). */
+export function walkSteps(cards, up, rules = {}, given = null) {
+  const act = basic(cards, up, rules);
+  const { total: t, soft } = total(cards);
+  const o = outcomeChances(cards, up, rules), ev = actionEVs(cards, up, rules);
+  const pair = isPair(cards), pv = Math.min(cards[0], 10), upTxt = upWord(up), Up = upTxt[0].toUpperCase() + upTxt.slice(1);
+  const pairName = pv === 1 ? 'aces' : `${pv}s`;
+  const steps = [];
+  steps.push({ at: 'you', text: pair ? `You have a pair of ${pairName}.` : soft ? `You have soft ${t}. The ace counts as 11, but it can drop to 1, so one card can’t bust you.` : `You have hard ${t}.` });
+  steps.push({ at: 'dealer', text: strong(up) ? `The dealer shows ${upTxt}. That’s a strong card. Picture a 10 underneath: that makes ${up === 1 ? 21 : Math.min(up, 10) + 10}.` : `The dealer shows ${upTxt}. That’s a weak card. The dealer must keep drawing to 17 and busts about ${n100(o.dealerBust)} times in 100.` });
+  if (act === 'R') {
+    steps.push({ at: 'act:R', text: 'Surrender ends the hand and gives you back half your bet.' });
+    steps.push({ at: 'act:R', text: `${t} against ${upTxt} loses about ${n100(o.S.l)} of 100 hands. Getting half back is cheaper. Surrender.` });
+  } else if (act === 'P') {
+    steps.push({ at: 'act:P', text: 'Splitting turns your pair into two hands, each with its own bet.' });
+    steps.push({ at: 'act:P', text: pv === 8 ? '16 is the worst hand in blackjack. Two hands that start with 8 do much better. Split.' : pv === 1 ? 'Two aces together are just 12. Split, and each ace starts a new hand at 11.' : `Two hands starting with ${pv} do better than one ${pv * 2} here. Split.` });
+  } else if (pair && pv === 10) {
+    steps.push({ at: 'act:S', text: `20 already wins about ${n100(o.S.w)} of 100 hands. Never break it up. Stand.` });
+  } else if (act === 'D') {
+    steps.push({ at: 'act:D', text: 'Doubling puts in a second bet. You get exactly one more card.' });
+    steps.push({ at: 'act:D', text: `Here you win about ${n100(o.D.w)} of 100 hands. When you’re likely to win, put more money out. Double.` });
+  } else if (act === 'S') {
+    if (!soft && t >= 17) steps.push({ at: 'act:H', text: `Hitting ${t} busts you about ${n100(o.bustNext)} times in 100.` }, { at: 'act:S', text: 'That’s too risky. Stand.' });
+    else if (soft) steps.push({ at: 'act:S', text: `Soft ${t} already wins or ties about ${n100(o.S.w + o.S.p)} of 100 hands. Stand.` });
+    else steps.push({ at: 'act:H', text: `If you hit ${t}, you bust about ${n100(o.bustNext)} times in 100.` }, { at: 'act:S', text: `Let the dealer take the risk instead. Standing loses ${n100(o.S.l)} of 100, hitting loses ${n100(o.H.l)}. Stand.` });
+  } else {   // hit
+    if (!soft && t <= 11) steps.push({ at: 'act:H', text: `No card can bust ${t}: the biggest card is 10. Hit.` });
+    else if (soft) steps.push({ at: 'act:H', text: `Soft ${t} isn’t strong enough yet, and hitting can’t bust you. Hit.` });
+    else steps.push({ at: 'act:S', text: `If you stand on ${t}, you only win when the dealer busts: about ${n100(o.S.w)} times in 100.` }, { at: 'act:H', text: `Hitting loses ${n100(o.H.l)} of 100 instead of ${n100(o.S.l)}. It loses less, so hit.` });
+  }
+  if (given && given !== act && ev[given] !== undefined) {
+    const diff = (ev[act] - ev[given]) * 1000;
+    steps.push({ at: 'act:' + given, text: diff < 5 ? `You picked ${ACTIONS[given].toLowerCase()}. That’s a close call, almost as good.` : `You picked ${ACTIONS[given].toLowerCase()}. Over 100 hands at $10, that costs about ${money(diff)} more.` });
+  }
+  return steps;
+}

@@ -1,6 +1,6 @@
 // Economy UI: streak/Stars/Energy chips, the store, the Pro paywall, quests, leagues, and celebrations.
 // The server is the source of truth (economy.py); this module only renders and calls it.
-import { esc, $, $$, Sound, g, ace } from './ui.js';
+import { esc, $, $$, Sound, g, ace, feltPrint } from './ui.js';
 import { react } from './reactions.js';
 
 let cache = null, apiRef = null;
@@ -238,7 +238,7 @@ const DEFAULT_ITEMS = { back: ['classic', 'Classic Red', 'The original back.'], 
 
 export function artHTML(kind, value) {
   if (kind === 'back') return `<span class="back-art bk-${esc(value)}"></span>`;
-  if (kind === 'felt') return `<span class="mat-art mt-${esc(value)}"></span>`;
+  if (kind === 'felt') return `<span class="mat-art mt-${esc(value)}">${feltPrint()}</span>`;
   if (kind === 'coach') return `<span class="coach-art">${ace('happy', '', value)}</span>`;
   if (kind === 'freeze') return `<span class="shop-art freeze">${g('snow')}</span>`;
   return `<span class="shop-art energy">${g('bolt')}</span>`;

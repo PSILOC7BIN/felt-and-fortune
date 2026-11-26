@@ -202,3 +202,17 @@
 .fp-table.bj-table.has-dealer { min-height: 0; }
 .fp-table .felt-print .fp-spot { opacity: .3; }
 @media (max-width: 600px) { .felt-print .fp-spot { display: none; } }
+
+/* The same printed felt on every table: Casino Floor, count tables, back-count, store previews, concept screens */
+.deal-table.has-print > :not(.felt-print):not(.dealer-ace) { position: relative; z-index: 1; }
+.mat-art { position: relative; overflow: hidden; }
+.mat-art::before, .mat-art::after { display: none !important; }
+.mat-art .felt-print { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bc-table { position: relative; } .bc-table > :not(.felt-print) { position: relative; z-index: 1; }
+.bc-table .felt-print { opacity: .55; }
+.sc-felt { position: relative; } .sc-felt > :not(.felt-print) { position: relative; z-index: 1; }
+.sc-felt .felt-print { opacity: .14; }
+/* Multi-seat tables: seats sit near the rail, so the printed band stays clear between the dealer and the players */
+.deal-table.bj-table.has-print { min-height: 480px; }
+.deal-table.bj-table.has-print .seats { margin-top: auto; }
+.deal-table.bj-table.has-print .felt-print { top: -4%; }

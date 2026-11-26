@@ -1,10 +1,11 @@
 import { conceptParts, renderPart, wireReplay } from './concepts.js';
-import { whyHTML, explain } from './explain.js';
+import { explain } from './explain.js';
+import { walkthrough, stopWalkthrough } from './guide.js';
 // The trainers: question generators shared by the Practice tools and the lessons.
 // A question renders into a container, tells the runner when it can be checked, and grades itself.
 import { react } from './reactions.js';
 import * as bj from './bj.js';
-import { esc, $, $$, Sound, ace, g, cardHTML, tableHTML, mountTray, mountStepper, mountNumber } from './ui.js';
+import { esc, $, $$, Sound, ace, g, cardHTML, tableHTML, mountTray, mountStepper, mountNumber, feltPrint } from './ui.js';
 
 const PRAISE = ['Nice!', 'Great job!', 'Correct!', 'You got it!', 'Sharp!', 'Exactly!', 'Spot on!'];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -156,7 +157,7 @@ function tableCountQ({ seats = 3, speed = 900, start = 0, prompt }) {
   const q = {
     kind: 'count', hint: 'Type the count (± for negatives), then press Enter', data: { cards: counted, start }, answer, cards: counted,
     render(el, ctx) {
-      el.innerHTML = `<div class="q"><p class="q-eyebrow">Full table · ${seats} players · ${(speed / 1000).toFixed(2).replace(/0$/, '')} s per card</p><h1 class="q-title">${esc(prompt || 'Count every card as the round is dealt and played.')}</h1><p class="sr">This drill shows cards visually, one at a time. They are not read aloud, because announcing them would give away the count.</p><div class="deal-table bj-table has-dealer" aria-live="off"><div class="dealer-ace" aria-hidden="true">${ace('happy', 'ace-dealer')}</div><div class="seat dealer"><div class="cards"></div><span class="hand-label">Dealer</span></div><div class="seats" style="--n:${seats}">${Array.from({ length: seats }, (_, i) => { const mid = (seats - 1) / 2, k = mid ? (i - mid) / mid : 0; return `<div class="seat" data-seat="${i}" style="--drop:${(1 - k * k).toFixed(2)};--tilt:${(-k * 10).toFixed(1)}deg"><div class="cards"></div><span class="hand-label">${i === Math.floor(mid) ? 'You' : 'Player ' + (i + 1)}</span></div>`; }).join('')}</div><p class="deal-status">${ace('think', 'ace-xs')}<b>Get ready…</b></p></div><div class="answer-slot" hidden></div></div>`;
+      el.innerHTML = `<div class="q"><p class="q-eyebrow">Full table · ${seats} players · ${(speed / 1000).toFixed(2).replace(/0$/, '')} s per card</p><h1 class="q-title">${esc(prompt || 'Count every card as the round is dealt and played.')}</h1><p class="sr">This drill shows cards visually, one at a time. They are not read aloud, because announcing them would give away the count.</p><div class="deal-table bj-table has-dealer has-print" aria-live="off">${feltPrint({ spots: false })}<div class="dealer-ace" aria-hidden="true">${ace('happy', 'ace-dealer')}</div><div class="seat dealer"><div class="cards"></div><span class="hand-label">Dealer</span></div><div class="seats" style="--n:${seats}">${Array.from({ length: seats }, (_, i) => { const mid = (seats - 1) / 2, k = mid ? (i - mid) / mid : 0; return `<div class="seat" data-seat="${i}" style="--drop:${(1 - k * k).toFixed(2)};--tilt:${(-k * 10).toFixed(1)}deg"><div class="cards"></div><span class="hand-label">${i === Math.floor(mid) ? 'You' : 'Player ' + (i + 1)}</span></div>`; }).join('')}</div><p class="deal-status">${ace('think', 'ace-xs')}<b>Get ready…</b></p></div><div class="answer-slot" hidden></div></div>`;
       const status = $('.deal-status b', el);
       (async () => {
         await sleep(900);
@@ -326,7 +327,7 @@ export function createRunner({ body, foot, next, onResult, onEmpty, onKeyExtra }
     if (!q) { onEmpty?.(); return; }
     checked = false; ready = false;
     const ctx = { ready: v => { ready = v; const b = primary(); if (b && !checked) b.disabled = !v; }, submit: () => check() };
-    body.innerHTML = ''; body.classList.remove('why-open');
+    stopWalkthrough(body); body.innerHTML = ''; body.classList.remove('why-open');
     if (q.teach) setFoot(`<span></span><button type="button" class="primary chunky" id="run-primary">Continue</button>`);
     else if (q.instant) setFoot(`<span class="foot-hint">Tap an answer or press its key</span>`);
     else setFoot(`<span class="foot-hint">${q.hint || 'Press Enter to check'}</span><button type="button" class="primary chunky" id="run-primary" disabled>Check</button>`);
@@ -351,8 +352,9 @@ export function createRunner({ body, foot, next, onResult, onEmpty, onKeyExtra }
     setFoot(`<div class="verdict">${ace(r.ok ? 'wow' : 'oops', 'ace-xs')}<div><strong>${r.ok ? PRAISE[Math.floor(Math.random() * PRAISE.length)] : 'Correct answer: ' + esc(r.answer)}</strong><p>${esc(r.explain || '')}${r.why ? ` <button type="button" class="why-btn" id="run-why" aria-expanded="false">${r.ok ? 'Why?' : 'Here’s why'}</button>` : ''}</p></div></div><button type="button" class="primary chunky" id="run-primary">Continue</button>`, r.ok ? 'ok' : 'bad');
     primary().onclick = advance; primary().focus({ preventScroll: true });
     const wb = $('#run-why', foot);
-    if (wb && !r.ok) setTimeout(() => { if (wb.isConnected && !$('.why-wrap', body)) wb.click(); }, 350);
-    if (wb) wb.onclick = () => { let p = $('.why-wrap', body); if (p) { p.remove(); body.classList.remove('why-open'); wb.setAttribute('aria-expanded', 'false'); return; } body.classList.add('why-open'); body.insertAdjacentHTML('beforeend', `<div class="why-wrap">${whyHTML(r.why.cards, r.why.dealer, r.why.rules, r.why.given)}</div>`); wb.setAttribute('aria-expanded', 'true'); Sound.play('select'); };
+    // Why: Ace walks around this same table and explains each step. It starts on its own after a wrong answer.
+    if (wb) wb.onclick = () => { if (document.querySelector('.guide')) { stopWalkthrough(body); wb.setAttribute('aria-expanded', 'false'); return; } walkthrough(body, r.why, () => wb.setAttribute('aria-expanded', 'false')); wb.setAttribute('aria-expanded', 'true'); };
+    if (wb && !r.ok) setTimeout(() => { if (wb.isConnected && !document.querySelector('.guide')) wb.click(); }, 450);
     onResult?.(q, r);
   }
   function advance() { Sound.play('tap'); show(); }

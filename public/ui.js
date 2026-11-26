@@ -310,7 +310,7 @@ export function fitCoachScreens(root = document.getElementById('app')) {
   const watched = new WeakSet();
   let raf = 0;
   const fit = body => {
-    const kids = [...body.children];
+    const kids = [...body.children].filter(k => !k.classList.contains('no-fit'));
     if (!kids.length || body.classList.contains('fp-body')) return;
     kids.forEach(k => { k.style.zoom = ''; });
     const cs = getComputedStyle(body), pad = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);

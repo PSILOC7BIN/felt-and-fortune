@@ -1,8 +1,9 @@
 // Concept screens: every "New idea" step is split into up to three short parts, each with an animation that shows
 // exactly what that part says (segmenting + signaling: one idea per screen, words next to the picture they describe).
 // Scenes are chosen from the words of each part, and use the step's own cards when it has them.
-import { esc, cardHTML, ace, g } from './ui.js';
+import { esc, cardHTML, ace, g, feltPrint } from './ui.js';
 import * as bj from './bj.js';
+import { illustrate } from './illustrate.js';
 
 const RULES = [
   ['heat', /pit|heat|back ?off|cover|camouflag|surveil|ban/i],
@@ -34,7 +35,7 @@ function pickScene(text, fallback) {
 
 /** Split a teaching text into at most three parts of whole sentences. */
 export function segments(text) {
-  const s = (text.match(/[^.!?]+[.!?]+(\s|$)|[^.!?]+$/g) || [text]).map(x => x.trim()).filter(Boolean);
+  const s = text.split(/(?<=[.!?])\s+(?=[A-Z0-9“"‘(+$−-])/).map(x => x.trim()).filter(Boolean);
   if (s.length <= 1) return [text];
   const n = Math.min(3, s.length), per = Math.ceil(s.length / n), out = [];
   for (let i = 0; i < s.length; i += per) out.push(s.slice(i, i + per).join(' '));
@@ -43,7 +44,7 @@ export function segments(text) {
 
 const c = (v, i, cls = '') => `<span class="sc-c" style="--i:${i}">${cardHTML(v, i, { cls })}</span>`;
 const back = i => `<span class="sc-c" style="--i:${i}">${cardHTML(0, i, { back: true })}</span>`;
-const felt = inner => `<div class="sc-felt">${inner}</div>`;
+const felt = inner => `<div class="sc-felt">${feltPrint({ spots: false })}${inner}</div>`;
 
 /** An animated scene. `step` may carry cards/dealer to use. */
 export function scene(name, step = {}) {
@@ -106,31 +107,43 @@ export function scene(name, step = {}) {
 
 /** The parts of a teaching step, each with a scene. */
 export function conceptParts(step) {
-  const parts = segments(step.text || '');
-  const base = pickScene(`${step.title} ${step.text}`, step.cards || step.dealer ? 'stiff' : 'deal');
-  const used = new Set();
-  return parts.map((txt, i) => {
-    let s = pickScene(txt, base);
-    // In counting and advantage lessons, stay with that topic's picture unless the part names another one of them.
-    const ADV = new Set(['count', 'truecount', 'tray', 'bet', 'index', 'heat']);
-    if (ADV.has(base) && !ADV.has(s)) s = base;
-    if (used.has(s) && i > 0) s = pickScene(txt.replace(/[^ ]+/, ''), base);
-    used.add(s);
-    // When the step has its own cards, show them on the part that talks about a hand.
-    const own = (step.cards || step.dealer) && i === parts.length - 1 && !['count', 'truecount', 'tray', 'bet', 'edge', 'chart', 'heat'].includes(s);
-    return { text: txt, scene: own && !['split', 'double', 'surrender', 'insurance', 'ace', 'bust', 'blackjack'].includes(s) ? 'stiff' : s };
+  // Each part's animation is built from that part's own words: exactly what it says, nothing more. When a part has
+  // several sentences that each have something to show, they play one after another, in step with the text.
+  return segments(step.text || '').map(text => {
+    const sentences = text.split(/(?<=[.!?])\s+(?=[A-Z0-9“"‘(+$−-])/).filter(Boolean);
+    const each = sentences.map(x => illustrate(x));
+    if (sentences.length > 1 && each.filter(Boolean).length > 1) return { text, sentences, seq: each };
+    return { text, sentences: [text], html: illustrate(text) };
   });
 }
 
 /** Render part `i` of a step into `el`. */
 export function renderPart(el, step, parts, i, chartHTMLFn) {
   const p = parts[i];
+  clearTimeout(el._seqTimer);
+  const pic = p.seq ? `<div class="sc-seq">${p.seq.map((h, k) => `<div class="sc-step" data-k="${k}" ${k ? 'hidden' : ''}>${h || ''}</div>`).join('')}</div>` : p.html;
+  const words = p.seq ? p.sentences.map((x, k) => `<span class="sc-sent" data-k="${k}">${esc(x)}</span>`).join(' ') : esc(p.text);
   el.innerHTML = `<div class="q teach concept"><div class="concept-top"><span class="pill">New idea</span><span class="concept-dots">${parts.map((_, k) => `<i class="${k === i ? 'on' : k < i ? 'done' : ''}"></i>`).join('')}</span></div><h1 class="q-title">${esc(step.title)}</h1>
-    <div class="concept-scene" aria-hidden="true">${scene(p.scene, step)}<button type="button" class="sc-replay" aria-label="Replay the animation">${g('rotl')}</button></div><p class="teach-text concept-text">${esc(p.text)}</p>${i === parts.length - 1 && step.tip ? `<p class="teach-tip">${g('star')}<span>${esc(step.tip)}</span></p>` : ''}${i === parts.length - 1 && step.chart && chartHTMLFn ? chartHTMLFn(step.chart) : ''}</div>`;
+    ${pic ? `<div class="concept-scene" aria-hidden="true">${pic}<button type="button" class="sc-replay" aria-label="Replay the animation">${g('rotl')}</button></div>` : ''}<p class="teach-text concept-text">${words}</p>${i === parts.length - 1 && step.tip ? `<p class="teach-tip">${g('star')}<span>${esc(step.tip)}</span></p>` : ''}${i === parts.length - 1 && step.chart && chartHTMLFn ? chartHTMLFn(step.chart) : ''}</div>`;
+  if (p.seq) runSeq(el, p);
+}
+
+// Show each sentence's picture in turn (sentences with nothing to draw keep the previous picture), highlighting
+// that sentence in the text. Ends on the last picture.
+function runSeq(el, p) {
+  clearTimeout(el._seqTimer);
+  let k = 0;
+  const show = () => {
+    let pic = k; while (pic > 0 && !p.seq[pic]) pic--;
+    el.querySelectorAll('.sc-step').forEach(s => { const on = Number(s.dataset.k) === pic; s.hidden = !on; if (on && !s.dataset.shown) { s.dataset.shown = '1'; } });
+    el.querySelectorAll('.sc-sent').forEach(s => s.classList.toggle('on', Number(s.dataset.k) === k));
+    if (k < p.sentences.length - 1) el._seqTimer = setTimeout(() => { k++; const st = el.querySelector(`.sc-step[data-k="${k}"]`); if (st && p.seq[k]) st.innerHTML = p.seq[k]; show(); }, 3600);
+  };
+  show();
 }
 
 /** Wire the replay button: re-inserting the scene restarts its animation. */
 export function wireReplay(el, step, parts, i) {
   const b = el.querySelector('.sc-replay'); if (!b) return;
-  b.onclick = () => { const box = el.querySelector('.concept-scene'); const keep = b; box.innerHTML = scene(parts[i].scene, step); box.append(keep); };
+  b.onclick = () => { const p = parts[i]; if (p.seq) { renderPart(el, step, parts, i); wireReplay(el, step, parts, i); return; } const box = el.querySelector('.concept-scene'); const keep = b; box.innerHTML = p.html; box.append(keep); };
 }

@@ -1,7 +1,7 @@
 // Casino Floor: practice under real conditions. A six-deck shoe dealt to a full table, a dealer with a personality,
 // casino noise and chatter, dealer mistakes to catch, surprise count checks, bet sizing by the count, and (with Pit
 // Boss Pete) a heat meter that ends the session if your spread gets too obvious. Scores count decisions, never chips.
-import { esc, $, $$, g, ace, Sound, cardHTML, mountNumber } from './ui.js';
+import { esc, $, $$, g, ace, Sound, cardHTML, mountNumber, feltPrint } from './ui.js';
 import { loadEconomy, paywall } from './economy.js';
 import * as bj from './bj.js';
 
@@ -98,7 +98,7 @@ export async function casinoPage(ctx) {
     if (!alive || !session) return;
     // 2. deal
     const seats = cfg.seats + 1, me = Math.floor(seats / 2), hands = Array.from({ length: seats }, () => []), dealer = [];
-    body.innerHTML = `<div class="deal-table bj-table has-dealer cf-table"><div class="dealer-ace" aria-hidden="true">${ace(s.D.mood, 'ace-dealer')}</div><div class="cf-say" id="cf-say" hidden></div><div class="seat dealer"><div class="cards"></div><span class="hand-label" id="cf-dtotal">Dealer</span></div>
+    body.innerHTML = `<div class="deal-table bj-table has-dealer cf-table has-print">${feltPrint({ spots: false })}<div class="dealer-ace" aria-hidden="true">${ace(s.D.mood, 'ace-dealer')}</div><div class="cf-say" id="cf-say" hidden></div><div class="seat dealer"><div class="cards"></div><span class="hand-label" id="cf-dtotal">Dealer</span></div>
       <div class="seats" style="--n:${seats}">${hands.map((_, i) => { const mid = (seats - 1) / 2, k = mid ? (i - mid) / mid : 0; return `<div class="seat${i === me ? ' me' : ''}" data-seat="${i}" style="--drop:${(1 - k * k).toFixed(2)};--tilt:${(-k * 10).toFixed(1)}deg"><div class="cards"></div><span class="hand-label">${i === me ? `You · ${bet}u` : 'Player'}</span></div>`; }).join('')}</div></div><p class="cf-status" id="cf-status" aria-live="polite"></p>`;
     foot.className = 'coach-foot'; foot.innerHTML = `<span class="foot-hint">Keep the count. ${cfg.errors ? 'Tap “That’s wrong!” if the dealer slips up.' : ''}</span><button type="button" class="ghost" id="cf-wrong" ${cfg.errors ? '' : 'hidden'}>That’s wrong!</button><button type="button" class="ghost" id="cf-end">End session</button>`;
     $('#cf-end').onclick = summary;
